@@ -64,7 +64,26 @@ try {
 <body>
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">Back to list</a>
-    <h1 class="mb-4"><?= htmlspecialchars($book['title']) ?></h1>
+    <h1 class="mb-0"><?= htmlspecialchars($book['title']) ?></h1>
+    <?php
+        $formattedPubdate = '';
+        if (!empty($book['pubdate'])) {
+            try {
+                $dt = new DateTime($book['pubdate']);
+                $formattedPubdate = $dt->format('jS \of F Y');
+            } catch (Exception $e) {
+                $formattedPubdate = htmlspecialchars($book['pubdate']);
+            }
+        }
+    ?>
+    <p class="mb-4">
+        <?php if (!empty($book['isbn'])): ?>
+            <strong>ISBN:</strong> <?= htmlspecialchars($book['isbn']) ?><br>
+        <?php endif; ?>
+        <?php if ($formattedPubdate): ?>
+            <strong>Published:</strong> <?= htmlspecialchars($formattedPubdate) ?>
+        <?php endif; ?>
+    </p>
     <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4">Get Book Recommendations</button>
     <div class="row mb-4">
         <div class="col-md-3">
@@ -117,23 +136,8 @@ try {
             <h2>Description</h2>
             <p><?= nl2br(htmlspecialchars($comment)) ?></p>
         </div>
+
 <?php endif; ?>
-    <h2>Metadata</h2>
-    <table class="table table-bordered">
-        <tr><th>ID</th><td><?= htmlspecialchars($book['id']) ?></td></tr>
-        <tr><th>Title</th><td><?= htmlspecialchars($book['title']) ?></td></tr>
-        <tr><th>Sort</th><td><?= htmlspecialchars($book['sort']) ?></td></tr>
-        <tr><th>Timestamp</th><td><?= htmlspecialchars($book['timestamp']) ?></td></tr>
-        <tr><th>Pubdate</th><td><?= htmlspecialchars($book['pubdate']) ?></td></tr>
-        <tr><th>Author Sort</th><td><?= htmlspecialchars($book['author_sort']) ?></td></tr>
-        <tr><th>ISBN</th><td><?= htmlspecialchars($book['isbn']) ?></td></tr>
-        <tr><th>LCCN</th><td><?= htmlspecialchars($book['lccn']) ?></td></tr>
-        <tr><th>Path</th><td><?= htmlspecialchars($book['path']) ?></td></tr>
-        <tr><th>Flags</th><td><?= htmlspecialchars($book['flags']) ?></td></tr>
-        <tr><th>UUID</th><td><?= htmlspecialchars($book['uuid']) ?></td></tr>
-        <tr><th>Has Cover</th><td><?= htmlspecialchars($book['has_cover']) ?></td></tr>
-        <tr><th>Last Modified</th><td><?= htmlspecialchars($book['last_modified']) ?></td></tr>
-    </table>
 
 </div>
 <script>
