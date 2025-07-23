@@ -256,7 +256,11 @@ $baseUrl .= '&page=';
                         &mdash;
                     <?php endif; ?>
                 </td>
-                <td><?= htmlspecialchars($book['title']) ?></td>
+                <td>
+                    <a href="openlibrary_view.php?key=<?= urlencode($book['key']) ?>&title=<?= urlencode($book['title']) ?>&authors=<?= urlencode($book['authors']) ?>&cover_id=<?= urlencode((string)$book['cover_id']) ?>">
+                        <?= htmlspecialchars($book['title']) ?>
+                    </a>
+                </td>
                 <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
