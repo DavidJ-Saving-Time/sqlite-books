@@ -6,6 +6,8 @@ $pdo = getDatabaseConnection();
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $sort = $_GET['sort'] ?? 'title';
+$authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
+$seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
 $allowedSorts = ['title', 'author', 'series', 'author_series'];
 if (!in_array($sort, $allowedSorts, true)) {
     $sort = 'title';
@@ -19,24 +21,64 @@ $orderByMap = [
 ];
 $orderBy = $orderByMap[$sort];
 
+$whereClauses = [];
+$params = [];
+if ($authorId) {
+    $whereClauses[] = 'b.id IN (SELECT book FROM books_authors_link WHERE author = :author_id)';
+    $params[':author_id'] = $authorId;
+}
+if ($seriesId) {
+    $whereClauses[] = 'EXISTS (SELECT 1 FROM books_series_link WHERE book = b.id AND series = :series_id)';
+    $params[':series_id'] = $seriesId;
+}
+$where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
+
+// Names for filter display
+$filterAuthorName = null;
+if ($authorId) {
+    $stmt = $pdo->prepare('SELECT name FROM authors WHERE id = ?');
+    $stmt->execute([$authorId]);
+    $filterAuthorName = $stmt->fetchColumn();
+}
+$filterSeriesName = null;
+if ($seriesId) {
+    $stmt = $pdo->prepare('SELECT name FROM series WHERE id = ?');
+    $stmt->execute([$seriesId]);
+    $filterSeriesName = $stmt->fetchColumn();
+}
+
 try {
-    $totalStmt = $pdo->query('SELECT COUNT(*) FROM books');
+    $totalSql = "SELECT COUNT(*) FROM books b $where";
+    $totalStmt = $pdo->prepare($totalSql);
+    foreach ($params as $key => $val) {
+        $totalStmt->bindValue($key, $val, PDO::PARAM_INT);
+    }
+    $totalStmt->execute();
     $totalBooks = (int)$totalStmt->fetchColumn();
 
     $offset = ($page - 1) * $perPage;
 
     $sql = "SELECT b.id, b.title, b.path, b.has_cover, b.series_index,
-                COALESCE((SELECT GROUP_CONCAT(a.name, ', ')
-                          FROM books_authors_link bal
-                          JOIN authors a ON bal.author = a.id
-                          WHERE bal.book = b.id), '') AS authors,
-                (SELECT s.name FROM books_series_link bsl
-                        JOIN series s ON bsl.series = s.id
-                        WHERE bsl.book = b.id) AS series
-         FROM books b
-         ORDER BY {$orderBy}
-         LIMIT :limit OFFSET :offset";
+                   (SELECT GROUP_CONCAT(a.name, ', ')
+                        FROM books_authors_link bal
+                        JOIN authors a ON bal.author = a.id
+                        WHERE bal.book = b.id) AS authors,
+                   (SELECT GROUP_CONCAT(a.id || ':' || a.name, '|')
+                        FROM books_authors_link bal
+                        JOIN authors a ON bal.author = a.id
+                        WHERE bal.book = b.id) AS author_data,
+                   s.id AS series_id,
+                   s.name AS series
+            FROM books b
+            LEFT JOIN books_series_link bsl ON bsl.book = b.id
+            LEFT JOIN series s ON bsl.series = s.id
+            $where
+            ORDER BY {$orderBy}
+            LIMIT :limit OFFSET :offset";
     $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $val) {
+        $stmt->bindValue($key, $val, PDO::PARAM_INT);
+    }
     $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
@@ -46,7 +88,14 @@ try {
 }
 
 $totalPages = max(1, ceil($totalBooks / $perPage));
-$baseUrl = '?sort=' . urlencode($sort) . '&page=';
+$baseUrl = '?sort=' . urlencode($sort);
+if ($authorId) {
+    $baseUrl .= '&author_id=' . urlencode((string)$authorId);
+}
+if ($seriesId) {
+    $baseUrl .= '&series_id=' . urlencode((string)$seriesId);
+}
+$baseUrl .= '&page=';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,8 +108,29 @@ $baseUrl = '?sort=' . urlencode($sort) . '&page=';
 <body>
 <div class="container my-4">
     <h1 class="mb-4">Books</h1>
+    <?php if ($filterAuthorName || $filterSeriesName): ?>
+        <div class="alert alert-info mb-3">
+            Showing
+            <?php if ($filterAuthorName): ?>
+                author: <?= htmlspecialchars($filterAuthorName) ?>
+            <?php endif; ?>
+            <?php if ($filterAuthorName && $filterSeriesName): ?>
+                ,
+            <?php endif; ?>
+            <?php if ($filterSeriesName): ?>
+                series: <?= htmlspecialchars($filterSeriesName) ?>
+            <?php endif; ?>
+            <a class="btn btn-sm btn-secondary ms-2" href="list_books.php?sort=<?= urlencode($sort) ?>">Clear</a>
+        </div>
+    <?php endif; ?>
     <form method="get" class="row g-2 mb-3 align-items-center">
         <input type="hidden" name="page" value="1">
+        <?php if ($authorId): ?>
+            <input type="hidden" name="author_id" value="<?= htmlspecialchars($authorId) ?>">
+        <?php endif; ?>
+        <?php if ($seriesId): ?>
+            <input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesId) ?>">
+        <?php endif; ?>
         <div class="col-auto">
             <label for="sort" class="col-form-label">Sort by:</label>
         </div>
@@ -96,10 +166,26 @@ $baseUrl = '?sort=' . urlencode($sort) . '&page=';
                     <?php endif; ?>
                 </td>
                 <td><?= htmlspecialchars($book['title']) ?></td>
-                <td><?= htmlspecialchars($book['authors']) ?></td>
+                <td>
+                    <?php if (!empty($book['author_data'])): ?>
+                        <?php
+                            $links = [];
+                            foreach (explode('|', $book['author_data']) as $pair) {
+                                list($aid, $aname) = explode(':', $pair, 2);
+                                $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
+                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
+                            }
+                            echo implode(', ', $links);
+                        ?>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
                 <td>
                     <?php if (!empty($book['series'])): ?>
-                        <?= htmlspecialchars($book['series']) ?>
+                        <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
+                            <?= htmlspecialchars($book['series']) ?>
+                        </a>
                         <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
                             (<?= htmlspecialchars($book['series_index']) ?>)
                         <?php endif; ?>
