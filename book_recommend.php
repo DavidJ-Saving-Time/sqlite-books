@@ -8,7 +8,7 @@ function get_book_recommendations(string $preferences): string {
     $apiKey = getenv('OPENROUTER_API_KEY') ?: 'your_api_key_here';
 
     $payload = [
-        'model' => 'anthropic/claude-3.5-sonnet',
+        'model' => 'anthropic/claude-sonnet-4',
         'messages' => [
             [
                 'role' => 'system',
