@@ -129,7 +129,10 @@ $tags = $tagsStmt->fetchColumn();
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <pre id="recommendContent" class="mb-0"></pre>
+                    <div id="recommendLoading" class="d-flex justify-content-center my-4" style="display: none;">
+                        <div class="spinner-border" role="status" aria-hidden="true"></div>
+                    </div>
+                    <div id="recommendContent" style="white-space: pre-wrap;"></div>
                 </div>
             </div>
         </div>
@@ -137,20 +140,28 @@ $tags = $tagsStmt->fetchColumn();
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
-document.getElementById('recommendBtn').addEventListener('click', function () {
+const recommendBtn = document.getElementById('recommendBtn');
+const recommendContent = document.getElementById('recommendContent');
+const recommendLoading = document.getElementById('recommendLoading');
+const recommendModalEl = document.getElementById('recommendModal');
+const recommendModal = new bootstrap.Modal(recommendModalEl);
+
+recommendBtn.addEventListener('click', function () {
     const authors = this.dataset.authors;
     const title = this.dataset.title;
+    recommendContent.textContent = '';
+    recommendLoading.style.display = 'flex';
+    recommendModal.show();
+
     fetch('recommend.php?authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
         .then(resp => resp.json())
         .then(data => {
-            document.getElementById('recommendContent').textContent = data.output || data.error || '';
-            const modal = new bootstrap.Modal(document.getElementById('recommendModal'));
-            modal.show();
+            recommendLoading.style.display = 'none';
+            recommendContent.textContent = data.output || data.error || '';
         })
         .catch(() => {
-            document.getElementById('recommendContent').textContent = 'Error fetching recommendations';
-            const modal = new bootstrap.Modal(document.getElementById('recommendModal'));
-            modal.show();
+            recommendLoading.style.display = 'none';
+            recommendContent.textContent = 'Error fetching recommendations';
         });
 });
 </script>
