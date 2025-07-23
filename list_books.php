@@ -117,7 +117,7 @@ if ($source === 'openlibrary' && $search !== '') {
                             JOIN custom_column_2 c ON bcc.value = c.id
                             WHERE bcc.book = b.id) AS genre_data";
         if ($recColumnExists) {
-            $selectFields .= ", EXISTS(SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id) AS has_recs";
+            $selectFields .= ", EXISTS(SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '') AS has_recs";
         }
 
         $sql = "SELECT $selectFields
