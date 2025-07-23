@@ -45,7 +45,7 @@ $tags = $tagsStmt->fetchColumn();
 
 // Fetch saved recommendations from custom column 10, if present
 try {
-    $recStmt = $pdo->prepare('SELECT value FROM custom_column_10 WHERE book = ?');
+    $recStmt = $pdo->prepare('SELECT value FROM books_custom_column_10 WHERE book = ?');
     $recStmt->execute([$id]);
     $savedRecommendations = $recStmt->fetchColumn();
 } catch (PDOException $e) {
