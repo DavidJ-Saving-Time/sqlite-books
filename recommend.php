@@ -1,6 +1,8 @@
 <?php
 header('Content-Type: application/json');
 
+require_once 'book_recommend.php';
+
 $authors = $_GET['authors'] ?? '';
 $title = $_GET['title'] ?? '';
 
@@ -10,17 +12,12 @@ if ($authors === '' && $title === '') {
     exit;
 }
 
-$cmd = 'direnv exec ./python python3 '
-    . escapeshellarg(__DIR__ . '/python/book_recommend.py') . ' '
-    . escapeshellarg($authors) . ' ' . escapeshellarg($title);
+$userInput = trim($authors . ' ' . $title);
 
-$output = shell_exec($cmd);
-
-if ($output === null) {
+try {
+    $output = get_book_recommendations($userInput);
+    echo json_encode(['output' => $output]);
+} catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Failed to execute recommendation script']);
-    exit;
+    echo json_encode(['error' => $e->getMessage()]);
 }
-
-echo json_encode(['output' => $output]);
-
