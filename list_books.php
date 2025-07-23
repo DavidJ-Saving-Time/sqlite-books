@@ -5,6 +5,19 @@ $pdo = getDatabaseConnection();
 
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$sort = $_GET['sort'] ?? 'title';
+$allowedSorts = ['title', 'author', 'series', 'author_series'];
+if (!in_array($sort, $allowedSorts, true)) {
+    $sort = 'title';
+}
+
+$orderByMap = [
+    'title' => 'b.title',
+    'author' => 'authors, b.title',
+    'series' => 'series, b.series_index, b.title',
+    'author_series' => 'authors, series, b.series_index, b.title'
+];
+$orderBy = $orderByMap[$sort];
 
 try {
     $totalStmt = $pdo->query('SELECT COUNT(*) FROM books');
@@ -22,7 +35,7 @@ try {
                         JOIN series s ON bsl.series = s.id
                         WHERE bsl.book = b.id) AS series
          FROM books b
-         ORDER BY b.title
+         ORDER BY $orderBy
          LIMIT :limit OFFSET :offset'
     );
     $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
@@ -34,6 +47,7 @@ try {
 }
 
 $totalPages = max(1, ceil($totalBooks / $perPage));
+$baseUrl = '?sort=' . urlencode($sort) . '&page=';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,6 +60,20 @@ $totalPages = max(1, ceil($totalBooks / $perPage));
 <body>
 <div class="container my-4">
     <h1 class="mb-4">Books</h1>
+    <form method="get" class="row g-2 mb-3 align-items-center">
+        <input type="hidden" name="page" value="1">
+        <div class="col-auto">
+            <label for="sort" class="col-form-label">Sort by:</label>
+        </div>
+        <div class="col-auto">
+            <select id="sort" name="sort" class="form-select" onchange="this.form.submit()">
+                <option value="title"<?= $sort === 'title' ? ' selected' : '' ?>>Title</option>
+                <option value="author"<?= $sort === 'author' ? ' selected' : '' ?>>Author</option>
+                <option value="series"<?= $sort === 'series' ? ' selected' : '' ?>>Series</option>
+                <option value="author_series"<?= $sort === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
+            </select>
+        </div>
+    </form>
     <table class="table table-striped">
         <thead>
             <tr>
@@ -91,37 +119,37 @@ $totalPages = max(1, ceil($totalBooks / $perPage));
     <nav>
         <ul class="pagination justify-content-center">
             <li class="page-item<?= $page <= 1 ? ' disabled' : '' ?>">
-                <a class="page-link" href="?page=1">First</a>
+                <a class="page-link" href="<?= $baseUrl ?>1">First</a>
             </li>
             <li class="page-item<?= $page <= 1 ? ' disabled' : '' ?>">
-                <a class="page-link" href="?page=<?= $page - 1 ?>">Previous</a>
+                <a class="page-link" href="<?= $baseUrl . ($page - 1) ?>">Previous</a>
             </li>
 
             <?php if ($page > 2): ?>
-                <li class="page-item"><a class="page-link" href="?page=1">1</a></li>
+                <li class="page-item"><a class="page-link" href="<?= $baseUrl ?>1">1</a></li>
                 <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
             <?php endif; ?>
 
             <?php if ($page > 1): ?>
-                <li class="page-item"><a class="page-link" href="?page=<?= $page - 1 ?>"><?= $page - 1 ?></a></li>
+                <li class="page-item"><a class="page-link" href="<?= $baseUrl . ($page - 1) ?>"><?= $page - 1 ?></a></li>
             <?php endif; ?>
 
             <li class="page-item active" aria-current="page"><span class="page-link"><?= $page ?></span></li>
 
             <?php if ($page < $totalPages): ?>
-                <li class="page-item"><a class="page-link" href="?page=<?= $page + 1 ?>"><?= $page + 1 ?></a></li>
+                <li class="page-item"><a class="page-link" href="<?= $baseUrl . ($page + 1) ?>"><?= $page + 1 ?></a></li>
             <?php endif; ?>
 
             <?php if ($page < $totalPages - 1): ?>
                 <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-                <li class="page-item"><a class="page-link" href="?page=<?= $totalPages ?>"><?= $totalPages ?></a></li>
+                <li class="page-item"><a class="page-link" href="<?= $baseUrl . $totalPages ?>"><?= $totalPages ?></a></li>
             <?php endif; ?>
 
             <li class="page-item<?= $page >= $totalPages ? ' disabled' : '' ?>">
-                <a class="page-link" href="?page=<?= $page + 1 ?>">Next</a>
+                <a class="page-link" href="<?= $baseUrl . ($page + 1) ?>">Next</a>
             </li>
             <li class="page-item<?= $page >= $totalPages ? ' disabled' : '' ?>">
-                <a class="page-link" href="?page=<?= $totalPages ?>">Last</a>
+                <a class="page-link" href="<?= $baseUrl . $totalPages ?>">Last</a>
             </li>
         </ul>
     </nav>
