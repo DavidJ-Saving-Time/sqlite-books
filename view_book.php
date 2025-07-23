@@ -129,7 +129,7 @@ $tags = $tagsStmt->fetchColumn();
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="recommendLoading" class="d-flex justify-content-center my-4" style="display: none;">
+                    <div id="recommendLoading" class="my-4 text-center" style="display: none;">
                         <div class="spinner-border" role="status" aria-hidden="true"></div>
                     </div>
                     <div id="recommendContent" style="white-space: pre-wrap;"></div>
@@ -150,7 +150,7 @@ recommendBtn.addEventListener('click', function () {
     const authors = this.dataset.authors;
     const title = this.dataset.title;
     recommendContent.textContent = '';
-    recommendLoading.style.display = 'flex';
+    recommendLoading.style.display = 'block';
     recommendModal.show();
 
     fetch('recommend.php?authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
