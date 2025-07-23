@@ -10,7 +10,8 @@ if ($authors === '' && $title === '') {
     exit;
 }
 
-$cmd = 'python3 ' . escapeshellarg(__DIR__ . '/python/book_recommend.py') . ' '
+$cmd = 'direnv exec ./python python3 '
+    . escapeshellarg(__DIR__ . '/python/book_recommend.py') . ' '
     . escapeshellarg($authors) . ' ' . escapeshellarg($title);
 
 $output = shell_exec($cmd);
