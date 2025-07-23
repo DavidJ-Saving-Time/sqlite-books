@@ -8,6 +8,7 @@ $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $sort = $_GET['sort'] ?? 'title';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
+$genreId = isset($_GET['genre_id']) ? (int)$_GET['genre_id'] : null;
 $allowedSorts = ['title', 'author', 'series', 'author_series'];
 if (!in_array($sort, $allowedSorts, true)) {
     $sort = 'title';
@@ -31,6 +32,10 @@ if ($seriesId) {
     $whereClauses[] = 'EXISTS (SELECT 1 FROM books_series_link WHERE book = b.id AND series = :series_id)';
     $params[':series_id'] = $seriesId;
 }
+if ($genreId) {
+    $whereClauses[] = 'b.id IN (SELECT book FROM books_tags_link WHERE tag = :genre_id)';
+    $params[':genre_id'] = $genreId;
+}
 $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
 
 // Names for filter display
@@ -45,6 +50,12 @@ if ($seriesId) {
     $stmt = $pdo->prepare('SELECT name FROM series WHERE id = ?');
     $stmt->execute([$seriesId]);
     $filterSeriesName = $stmt->fetchColumn();
+}
+$filterGenreName = null;
+if ($genreId) {
+    $stmt = $pdo->prepare('SELECT name FROM tags WHERE id = ?');
+    $stmt->execute([$genreId]);
+    $filterGenreName = $stmt->fetchColumn();
 }
 
 try {
@@ -68,7 +79,15 @@ try {
                         JOIN authors a ON bal.author = a.id
                         WHERE bal.book = b.id) AS author_data,
                    s.id AS series_id,
-                   s.name AS series
+                   s.name AS series,
+                   (SELECT GROUP_CONCAT(t.name, ', ')
+                        FROM books_tags_link btl
+                        JOIN tags t ON btl.tag = t.id
+                        WHERE btl.book = b.id) AS genres,
+                   (SELECT GROUP_CONCAT(t.id || ':' || t.name, '|')
+                        FROM books_tags_link btl
+                        JOIN tags t ON btl.tag = t.id
+                        WHERE btl.book = b.id) AS genre_data
             FROM books b
             LEFT JOIN books_series_link bsl ON bsl.book = b.id
             LEFT JOIN series s ON bsl.series = s.id
@@ -95,6 +114,9 @@ if ($authorId) {
 if ($seriesId) {
     $baseUrl .= '&series_id=' . urlencode((string)$seriesId);
 }
+if ($genreId) {
+    $baseUrl .= '&genre_id=' . urlencode((string)$genreId);
+}
 $baseUrl .= '&page=';
 ?>
 <!DOCTYPE html>
@@ -108,7 +130,7 @@ $baseUrl .= '&page=';
 <body>
 <div class="container my-4">
     <h1 class="mb-4">Books</h1>
-    <?php if ($filterAuthorName || $filterSeriesName): ?>
+    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>
         <div class="alert alert-info mb-3">
             Showing
             <?php if ($filterAuthorName): ?>
@@ -120,6 +142,12 @@ $baseUrl .= '&page=';
             <?php if ($filterSeriesName): ?>
                 series: <?= htmlspecialchars($filterSeriesName) ?>
             <?php endif; ?>
+            <?php if (($filterAuthorName || $filterSeriesName) && $filterGenreName): ?>
+                ,
+            <?php endif; ?>
+            <?php if ($filterGenreName): ?>
+                genre: <?= htmlspecialchars($filterGenreName) ?>
+            <?php endif; ?>
             <a class="btn btn-sm btn-secondary ms-2" href="list_books.php?sort=<?= urlencode($sort) ?>">Clear</a>
         </div>
     <?php endif; ?>
@@ -130,6 +158,9 @@ $baseUrl .= '&page=';
         <?php endif; ?>
         <?php if ($seriesId): ?>
             <input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesId) ?>">
+        <?php endif; ?>
+        <?php if ($genreId): ?>
+            <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreId) ?>">
         <?php endif; ?>
         <div class="col-auto">
             <label for="sort" class="col-form-label">Sort by:</label>
@@ -151,6 +182,7 @@ $baseUrl .= '&page=';
                 <th>Title</th>
                 <th>Author(s)</th>
                 <th>Series (No.)</th>
+                <th>Genre</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -191,6 +223,25 @@ $baseUrl .= '&page=';
                         <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
                             (<?= htmlspecialchars($book['series_index']) ?>)
                         <?php endif; ?>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <?php if (!empty($book['genre_data'])): ?>
+                        <?php
+                            $links = [];
+                            foreach (explode('|', $book['genre_data']) as $pair) {
+                                if ($pair === '') continue;
+                                list($gid, $gname) = explode(':', $pair, 2);
+                                $url = 'list_books.php?sort=' . urlencode($sort);
+                                if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
+                                if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
+                                $url .= '&genre_id=' . urlencode($gid);
+                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($gname) . '</a>';
+                            }
+                            echo implode(', ', $links);
+                        ?>
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
