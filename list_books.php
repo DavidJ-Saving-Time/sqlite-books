@@ -36,7 +36,7 @@ try {
                 <td><?= htmlspecialchars($book['id']) ?></td>
                 <td>
                     <?php if (!empty($book['has_cover'])): ?>
-                        <img src="<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                        <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
