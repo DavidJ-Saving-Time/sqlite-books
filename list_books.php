@@ -160,7 +160,9 @@ $baseUrl .= '&page=';
                 <td><?= htmlspecialchars($book['id']) ?></td>
                 <td>
                     <?php if (!empty($book['has_cover'])): ?>
-                        <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                        <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
+                            <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                        </a>
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
