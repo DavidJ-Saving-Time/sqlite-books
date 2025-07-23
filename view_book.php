@@ -105,9 +105,11 @@ try {
             <?php if (!empty($tags)): ?>
                 <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
             <?php endif; ?>
-            <?php if (!empty($savedRecommendations)): ?>
-                <p><strong>Recommendations:</strong> <?= nl2br(htmlspecialchars($savedRecommendations)) ?></p>
-            <?php endif; ?>
+            <div id="recommendSection">
+                <?php if (!empty($savedRecommendations)): ?>
+                    <p><strong>Recommendations:</strong> <?= nl2br(htmlspecialchars($savedRecommendations)) ?></p>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     <?php if (!empty($comment)): ?>
@@ -133,50 +135,30 @@ try {
         <tr><th>Last Modified</th><td><?= htmlspecialchars($book['last_modified']) ?></td></tr>
     </table>
 
-    <!-- Recommendations Modal -->
-    <div class="modal fade" id="recommendModal" tabindex="-1" aria-labelledby="recommendModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="recommendModalLabel">Book Recommendations</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="recommendLoading" class="my-4 text-center" style="display: none;">
-                        <div class="spinner-border" role="status" aria-hidden="true"></div>
-                    </div>
-                    <div id="recommendContent" style="white-space: pre-wrap;"></div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
 const recommendBtn = document.getElementById('recommendBtn');
-const recommendContent = document.getElementById('recommendContent');
-const recommendLoading = document.getElementById('recommendLoading');
-const recommendModalEl = document.getElementById('recommendModal');
-const recommendModal = new bootstrap.Modal(recommendModalEl);
+const recommendSection = document.getElementById('recommendSection');
 
 recommendBtn.addEventListener('click', function () {
     const bookId = this.dataset.bookId;
     const authors = this.dataset.authors;
     const title = this.dataset.title;
-    recommendContent.textContent = '';
-    recommendLoading.style.display = 'block';
-    recommendModal.show();
+    recommendSection.textContent = 'Loading...';
 
     fetch('recommend.php?book_id=' + encodeURIComponent(bookId) +
         '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
         .then(resp => resp.json())
         .then(data => {
-            recommendLoading.style.display = 'none';
-            recommendContent.textContent = data.output || data.error || '';
+            if (data.output) {
+                recommendSection.innerHTML = '<p><strong>Recommendations:</strong> ' +
+                    data.output.replace(/\n/g, '<br>') + '</p>';
+            } else {
+                recommendSection.textContent = data.error || '';
+            }
         })
         .catch(() => {
-            recommendLoading.style.display = 'none';
-            recommendContent.textContent = 'Error fetching recommendations';
+            recommendSection.textContent = 'Error fetching recommendations';
         });
 });
 </script>
