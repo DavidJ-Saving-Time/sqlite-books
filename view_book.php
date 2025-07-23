@@ -42,6 +42,16 @@ $tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
     WHERE btl.book = ?");
 $tagsStmt->execute([$id]);
 $tags = $tagsStmt->fetchColumn();
+
+// Fetch saved recommendations from custom column 10, if present
+try {
+    $recStmt = $pdo->prepare('SELECT value FROM custom_column_10 WHERE book = ?');
+    $recStmt->execute([$id]);
+    $savedRecommendations = $recStmt->fetchColumn();
+} catch (PDOException $e) {
+    // Table may not exist in some databases
+    $savedRecommendations = null;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -94,6 +104,9 @@ $tags = $tagsStmt->fetchColumn();
             </p>
             <?php if (!empty($tags)): ?>
                 <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
+            <?php endif; ?>
+            <?php if (!empty($savedRecommendations)): ?>
+                <p><strong>Recommendations:</strong> <?= nl2br(htmlspecialchars($savedRecommendations)) ?></p>
             <?php endif; ?>
         </div>
     </div>
