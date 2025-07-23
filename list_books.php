@@ -9,6 +9,7 @@ $sort = $_GET['sort'] ?? 'title';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
 $genreId = isset($_GET['genre_id']) ? (int)$_GET['genre_id'] : null;
+$search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $allowedSorts = ['title', 'author', 'series', 'author_series'];
 if (!in_array($sort, $allowedSorts, true)) {
     $sort = 'title';
@@ -36,6 +37,13 @@ if ($genreId) {
     $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_2_link WHERE value = :genre_id)';
     $params[':genre_id'] = $genreId;
 }
+if ($search !== '') {
+    $whereClauses[] = '(b.title LIKE :search OR EXISTS (
+            SELECT 1 FROM books_authors_link bal
+            JOIN authors a ON bal.author = a.id
+            WHERE bal.book = b.id AND a.name LIKE :search))';
+    $params[':search'] = '%' . $search . '%';
+}
 $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
 
 // Names for filter display
@@ -62,7 +70,8 @@ try {
     $totalSql = "SELECT COUNT(*) FROM books b $where";
     $totalStmt = $pdo->prepare($totalSql);
     foreach ($params as $key => $val) {
-        $totalStmt->bindValue($key, $val, PDO::PARAM_INT);
+        $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
+        $totalStmt->bindValue($key, $val, $type);
     }
     $totalStmt->execute();
     $totalBooks = (int)$totalStmt->fetchColumn();
@@ -96,7 +105,8 @@ try {
             LIMIT :limit OFFSET :offset";
     $stmt = $pdo->prepare($sql);
     foreach ($params as $key => $val) {
-        $stmt->bindValue($key, $val, PDO::PARAM_INT);
+        $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
+        $stmt->bindValue($key, $val, $type);
     }
     $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -117,6 +127,9 @@ if ($seriesId) {
 if ($genreId) {
     $baseUrl .= '&genre_id=' . urlencode((string)$genreId);
 }
+if ($search !== '') {
+    $baseUrl .= '&search=' . urlencode($search);
+}
 $baseUrl .= '&page=';
 ?>
 <!DOCTYPE html>
@@ -130,7 +143,24 @@ $baseUrl .= '&page=';
 <body>
 <div class="container my-4">
     <h1 class="mb-4">Books</h1>
-    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>
+    <form method="get" class="mb-3">
+        <input type="hidden" name="page" value="1">
+        <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
+        <?php if ($authorId): ?>
+            <input type="hidden" name="author_id" value="<?= htmlspecialchars($authorId) ?>">
+        <?php endif; ?>
+        <?php if ($seriesId): ?>
+            <input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesId) ?>">
+        <?php endif; ?>
+        <?php if ($genreId): ?>
+            <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreId) ?>">
+        <?php endif; ?>
+        <div class="input-group">
+            <input type="text" class="form-control" name="search" placeholder="Search by title or author" value="<?= htmlspecialchars($search) ?>">
+            <button class="btn btn-outline-secondary" type="submit">Search</button>
+        </div>
+    </form>
+    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $search !== ''): ?>
         <div class="alert alert-info mb-3">
             Showing
             <?php if ($filterAuthorName): ?>
@@ -148,11 +178,19 @@ $baseUrl .= '&page=';
             <?php if ($filterGenreName): ?>
                 genre: <?= htmlspecialchars($filterGenreName) ?>
             <?php endif; ?>
+            <?php if ($search !== ''): ?>
+                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
+                <?php endif; ?>
+                search: "<?= htmlspecialchars($search) ?>"
+            <?php endif; ?>
             <a class="btn btn-sm btn-secondary ms-2" href="list_books.php?sort=<?= urlencode($sort) ?>">Clear</a>
         </div>
     <?php endif; ?>
     <form method="get" class="row g-2 mb-3 align-items-center">
         <input type="hidden" name="page" value="1">
+        <?php if ($search !== ''): ?>
+            <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
+        <?php endif; ?>
         <?php if ($authorId): ?>
             <input type="hidden" name="author_id" value="<?= htmlspecialchars($authorId) ?>">
         <?php endif; ?>
