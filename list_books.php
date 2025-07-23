@@ -33,7 +33,7 @@ if ($seriesId) {
     $params[':series_id'] = $seriesId;
 }
 if ($genreId) {
-    $whereClauses[] = 'b.id IN (SELECT book FROM books_tags_link WHERE tag = :genre_id)';
+    $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_2_link WHERE value = :genre_id)';
     $params[':genre_id'] = $genreId;
 }
 $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
@@ -53,7 +53,7 @@ if ($seriesId) {
 }
 $filterGenreName = null;
 if ($genreId) {
-    $stmt = $pdo->prepare('SELECT name FROM tags WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT value FROM custom_column_2 WHERE id = ?');
     $stmt->execute([$genreId]);
     $filterGenreName = $stmt->fetchColumn();
 }
@@ -80,14 +80,14 @@ try {
                         WHERE bal.book = b.id) AS author_data,
                    s.id AS series_id,
                    s.name AS series,
-                   (SELECT GROUP_CONCAT(t.name, ', ')
-                        FROM books_tags_link btl
-                        JOIN tags t ON btl.tag = t.id
-                        WHERE btl.book = b.id) AS genres,
-                   (SELECT GROUP_CONCAT(t.id || ':' || t.name, '|')
-                        FROM books_tags_link btl
-                        JOIN tags t ON btl.tag = t.id
-                        WHERE btl.book = b.id) AS genre_data
+                   (SELECT GROUP_CONCAT(c.value, ', ')
+                        FROM books_custom_column_2_link bcc
+                        JOIN custom_column_2 c ON bcc.value = c.id
+                        WHERE bcc.book = b.id) AS genres,
+                   (SELECT GROUP_CONCAT(c.id || ':' || c.value, '|')
+                        FROM books_custom_column_2_link bcc
+                        JOIN custom_column_2 c ON bcc.value = c.id
+                        WHERE bcc.book = b.id) AS genre_data
             FROM books b
             LEFT JOIN books_series_link bsl ON bsl.book = b.id
             LEFT JOIN series s ON bsl.series = s.id
