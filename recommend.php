@@ -21,7 +21,7 @@ try {
 
     if ($bookId > 0) {
         $pdo = getDatabaseConnection();
-        $stmt = $pdo->prepare('REPLACE INTO custom_column_10 (book, value) VALUES (:book, :value)');
+        $stmt = $pdo->prepare('REPLACE INTO books_custom_column_10 (book, value) VALUES (:book, :value)');
         $stmt->execute([':book' => $bookId, ':value' => $output]);
     }
 
