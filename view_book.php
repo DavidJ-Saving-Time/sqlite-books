@@ -42,14 +42,6 @@ $tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
     WHERE btl.book = ?");
 $tagsStmt->execute([$id]);
 $tags = $tagsStmt->fetchColumn();
-
-$recommendations = null;
-if (isset($_GET['recommend'])) {
-    $cmd = 'direnv exec ./python python3 ./python/book_recommend.py '
-        . escapeshellarg($book['authors']) . ' '
-        . escapeshellarg($book['title']);
-    $recommendations = shell_exec($cmd);
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -63,11 +55,7 @@ if (isset($_GET['recommend'])) {
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">Back to list</a>
     <h1 class="mb-4"><?= htmlspecialchars($book['title']) ?></h1>
-    <form method="get" class="mb-4">
-        <input type="hidden" name="id" value="<?= htmlspecialchars($book['id']) ?>">
-        <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
-        <button type="submit" name="recommend" value="1" class="btn btn-primary">Get Book Recommendations</button>
-    </form>
+    <button type="button" id="recommendBtn" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4">Get Book Recommendations</button>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
@@ -115,12 +103,6 @@ if (isset($_GET['recommend'])) {
             <p><?= nl2br(htmlspecialchars($comment)) ?></p>
         </div>
 <?php endif; ?>
-    <?php if ($recommendations !== null): ?>
-        <div class="mb-4">
-            <h2>Recommended Books</h2>
-            <pre><?= htmlspecialchars($recommendations) ?></pre>
-        </div>
-    <?php endif; ?>
     <h2>Metadata</h2>
     <table class="table table-bordered">
         <tr><th>ID</th><td><?= htmlspecialchars($book['id']) ?></td></tr>
@@ -137,7 +119,40 @@ if (isset($_GET['recommend'])) {
         <tr><th>Has Cover</th><td><?= htmlspecialchars($book['has_cover']) ?></td></tr>
         <tr><th>Last Modified</th><td><?= htmlspecialchars($book['last_modified']) ?></td></tr>
     </table>
+
+    <!-- Recommendations Modal -->
+    <div class="modal fade" id="recommendModal" tabindex="-1" aria-labelledby="recommendModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="recommendModalLabel">Book Recommendations</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="recommendContent" class="mb-0"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+document.getElementById('recommendBtn').addEventListener('click', function () {
+    const authors = this.dataset.authors;
+    const title = this.dataset.title;
+    fetch('recommend.php?authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
+        .then(resp => resp.json())
+        .then(data => {
+            document.getElementById('recommendContent').textContent = data.output || data.error || '';
+            const modal = new bootstrap.Modal(document.getElementById('recommendModal'));
+            modal.show();
+        })
+        .catch(() => {
+            document.getElementById('recommendContent').textContent = 'Error fetching recommendations';
+            const modal = new bootstrap.Modal(document.getElementById('recommendModal'));
+            modal.show();
+        });
+});
+</script>
 </body>
 </html>
