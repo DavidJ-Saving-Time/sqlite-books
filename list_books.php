@@ -4,7 +4,7 @@ require_once 'db.php';
 $pdo = getDatabaseConnection();
 
 try {
-    $stmt = $pdo->query('SELECT id, title FROM books ORDER BY title');
+    $stmt = $pdo->query('SELECT id, title, path, has_cover FROM books ORDER BY title');
     $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     die('Query failed: ' . $e->getMessage());
@@ -25,6 +25,7 @@ try {
         <thead>
             <tr>
                 <th>ID</th>
+                <th>Cover</th>
                 <th>Title</th>
                 <th>Actions</th>
             </tr>
@@ -33,6 +34,13 @@ try {
         <?php foreach ($books as $book): ?>
             <tr>
                 <td><?= htmlspecialchars($book['id']) ?></td>
+                <td>
+                    <?php if (!empty($book['has_cover'])): ?>
+                        <img src="<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
                 <td><?= htmlspecialchars($book['title']) ?></td>
                 <td>
                     <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
