@@ -13,7 +13,7 @@ try {
     $offset = ($page - 1) * $perPage;
 
     $stmt = $pdo->prepare(
-        'SELECT b.id, b.title, b.path, b.has_cover,
+        'SELECT b.id, b.title, b.path, b.has_cover, b.series_index,
                 COALESCE((SELECT GROUP_CONCAT(a.name, ", ")
                           FROM books_authors_link bal
                           JOIN authors a ON bal.author = a.id
@@ -53,7 +53,7 @@ $totalPages = max(1, ceil($totalBooks / $perPage));
                 <th>Cover</th>
                 <th>Title</th>
                 <th>Author(s)</th>
-                <th>Series</th>
+                <th>Series (No.)</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -70,7 +70,16 @@ $totalPages = max(1, ceil($totalBooks / $perPage));
                 </td>
                 <td><?= htmlspecialchars($book['title']) ?></td>
                 <td><?= htmlspecialchars($book['authors']) ?></td>
-                <td><?= htmlspecialchars($book['series']) ?></td>
+                <td>
+                    <?php if (!empty($book['series'])): ?>
+                        <?= htmlspecialchars($book['series']) ?>
+                        <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
+                            (<?= htmlspecialchars($book['series_index']) ?>)
+                        <?php endif; ?>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
                 <td>
                     <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
                 </td>
