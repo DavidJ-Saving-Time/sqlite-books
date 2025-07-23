@@ -124,10 +124,8 @@ try {
             <?php if (!empty($tags)): ?>
                 <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
             <?php endif; ?>
-            <div id="recommendSection">
-                <?php if (!empty($savedRecommendations)): ?>
-                    <p><strong>Recommendations:</strong> <?= nl2br(htmlspecialchars($savedRecommendations)) ?></p>
-                <?php endif; ?>
+            <div id="recommendSection"<?php if (!empty($savedRecommendations)): ?>
+                data-saved="<?= htmlspecialchars($savedRecommendations, ENT_QUOTES) ?>"<?php endif; ?>>
             </div>
         </div>
     </div>
@@ -144,6 +142,56 @@ try {
 const recommendBtn = document.getElementById('recommendBtn');
 const recommendSection = document.getElementById('recommendSection');
 
+function escapeHTML(str) {
+    return str.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+}
+
+function parseRecommendations(text) {
+    const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(l => l);
+    const recs = [];
+    for (let line of lines) {
+        line = line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '');
+        const match = line.match(/\*?"?([^"\*]+)"?\*?\s+by\s+([^\-]+?)(?:\s+-\s+(.*))?$/i);
+        if (match) {
+            recs.push({
+                title: match[1].trim(),
+                author: match[2].trim(),
+                reason: match[3] ? match[3].trim() : ''
+            });
+        }
+    }
+    return recs;
+}
+
+function renderRecommendations(text) {
+    const recs = parseRecommendations(text);
+    if (!recs.length) {
+        return '<p><strong>Recommendations:</strong> ' +
+            escapeHTML(text).replace(/\n/g, '<br>') + '</p>';
+    }
+    let html = '<h2>Recommendations</h2><ol>';
+    for (const r of recs) {
+        const query = encodeURIComponent(r.title + ' ' + r.author);
+        const link = '<a href="list_books.php?source=openlibrary&search=' + query + '">' +
+            escapeHTML(r.title) + '</a>';
+        html += '<li>' + link + ' by ' + escapeHTML(r.author);
+        if (r.reason) html += ' - ' + escapeHTML(r.reason);
+        html += '</li>';
+    }
+    html += '</ol>';
+    return html;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (recommendSection.dataset.saved) {
+        recommendSection.innerHTML = renderRecommendations(recommendSection.dataset.saved);
+    }
+});
+
 recommendBtn.addEventListener('click', function () {
     const bookId = this.dataset.bookId;
     const authors = this.dataset.authors;
@@ -155,8 +203,7 @@ recommendBtn.addEventListener('click', function () {
         .then(resp => resp.json())
         .then(data => {
             if (data.output) {
-                recommendSection.innerHTML = '<p><strong>Recommendations:</strong> ' +
-                    data.output.replace(/\n/g, '<br>') + '</p>';
+                recommendSection.innerHTML = renderRecommendations(data.output);
             } else {
                 recommendSection.textContent = data.error || '';
             }
