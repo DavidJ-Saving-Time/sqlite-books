@@ -1,5 +1,5 @@
 <?php
-function getDatabaseConnection($path = 'metadata.db') {
+function getDatabaseConnection($path = 'metadata.old.db') {
     try {
         $pdo = new PDO('sqlite:' . $path);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
