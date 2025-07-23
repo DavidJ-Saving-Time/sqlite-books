@@ -9,7 +9,7 @@ CREATE TABLE books ( id      INTEGER PRIMARY KEY AUTOINCREMENT,
                              sort      TEXT COLLATE NOCASE,
                              timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              pubdate   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                             series_index REAL NOT NULL DEFAULT 1.0,
+                             series_index REAL NOT NULL DEFAULT 1.0, -- position of the book within its series
                              author_sort TEXT COLLATE NOCASE,
                              isbn TEXT DEFAULT "" COLLATE NOCASE,
                              lccn TEXT DEFAULT "" COLLATE NOCASE,
