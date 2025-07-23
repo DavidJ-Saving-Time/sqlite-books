@@ -10,6 +10,7 @@ $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
 $genreId = isset($_GET['genre_id']) ? (int)$_GET['genre_id'] : null;
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
+$source = $_GET['source'] ?? 'local';
 $allowedSorts = ['title', 'author', 'series', 'author_series'];
 if (!in_array($sort, $allowedSorts, true)) {
     $sort = 'title';
@@ -66,58 +67,69 @@ if ($genreId) {
     $filterGenreName = $stmt->fetchColumn();
 }
 
-try {
-    $totalSql = "SELECT COUNT(*) FROM books b $where";
-    $totalStmt = $pdo->prepare($totalSql);
-    foreach ($params as $key => $val) {
-        $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
-        $totalStmt->bindValue($key, $val, $type);
-    }
-    $totalStmt->execute();
-    $totalBooks = (int)$totalStmt->fetchColumn();
+$books = [];
+if ($source === 'openlibrary' && $search !== '') {
+    require_once 'openlibrary.php';
+    $books = search_openlibrary($search);
+    $totalBooks = count($books);
+    $totalPages = 1;
+} else {
+    try {
+        $totalSql = "SELECT COUNT(*) FROM books b $where";
+        $totalStmt = $pdo->prepare($totalSql);
+        foreach ($params as $key => $val) {
+            $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
+            $totalStmt->bindValue($key, $val, $type);
+        }
+        $totalStmt->execute();
+        $totalBooks = (int)$totalStmt->fetchColumn();
 
-    $offset = ($page - 1) * $perPage;
+        $offset = ($page - 1) * $perPage;
 
-    $sql = "SELECT b.id, b.title, b.path, b.has_cover, b.series_index,
-                   (SELECT GROUP_CONCAT(a.name, ', ')
-                        FROM books_authors_link bal
-                        JOIN authors a ON bal.author = a.id
-                        WHERE bal.book = b.id) AS authors,
-                   (SELECT GROUP_CONCAT(a.id || ':' || a.name, '|')
-                        FROM books_authors_link bal
-                        JOIN authors a ON bal.author = a.id
-                        WHERE bal.book = b.id) AS author_data,
-                   s.id AS series_id,
-                   s.name AS series,
-                   (SELECT GROUP_CONCAT(c.value, ', ')
-                        FROM books_custom_column_2_link bcc
-                        JOIN custom_column_2 c ON bcc.value = c.id
-                        WHERE bcc.book = b.id) AS genres,
-                   (SELECT GROUP_CONCAT(c.id || ':' || c.value, '|')
-                        FROM books_custom_column_2_link bcc
-                        JOIN custom_column_2 c ON bcc.value = c.id
-                        WHERE bcc.book = b.id) AS genre_data
-            FROM books b
-            LEFT JOIN books_series_link bsl ON bsl.book = b.id
-            LEFT JOIN series s ON bsl.series = s.id
-            $where
-            ORDER BY {$orderBy}
-            LIMIT :limit OFFSET :offset";
-    $stmt = $pdo->prepare($sql);
-    foreach ($params as $key => $val) {
-        $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
-        $stmt->bindValue($key, $val, $type);
+        $sql = "SELECT b.id, b.title, b.path, b.has_cover, b.series_index,
+                       (SELECT GROUP_CONCAT(a.name, ', ')
+                            FROM books_authors_link bal
+                            JOIN authors a ON bal.author = a.id
+                            WHERE bal.book = b.id) AS authors,
+                       (SELECT GROUP_CONCAT(a.id || ':' || a.name, '|')
+                            FROM books_authors_link bal
+                            JOIN authors a ON bal.author = a.id
+                            WHERE bal.book = b.id) AS author_data,
+                       s.id AS series_id,
+                       s.name AS series,
+                       (SELECT GROUP_CONCAT(c.value, ', ')
+                            FROM books_custom_column_2_link bcc
+                            JOIN custom_column_2 c ON bcc.value = c.id
+                            WHERE bcc.book = b.id) AS genres,
+                       (SELECT GROUP_CONCAT(c.id || ':' || c.value, '|')
+                            FROM books_custom_column_2_link bcc
+                            JOIN custom_column_2 c ON bcc.value = c.id
+                            WHERE bcc.book = b.id) AS genre_data
+                FROM books b
+                LEFT JOIN books_series_link bsl ON bsl.book = b.id
+                LEFT JOIN series s ON bsl.series = s.id
+                $where
+                ORDER BY {$orderBy}
+                LIMIT :limit OFFSET :offset";
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $key => $val) {
+            $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
+            $stmt->bindValue($key, $val, $type);
+        }
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        die('Query failed: ' . $e->getMessage());
     }
-    $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $stmt->execute();
-    $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    die('Query failed: ' . $e->getMessage());
+
+    $totalPages = max(1, ceil($totalBooks / $perPage));
 }
-
-$totalPages = max(1, ceil($totalBooks / $perPage));
 $baseUrl = '?sort=' . urlencode($sort);
+if ($source !== '') {
+    $baseUrl .= '&source=' . urlencode($source);
+}
 if ($authorId) {
     $baseUrl .= '&author_id=' . urlencode((string)$authorId);
 }
@@ -160,6 +172,10 @@ $baseUrl .= '&page=';
         <?php endif; ?>
         <div class="input-group">
             <input type="text" class="form-control" name="search" placeholder="Search by title or author" value="<?= htmlspecialchars($search) ?>">
+            <select name="source" class="form-select" style="max-width: 12rem;">
+                <option value="local"<?= $source === 'local' ? ' selected' : '' ?>>Local</option>
+                <option value="openlibrary"<?= $source === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
+            </select>
             <button class="btn btn-outline-secondary" type="submit">Search</button>
         </div>
     </form>
@@ -191,6 +207,7 @@ $baseUrl .= '&page=';
     <?php endif; ?>
     <form method="get" class="row g-2 mb-3 align-items-center">
         <input type="hidden" name="page" value="1">
+        <input type="hidden" name="source" value="<?= htmlspecialchars($source) ?>">
         <?php if ($search !== ''): ?>
             <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
         <?php endif; ?>
@@ -229,6 +246,23 @@ $baseUrl .= '&page=';
         </thead>
         <tbody>
         <?php foreach ($books as $book): ?>
+            <?php if ($source === 'openlibrary'): ?>
+            <tr>
+                <td>&mdash;</td>
+                <td>
+                    <?php if (!empty($book['cover_id'])): ?>
+                        <img src="https://covers.openlibrary.org/b/id/<?= htmlspecialchars($book['cover_id']) ?>-S.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
+                <td><?= htmlspecialchars($book['title']) ?></td>
+                <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
+            </tr>
+            <?php else: ?>
             <tr>
                 <td><?= htmlspecialchars($book['id']) ?></td>
                 <td>
@@ -291,6 +325,7 @@ $baseUrl .= '&page=';
                     <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
                 </td>
             </tr>
+            <?php endif; ?>
         <?php endforeach; ?>
         </tbody>
     </table>
