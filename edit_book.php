@@ -29,7 +29,7 @@ if (!$book) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Edit Book</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUa6Yp8a0hEzj1FdknLE4YuKil60QBkk+2m1u+pFmmF57/kf5sH8mu+QK4w5" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 </head>
 <body>
 <div class="container my-4">
@@ -62,6 +62,6 @@ if (!$book) {
         <tr><th>Last Modified</th><td><?= htmlspecialchars($book['last_modified']) ?></td></tr>
     </table>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-q2by60N2ZYo/wURp6YkAJvJZopFNL+7kkC5jQmDR96dzWWFXOkR9702gGcmBtd4k" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"  crossorigin="anonymous"></script>
 </body>
 </html>
