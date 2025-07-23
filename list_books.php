@@ -25,19 +25,18 @@ try {
 
     $offset = ($page - 1) * $perPage;
 
-    $stmt = $pdo->prepare(
-        'SELECT b.id, b.title, b.path, b.has_cover, b.series_index,
-                COALESCE((SELECT GROUP_CONCAT(a.name, ", ")
+    $sql = "SELECT b.id, b.title, b.path, b.has_cover, b.series_index,
+                COALESCE((SELECT GROUP_CONCAT(a.name, ', ')
                           FROM books_authors_link bal
                           JOIN authors a ON bal.author = a.id
-                          WHERE bal.book = b.id), "") AS authors,
+                          WHERE bal.book = b.id), '') AS authors,
                 (SELECT s.name FROM books_series_link bsl
                         JOIN series s ON bsl.series = s.id
                         WHERE bsl.book = b.id) AS series
          FROM books b
-         ORDER BY $orderBy
-         LIMIT :limit OFFSET :offset'
-    );
+         ORDER BY {$orderBy}
+         LIMIT :limit OFFSET :offset";
+    $stmt = $pdo->prepare($sql);
     $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
