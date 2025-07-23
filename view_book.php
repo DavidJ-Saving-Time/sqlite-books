@@ -55,7 +55,7 @@ $tags = $tagsStmt->fetchColumn();
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">Back to list</a>
     <h1 class="mb-4"><?= htmlspecialchars($book['title']) ?></h1>
-    <button type="button" id="recommendBtn" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4">Get Book Recommendations</button>
+    <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4">Get Book Recommendations</button>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
@@ -147,13 +147,15 @@ const recommendModalEl = document.getElementById('recommendModal');
 const recommendModal = new bootstrap.Modal(recommendModalEl);
 
 recommendBtn.addEventListener('click', function () {
+    const bookId = this.dataset.bookId;
     const authors = this.dataset.authors;
     const title = this.dataset.title;
     recommendContent.textContent = '';
     recommendLoading.style.display = 'block';
     recommendModal.show();
 
-    fetch('recommend.php?authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
+    fetch('recommend.php?book_id=' + encodeURIComponent(bookId) +
+        '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
         .then(resp => resp.json())
         .then(data => {
             recommendLoading.style.display = 'none';
