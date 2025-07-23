@@ -26,6 +26,7 @@ try {
             <tr>
                 <th>ID</th>
                 <th>Title</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -33,6 +34,9 @@ try {
             <tr>
                 <td><?= htmlspecialchars($book['id']) ?></td>
                 <td><?= htmlspecialchars($book['title']) ?></td>
+                <td>
+                    <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
+                </td>
             </tr>
         <?php endforeach; ?>
         </tbody>
