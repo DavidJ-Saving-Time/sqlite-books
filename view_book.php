@@ -42,6 +42,14 @@ $tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
     WHERE btl.book = ?");
 $tagsStmt->execute([$id]);
 $tags = $tagsStmt->fetchColumn();
+
+$recommendations = null;
+if (isset($_GET['recommend'])) {
+    $cmd = 'direnv exec ./python python3 ./python/book_recommend.py '
+        . escapeshellarg($book['authors']) . ' '
+        . escapeshellarg($book['title']);
+    $recommendations = shell_exec($cmd);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -55,6 +63,11 @@ $tags = $tagsStmt->fetchColumn();
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">Back to list</a>
     <h1 class="mb-4"><?= htmlspecialchars($book['title']) ?></h1>
+    <form method="get" class="mb-4">
+        <input type="hidden" name="id" value="<?= htmlspecialchars($book['id']) ?>">
+        <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
+        <button type="submit" name="recommend" value="1" class="btn btn-primary">Get Book Recommendations</button>
+    </form>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
@@ -100,6 +113,12 @@ $tags = $tagsStmt->fetchColumn();
         <div class="mb-4">
             <h2>Description</h2>
             <p><?= nl2br(htmlspecialchars($comment)) ?></p>
+        </div>
+<?php endif; ?>
+    <?php if ($recommendations !== null): ?>
+        <div class="mb-4">
+            <h2>Recommended Books</h2>
+            <pre><?= htmlspecialchars($recommendations) ?></pre>
         </div>
     <?php endif; ?>
     <h2>Metadata</h2>

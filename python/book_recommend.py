@@ -1,5 +1,6 @@
 import requests
 import os
+import sys
 
 # Set your OpenRouter API key (or set as an environment variable)
 API_KEY = os.getenv("OPENROUTER_API_KEY", "your_api_key_here")
@@ -40,8 +41,14 @@ def get_book_recommendations(user_preferences):
     return data["choices"][0]["message"]["content"].strip()
 
 if __name__ == "__main__":
-    # Change this string to test different preferences
-    user_input = "fantasy novels like 'The Name of the Wind' and 'Mistborn'"
+    # Accept the author name and book title from the command line
+    if len(sys.argv) >= 3:
+        user_input = f"{sys.argv[1]} {sys.argv[2]}"
+    elif len(sys.argv) == 2:
+        user_input = sys.argv[1]
+    else:
+        user_input = "fantasy novels like 'The Name of the Wind' and 'Mistborn'"
+
     recommendations = get_book_recommendations(user_input)
     print("\nBook Recommendations:\n")
     print(recommendations)
