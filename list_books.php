@@ -3,6 +3,17 @@ require_once 'db.php';
 
 $pdo = getDatabaseConnection();
 
+// Check if the recommendations table exists
+$recColumnExists = false;
+try {
+    $check = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_custom_column_10'");
+    if ($check->fetch()) {
+        $recColumnExists = true;
+    }
+} catch (PDOException $e) {
+    $recColumnExists = false;
+}
+
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $sort = $_GET['sort'] ?? 'title';
@@ -86,7 +97,7 @@ if ($source === 'openlibrary' && $search !== '') {
 
         $offset = ($page - 1) * $perPage;
 
-        $sql = "SELECT b.id, b.title, b.path, b.has_cover, b.series_index,
+        $selectFields = "b.id, b.title, b.path, b.has_cover, b.series_index,
                        (SELECT GROUP_CONCAT(a.name, ', ')
                             FROM books_authors_link bal
                             JOIN authors a ON bal.author = a.id
@@ -104,7 +115,12 @@ if ($source === 'openlibrary' && $search !== '') {
                        (SELECT GROUP_CONCAT(c.id || ':' || c.value, '|')
                             FROM books_custom_column_2_link bcc
                             JOIN custom_column_2 c ON bcc.value = c.id
-                            WHERE bcc.book = b.id) AS genre_data
+                            WHERE bcc.book = b.id) AS genre_data";
+        if ($recColumnExists) {
+            $selectFields .= ", EXISTS(SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id) AS has_recs";
+        }
+
+        $sql = "SELECT $selectFields
                 FROM books b
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id
@@ -120,6 +136,12 @@ if ($source === 'openlibrary' && $search !== '') {
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
         $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$recColumnExists) {
+            foreach ($books as &$b) {
+                $b['has_recs'] = 0;
+            }
+            unset($b);
+        }
     } catch (PDOException $e) {
         die('Query failed: ' . $e->getMessage());
     }
@@ -278,7 +300,12 @@ $baseUrl .= '&page=';
                         &mdash;
                     <?php endif; ?>
                 </td>
-                <td><?= htmlspecialchars($book['title']) ?></td>
+                <td>
+                    <?= htmlspecialchars($book['title']) ?>
+                    <?php if (!empty($book['has_recs'])): ?>
+                        <span class="text-success ms-1">&#10003;</span>
+                    <?php endif; ?>
+                </td>
                 <td>
                     <?php if (!empty($book['author_data'])): ?>
                         <?php
