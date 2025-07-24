@@ -52,6 +52,13 @@
       <ul class="navbar-nav ms-3">
         <li class="nav-item">
           <a class="nav-link" href="reading_challenges.php">Reading Challenge</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="preferences.php">Preferences</a>
+        </li>
+        <li class="nav-item ms-2">
+          <select id="themeSelect" class="form-select form-select-sm" style="min-width: 10rem;"></select>
+        </li>
       </ul>
     </div>
   </div>

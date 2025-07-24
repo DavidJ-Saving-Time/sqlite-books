@@ -1,5 +1,6 @@
-!/bin/bash
-DB="metadata.old.db"
+#!/bin/bash
+# Determine DB path from PHP preferences
+DB=$(php -r "require 'db.php'; echo currentDatabasePath();")
 
 # Get the next custom column ID
 NEXT_ID=$(sqlite3 "$DB" "SELECT COALESCE(MAX(id), 0) + 1 FROM custom_columns;")
