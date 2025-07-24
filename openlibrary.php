@@ -1,21 +1,25 @@
 <?php
+function fetch_openlibrary_json(string $url): ?array {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        CURLOPT_USERAGENT      => 'sqlite-books/1.0'
+    ]);
+    $resp = curl_exec($ch);
+    curl_close($ch);
+    if ($resp === false) {
+        return null;
+    }
+    $data = json_decode($resp, true);
+    return is_array($data) ? $data : null;
+}
+
 function search_openlibrary(string $query): array {
     $url = 'https://openlibrary.org/search.json?q=' . urlencode($query);
-    $options = [
-        'http' => [
-            'method' => 'GET',
-            'header' => [
-                'Accept: application/json'
-            ]
-        ]
-    ];
-    $context = stream_context_create($options);
-    $json = @file_get_contents($url, false, $context);
-    if ($json === false) {
-        return [];
-    }
-    $data = json_decode($json, true);
-    if (!is_array($data) || !isset($data['docs'])) {
+    $data = fetch_openlibrary_json($url);
+    if ($data === null || !isset($data['docs'])) {
         return [];
     }
     $results = [];
@@ -42,21 +46,8 @@ function get_openlibrary_work(string $key): array {
     }
     $url = 'https://openlibrary.org' . $key . '.json';
 
-    $options = [
-        'http' => [
-            'method' => 'GET',
-            'header' => [
-                'Accept: application/json'
-            ]
-        ]
-    ];
-    $context = stream_context_create($options);
-    $json = @file_get_contents($url, false, $context);
-    if ($json === false) {
-        return [];
-    }
-    $data = json_decode($json, true);
-    if (!is_array($data)) {
+    $data = fetch_openlibrary_json($url);
+    if ($data === null) {
         return [];
     }
 
