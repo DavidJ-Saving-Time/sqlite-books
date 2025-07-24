@@ -48,7 +48,9 @@ try {
                 $stmt->execute([':val' => $value]);
                 $valId = $pdo->lastInsertId();
             }
-        $stmt = $pdo->prepare("REPLACE INTO $table (book, value) VALUES (:book, :val)");
+        $pdo->prepare("DELETE FROM $table WHERE book = :book")
+            ->execute([':book' => $bookId]);
+        $stmt = $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :val)");
         $stmt->execute([':book' => $bookId, ':val' => $valId]);
         }
     } else {
