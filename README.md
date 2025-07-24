@@ -2,8 +2,7 @@
 
 This project is a small PHP application for browsing and editing an eBook database. It now includes a PHP-based function for getting book recommendations from the OpenRouter API. Recommendations returned from the API are saved to the Calibre database in the `books_custom_column_10` table so they can be referenced later.
 
-Each book also has a "Shelf" value stored in the `books_custom_column_11` table.
-Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
+Each book also has a "Shelf" value stored in the `books_custom_column_11` table. Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar and click a shelf name to filter the list. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
 
 ## Searching
 
