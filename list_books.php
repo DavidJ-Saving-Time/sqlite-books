@@ -25,6 +25,10 @@ try {
 } catch (PDOException $e) {
     $shelfList = ['Ebook Calibre','Physical','PDFs'];
 }
+$shelfName = isset($_GET['shelf']) ? trim((string)$_GET['shelf']) : '';
+if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
+    $shelfName = '';
+}
 
 // Check if the recommendations table exists
 try {
@@ -83,6 +87,10 @@ if ($genreId) {
     $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_2_link WHERE value = :genre_id)';
     $params[':genre_id'] = $genreId;
 }
+if ($shelfName !== '') {
+    $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_11 WHERE value = :shelf_name)';
+    $params[':shelf_name'] = $shelfName;
+}
 if ($recommendedOnly) {
     $whereClauses[] = "EXISTS (SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '')";
 }
@@ -114,6 +122,7 @@ if ($genreId) {
     $stmt->execute([$genreId]);
     $filterGenreName = $stmt->fetchColumn();
 }
+$filterShelfName = $shelfName !== '' ? $shelfName : null;
 
 // Fetch full genre list for sidebar
 $genreList = [];
@@ -208,6 +217,9 @@ if ($seriesId) {
 }
 if ($genreId) {
     $baseUrl .= '&genre_id=' . urlencode((string)$genreId);
+}
+if ($shelfName !== '') {
+    $baseUrl .= '&shelf=' . urlencode($shelfName);
 }
 if ($search !== '') {
     $baseUrl .= '&search=' . urlencode($search);
@@ -344,10 +356,22 @@ if ($isAjax) {
             <div id="genreSidebar" class="collapse d-md-block">
                 <div class="mb-3">
                     <h6 class="mb-1">Shelves</h6>
+                    <?php
+                        $shelfUrlBase = 'list_books.php?sort=' . urlencode($sort);
+                        if ($authorId) $shelfUrlBase .= '&author_id=' . urlencode((string)$authorId);
+                        if ($seriesId) $shelfUrlBase .= '&series_id=' . urlencode((string)$seriesId);
+                        if ($genreId) $shelfUrlBase .= '&genre_id=' . urlencode((string)$genreId);
+                        if ($search !== '') $shelfUrlBase .= '&search=' . urlencode($search);
+                        if ($source !== '') $shelfUrlBase .= '&source=' . urlencode($source);
+                    ?>
                     <ul class="list-group" id="shelfList">
+                        <li class="list-group-item<?= $shelfName === '' ? ' active' : '' ?>">
+                            <a href="<?= htmlspecialchars($shelfUrlBase) ?>" class="text-decoration-none<?= $shelfName === '' ? ' text-white' : '' ?>">All Shelves</a>
+                        </li>
                         <?php foreach ($shelfList as $s): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <?= htmlspecialchars($s) ?>
+                            <?php $url = $shelfUrlBase . '&shelf=' . urlencode($s); ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center<?= $shelfName === $s ? ' active' : '' ?>">
+                                <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $shelfName === $s ? ' text-white' : '' ?>"><?= htmlspecialchars($s) ?></a>
                                 <button type="button" class="btn btn-sm btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s) ?>">&times;</button>
                             </li>
                         <?php endforeach; ?>
@@ -360,13 +384,22 @@ if ($isAjax) {
                     </form>
                 </div>
                 <div class="list-group">
-                    <a href="list_books.php?sort=<?= urlencode($sort) ?>" class="list-group-item list-group-item-action<?= $genreId ? '' : ' active' ?>">All Genres</a>
+                    <?php
+                        $genreBase = 'list_books.php?sort=' . urlencode($sort);
+                        if ($authorId) $genreBase .= '&author_id=' . urlencode((string)$authorId);
+                        if ($seriesId) $genreBase .= '&series_id=' . urlencode((string)$seriesId);
+                        if ($shelfName !== '') $genreBase .= '&shelf=' . urlencode($shelfName);
+                        if ($search !== '') $genreBase .= '&search=' . urlencode($search);
+                        if ($source !== '') $genreBase .= '&source=' . urlencode($source);
+                    ?>
+                    <a href="<?= htmlspecialchars($genreBase) ?>" class="list-group-item list-group-item-action<?= $genreId ? '' : ' active' ?>">All Genres</a>
                     <?php foreach ($genreList as $g): ?>
                         <?php
                             $url = 'list_books.php?sort=' . urlencode($sort);
                             if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
                             if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
                             $url .= '&genre_id=' . urlencode((string)$g['id']);
+                            if ($shelfName !== '') $url .= '&shelf=' . urlencode($shelfName);
                             if ($search !== '') $url .= '&search=' . urlencode($search);
                             if ($source !== '') $url .= '&source=' . urlencode($source);
                         ?>
@@ -391,6 +424,9 @@ if ($isAjax) {
         <?php if ($genreId): ?>
             <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreId) ?>">
         <?php endif; ?>
+        <?php if ($shelfName !== ''): ?>
+            <input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfName) ?>">
+        <?php endif; ?>
         <div class="input-group">
             <input type="text" class="form-control" name="search" placeholder="Search by title or author" value="<?= htmlspecialchars($search) ?>">
             <select name="source" class="form-select" style="max-width: 12rem;">
@@ -400,7 +436,7 @@ if ($isAjax) {
             <button class="btn btn-outline-secondary" type="submit">Search</button>
         </div>
     </form>
-    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $search !== ''): ?>
+    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $search !== ''): ?>
         <div class="alert alert-info mb-3">
             Showing
             <?php if ($filterAuthorName): ?>
@@ -417,6 +453,11 @@ if ($isAjax) {
             <?php endif; ?>
             <?php if ($filterGenreName): ?>
                 genre: <?= htmlspecialchars($filterGenreName) ?>
+            <?php endif; ?>
+            <?php if ($filterShelfName): ?>
+                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
+                <?php endif; ?>
+                shelf: <?= htmlspecialchars($filterShelfName) ?>
             <?php endif; ?>
             <?php if ($search !== ''): ?>
                 <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
@@ -445,6 +486,9 @@ if ($isAjax) {
         <?php endif; ?>
         <?php if ($genreId): ?>
             <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreId) ?>">
+        <?php endif; ?>
+        <?php if ($shelfName !== ''): ?>
+            <input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfName) ?>">
         <?php endif; ?>
         <div class="col-auto">
             <label for="sort" class="col-form-label">Sort by:</label>
