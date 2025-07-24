@@ -7,6 +7,13 @@ Each book also has a "Shelf" value stored in the `books_custom_column_11` table.
 Genres are stored in `custom_column_2` and listed in the sidebar. You can add,
 rename or delete genres from that list just like shelves and status values.
 
+## Preferences
+
+Open `preferences.php` to set the path to your Calibre `metadata.db` file. The
+chosen path is stored in the session so different users can work with separate
+databases. You can also choose to save the path for all users which updates the
+`preferences.json` file used as the global default.
+
 ## Adding Your Own Books
 
 Use `add_physical_book.php` to upload an eBook file directly through the web
