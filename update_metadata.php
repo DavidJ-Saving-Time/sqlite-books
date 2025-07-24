@@ -85,6 +85,13 @@ try {
             $description = $info['descr'];
         } elseif (isset($info['comment']) && is_string($info['comment'])) {
             $description = $info['comment'];
+        } elseif (isset($info['descriptions']['description'])) {
+            $desc = $info['descriptions']['description'];
+            if (is_array($desc)) {
+                $description = (string) reset($desc);
+            } elseif (is_string($desc)) {
+                $description = $desc;
+            }
         }
         if ($description !== '') {
             $stmt = $pdo->prepare('INSERT INTO comments (book, text) VALUES (:book, :text) '
