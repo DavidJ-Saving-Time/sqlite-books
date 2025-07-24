@@ -317,7 +317,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
             <tr>
                 <td>
                     <?php if (!empty($book['cover_id'])): ?>
-                        <img src="https://covers.openlibrary.org/b/id/<?= htmlspecialchars($book['cover_id']) ?>-S.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                        <img src="https://covers.openlibrary.org/b/id/<?= htmlspecialchars($book['cover_id']) ?>-S.jpg" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
@@ -340,7 +340,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <td>
                     <?php if (!empty($book['has_cover'])): ?>
                         <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
-                            <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                            <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
                         </a>
                     <?php else: ?>
                         &mdash;
