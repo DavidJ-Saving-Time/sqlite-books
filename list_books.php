@@ -17,22 +17,24 @@ try {
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
-$sort = $_GET['sort'] ?? 'title';
+$sort = $_GET['sort'] ?? 'author_series';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
 $genreId = isset($_GET['genre_id']) ? (int)$_GET['genre_id'] : null;
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $source = $_GET['source'] ?? 'local';
-$allowedSorts = ['title', 'author', 'series', 'author_series'];
+$allowedSorts = ['title', 'author', 'series', 'author_series', 'recommended'];
 if (!in_array($sort, $allowedSorts, true)) {
-    $sort = 'title';
+    $sort = 'author_series';
 }
+$recommendedOnly = ($sort === 'recommended');
 
 $orderByMap = [
     'title' => 'b.title',
     'author' => 'authors, b.title',
     'series' => 'series, b.series_index, b.title',
-    'author_series' => 'authors, series, b.series_index, b.title'
+    'author_series' => 'authors, series, b.series_index, b.title',
+    'recommended' => 'authors, series, b.series_index, b.title'
 ];
 $orderBy = $orderByMap[$sort];
 
@@ -49,6 +51,9 @@ if ($seriesId) {
 if ($genreId) {
     $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_2_link WHERE value = :genre_id)';
     $params[':genre_id'] = $genreId;
+}
+if ($recommendedOnly) {
+    $whereClauses[] = "EXISTS (SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '')";
 }
 if ($search !== '') {
     $whereClauses[] = '(b.title LIKE :search OR EXISTS (
@@ -326,6 +331,11 @@ if ($isAjax) {
                 <?php endif; ?>
                 search: "<?= htmlspecialchars($search) ?>"
             <?php endif; ?>
+            <?php if ($recommendedOnly): ?>
+                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $search !== ''): ?>,
+                <?php endif; ?>
+                recommended only
+            <?php endif; ?>
             <a class="btn btn-sm btn-secondary ms-2" href="list_books.php?sort=<?= urlencode($sort) ?>">Clear</a>
         </div>
     <?php endif; ?>
@@ -353,6 +363,7 @@ if ($isAjax) {
                 <option value="author"<?= $sort === 'author' ? ' selected' : '' ?>>Author</option>
                 <option value="series"<?= $sort === 'series' ? ' selected' : '' ?>>Series</option>
                 <option value="author_series"<?= $sort === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
+                <option value="recommended"<?= $sort === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
             </select>
         </div>
     </form>
