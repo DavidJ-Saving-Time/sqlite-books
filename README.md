@@ -16,4 +16,4 @@ the recommended title and author. Each title links back to `list_books.php` with
 so you can quickly explore more details about that book.
 
 To enable the recommendation feature, set the `OPENROUTER_API_KEY` environment variable with your API key. The `recommend.php` endpoint calls `get_book_recommendations()` defined in `book_recommend.php` to contact the API and return results.
-To enable searching Anna's Archive, set the `ANNA_API_KEY` environment variable. The search dropdown will query the Anna's Archive API when this option is selected.
+To enable searching Anna's Archive, set the `ANNA_API_KEY` environment variable. The search dropdown will query the Anna's Archive API when this option is selected. Search results from Anna's Archive now include a **Download** button. Clicking it calls `annas_download.php`, which uses that API to fetch a direct download link and opens the file in a new tab.

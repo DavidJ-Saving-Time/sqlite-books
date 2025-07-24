@@ -348,7 +348,13 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 </td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
-                <td>&mdash;</td>
+                <td>
+                    <?php if (!empty($book['md5'])): ?>
+                        <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">Download</button>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
             </tr>
             <?php
         } elseif ($source === 'annas') {
@@ -828,6 +834,22 @@ $(function() {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ id: id, new: name })
         }).then(function() { location.reload(); });
+    });
+
+    $(document).on('click', '.annas-download', function() {
+        var md5 = $(this).data('md5');
+        if (!md5) return;
+        fetch('annas_download.php?md5=' + encodeURIComponent(md5))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var url = data.url || (data.mirrors && data.mirrors[0]) || (Array.isArray(data) ? data[0] : null);
+                if (url) {
+                    window.open(url, '_blank');
+                } else {
+                    alert('Download link unavailable');
+                }
+            })
+            .catch(function() { alert('Download failed'); });
     });
 
     $(window).on('scroll', function() {
