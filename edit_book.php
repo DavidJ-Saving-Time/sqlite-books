@@ -32,6 +32,7 @@ if (!$book) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 </head>
 <body>
+<?php include "navbar.php"; ?>
 <div class="container my-4">
     <h1 class="mb-4">Edit Book Metadata</h1>
     <?php if (!empty($updated)): ?>
