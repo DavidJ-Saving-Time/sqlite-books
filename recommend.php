@@ -21,8 +21,31 @@ try {
 
     if ($bookId > 0) {
         $pdo = getDatabaseConnection();
-        $stmt = $pdo->prepare('REPLACE INTO books_custom_column_10 (book, value) VALUES (:book, :value)');
-        $stmt->execute([':book' => $bookId, ':value' => $output]);
+
+        // Ensure the recommendation column exists before storing the data
+        $exists = false;
+        try {
+            $check = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_custom_column_10'");
+            if ($check->fetch()) {
+                $exists = true;
+            }
+        } catch (PDOException $e) {
+            $exists = false;
+        }
+        if (!$exists) {
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+                $exists = true;
+            } catch (PDOException $e) {
+                // If creation fails we still continue without saving
+                $exists = false;
+            }
+        }
+
+        if ($exists) {
+            $stmt = $pdo->prepare('REPLACE INTO books_custom_column_10 (book, value) VALUES (:book, :value)');
+            $stmt->execute([':book' => $bookId, ':value' => $output]);
+        }
     }
 
     echo json_encode(['output' => $output]);
