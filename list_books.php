@@ -3,7 +3,30 @@ require_once 'db.php';
 
 $pdo = getDatabaseConnection();
 
-// Ensure shelf custom column exists and rows for all books
+// Ensure shelf table and custom column exist
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
+    foreach (['Physical','Ebook Calibre','PDFs'] as $def) {
+        $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
+    }
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+    $pdo->exec("INSERT INTO books_custom_column_11 (book, value)
+            SELECT id, 'Ebook Calibre' FROM books
+            WHERE id NOT IN (SELECT book FROM books_custom_column_11)");
+} catch (PDOException $e) {
+    // Ignore errors if the table cannot be created
+}
+
+// Fetch shelves list
+$shelfList = [];
+try {
+    $shelfList = $pdo->query('SELECT name FROM shelves ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $shelfList = ['Ebook Calibre','Physical','PDFs'];
+}
+
+// Check if the recommendations table exists
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
     $pdo->exec("INSERT INTO books_custom_column_11 (book, value)\n            SELECT id, 'Ebook Calibre' FROM books\n            WHERE id NOT IN (SELECT book FROM books_custom_column_11)");
@@ -191,7 +214,7 @@ if ($search !== '') {
 }
 $baseUrl .= '&page=';
 
-function render_book_rows(array $books, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
+function render_book_rows(array $books, array $shelfList, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
     foreach ($books as $book) {
         if ($source === 'openlibrary') {
             ?>
@@ -281,9 +304,9 @@ function render_book_rows(array $books, string $source, string $sort, ?int $auth
                 </td>
                 <td>
                     <select class="form-select form-select-sm shelf-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                        <option value="Ebook Calibre"<?= $book['shelf'] === 'Ebook Calibre' ? ' selected' : '' ?>>Ebook Calibre</option>
-                        <option value="Physical"<?= $book['shelf'] === 'Physical' ? ' selected' : '' ?>>Physical</option>
-                        <option value="PDFs"<?= $book['shelf'] === 'PDFs' ? ' selected' : '' ?>>PDFs</option>
+                        <?php foreach ($shelfList as $s): ?>
+                            <option value="<?= htmlspecialchars($s) ?>"<?= $book['shelf'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </td>
                 <td>
@@ -296,7 +319,7 @@ function render_book_rows(array $books, string $source, string $sort, ?int $auth
 }
 
 if ($isAjax) {
-    render_book_rows($books, $source, $sort, $authorId, $seriesId);
+    render_book_rows($books, $shelfList, $source, $sort, $authorId, $seriesId);
     exit;
 }
 ?>
@@ -319,6 +342,23 @@ if ($isAjax) {
                 Genres
             </button>
             <div id="genreSidebar" class="collapse d-md-block">
+                <div class="mb-3">
+                    <h6 class="mb-1">Shelves</h6>
+                    <ul class="list-group" id="shelfList">
+                        <?php foreach ($shelfList as $s): ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <?= htmlspecialchars($s) ?>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s) ?>">&times;</button>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <form id="addShelfForm" class="mt-2">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" name="shelf" placeholder="New shelf">
+                            <button class="btn btn-primary" type="submit">Add</button>
+                        </div>
+                    </form>
+                </div>
                 <div class="list-group">
                     <a href="list_books.php?sort=<?= urlencode($sort) ?>" class="list-group-item list-group-item-action<?= $genreId ? '' : ' active' ?>">All Genres</a>
                     <?php foreach ($genreList as $g): ?>
@@ -432,7 +472,7 @@ if ($isAjax) {
             </tr>
         </thead>
         <tbody>
-        <?php render_book_rows($books, $source, $sort, $authorId, $seriesId); ?>
+        <?php render_book_rows($books, $shelfList, $source, $sort, $authorId, $seriesId); ?>
         </tbody>
     </table>
         </div>
@@ -475,6 +515,27 @@ $(function() {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ book_id: bookId, value: value })
         });
+    });
+
+    $('#addShelfForm').on('submit', function(e) {
+        e.preventDefault();
+        var shelf = $(this).find('input[name="shelf"]').val().trim();
+        if (!shelf) return;
+        fetch('add_shelf.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ shelf: shelf })
+        }).then(function() { location.reload(); });
+    });
+
+    $(document).on('click', '.delete-shelf', function() {
+        if (!confirm('Remove this shelf?')) return;
+        var shelf = $(this).data('shelf');
+        fetch('delete_shelf.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ shelf: shelf })
+        }).then(function() { location.reload(); });
     });
 
     $(window).on('scroll', function() {
