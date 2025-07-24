@@ -16,6 +16,7 @@ try {
 
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
 $sort = $_GET['sort'] ?? 'title';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
@@ -165,6 +166,107 @@ if ($search !== '') {
     $baseUrl .= '&search=' . urlencode($search);
 }
 $baseUrl .= '&page=';
+
+function render_book_rows(array $books, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
+    foreach ($books as $book) {
+        if ($source === 'openlibrary') {
+            ?>
+            <tr>
+                <td>&mdash;</td>
+                <td>
+                    <?php if (!empty($book['cover_id'])): ?>
+                        <img src="https://covers.openlibrary.org/b/id/<?= htmlspecialchars($book['cover_id']) ?>-S.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <a href="openlibrary_view.php?key=<?= urlencode($book['key']) ?>&title=<?= urlencode($book['title']) ?>&authors=<?= urlencode($book['authors']) ?>&cover_id=<?= urlencode((string)$book['cover_id']) ?>">
+                        <?= htmlspecialchars($book['title']) ?>
+                    </a>
+                </td>
+                <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
+            </tr>
+            <?php
+        } else {
+            ?>
+            <tr>
+                <td><?= htmlspecialchars($book['id']) ?></td>
+                <td>
+                    <?php if (!empty($book['has_cover'])): ?>
+                        <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
+                            <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
+                        </a>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <?= htmlspecialchars($book['title']) ?>
+                    <?php if (!empty($book['has_recs'])): ?>
+                        <span class="text-success ms-1">&#10003;</span>
+                    <?php endif; ?>
+                    <?php if (!empty($book['series'])): ?>
+                        <br>
+                        <small>
+                            <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
+                                <?= htmlspecialchars($book['series']) ?>
+                            </a>
+                            <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
+                                (<?= htmlspecialchars($book['series_index']) ?>)
+                            <?php endif; ?>
+                        </small>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <?php if (!empty($book['author_data'])): ?>
+                        <?php
+                            $links = [];
+                            foreach (explode('|', $book['author_data']) as $pair) {
+                                list($aid, $aname) = explode(':', $pair, 2);
+                                $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
+                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
+                            }
+                            echo implode(', ', $links);
+                        ?>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <?php if (!empty($book['genre_data'])): ?>
+                        <?php
+                            $links = [];
+                            foreach (explode('|', $book['genre_data']) as $pair) {
+                                if ($pair === '') continue;
+                                list($gid, $gname) = explode(':', $pair, 2);
+                                $url = 'list_books.php?sort=' . urlencode($sort);
+                                if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
+                                if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
+                                $url .= '&genre_id=' . urlencode($gid);
+                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($gname) . '</a>';
+                            }
+                            echo implode(', ', $links);
+                        ?>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
+                </td>
+            </tr>
+            <?php
+        }
+    }
+}
+
+if ($isAjax) {
+    render_book_rows($books, $source, $sort, $authorId, $seriesId);
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -261,143 +363,14 @@ $baseUrl .= '&page=';
                 <th>Cover</th>
                 <th>Title</th>
                 <th>Author(s)</th>
-                <th>Series (No.)</th>
                 <th>Genre</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-        <?php foreach ($books as $book): ?>
-            <?php if ($source === 'openlibrary'): ?>
-            <tr>
-                <td>&mdash;</td>
-                <td>
-                    <?php if (!empty($book['cover_id'])): ?>
-                        <img src="https://covers.openlibrary.org/b/id/<?= htmlspecialchars($book['cover_id']) ?>-S.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <a href="openlibrary_view.php?key=<?= urlencode($book['key']) ?>&title=<?= urlencode($book['title']) ?>&authors=<?= urlencode($book['authors']) ?>&cover_id=<?= urlencode((string)$book['cover_id']) ?>">
-                        <?= htmlspecialchars($book['title']) ?>
-                    </a>
-                </td>
-                <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
-                <td>&mdash;</td>
-                <td>&mdash;</td>
-                <td>&mdash;</td>
-            </tr>
-            <?php else: ?>
-            <tr>
-                <td><?= htmlspecialchars($book['id']) ?></td>
-                <td>
-                    <?php if (!empty($book['has_cover'])): ?>
-                        <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
-                            <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
-                        </a>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <?= htmlspecialchars($book['title']) ?>
-                    <?php if (!empty($book['has_recs'])): ?>
-                        <span class="text-success ms-1">&#10003;</span>
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <?php if (!empty($book['author_data'])): ?>
-                        <?php
-                            $links = [];
-                            foreach (explode('|', $book['author_data']) as $pair) {
-                                list($aid, $aname) = explode(':', $pair, 2);
-                                $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
-                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
-                            }
-                            echo implode(', ', $links);
-                        ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <?php if (!empty($book['series'])): ?>
-                        <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
-                            <?= htmlspecialchars($book['series']) ?>
-                        </a>
-                        <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
-                            (<?= htmlspecialchars($book['series_index']) ?>)
-                        <?php endif; ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <?php if (!empty($book['genre_data'])): ?>
-                        <?php
-                            $links = [];
-                            foreach (explode('|', $book['genre_data']) as $pair) {
-                                if ($pair === '') continue;
-                                list($gid, $gname) = explode(':', $pair, 2);
-                                $url = 'list_books.php?sort=' . urlencode($sort);
-                                if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
-                                if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
-                                $url .= '&genre_id=' . urlencode($gid);
-                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($gname) . '</a>';
-                            }
-                            echo implode(', ', $links);
-                        ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td>
-                    <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
-                </td>
-            </tr>
-            <?php endif; ?>
-        <?php endforeach; ?>
+        <?php render_book_rows($books, $source, $sort, $authorId, $seriesId); ?>
         </tbody>
     </table>
-
-    <nav>
-        <ul class="pagination justify-content-center">
-            <li class="page-item<?= $page <= 1 ? ' disabled' : '' ?>">
-                <a class="page-link" href="<?= $baseUrl ?>1">First</a>
-            </li>
-            <li class="page-item<?= $page <= 1 ? ' disabled' : '' ?>">
-                <a class="page-link" href="<?= $baseUrl . ($page - 1) ?>">Previous</a>
-            </li>
-
-            <?php if ($page > 2): ?>
-                <li class="page-item"><a class="page-link" href="<?= $baseUrl ?>1">1</a></li>
-                <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-            <?php endif; ?>
-
-            <?php if ($page > 1): ?>
-                <li class="page-item"><a class="page-link" href="<?= $baseUrl . ($page - 1) ?>"><?= $page - 1 ?></a></li>
-            <?php endif; ?>
-
-            <li class="page-item active" aria-current="page"><span class="page-link"><?= $page ?></span></li>
-
-            <?php if ($page < $totalPages): ?>
-                <li class="page-item"><a class="page-link" href="<?= $baseUrl . ($page + 1) ?>"><?= $page + 1 ?></a></li>
-            <?php endif; ?>
-
-            <?php if ($page < $totalPages - 1): ?>
-                <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
-                <li class="page-item"><a class="page-link" href="<?= $baseUrl . $totalPages ?>"><?= $totalPages ?></a></li>
-            <?php endif; ?>
-
-            <li class="page-item<?= $page >= $totalPages ? ' disabled' : '' ?>">
-                <a class="page-link" href="<?= $baseUrl . ($page + 1) ?>">Next</a>
-            </li>
-            <li class="page-item<?= $page >= $totalPages ? ' disabled' : '' ?>">
-                <a class="page-link" href="<?= $baseUrl . $totalPages ?>">Last</a>
-            </li>
-        </ul>
-    </nav>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
@@ -410,6 +383,28 @@ $(function() {
             });
         },
         minLength: 2
+    });
+
+    var currentPage = <?= $page ?>;
+    var totalPages = <?= $totalPages ?>;
+    var loading = false;
+    var fetchUrlBase = <?= json_encode($baseUrl) ?>;
+    var $tbody = $('table tbody');
+
+    function loadMore() {
+        if (loading || currentPage >= totalPages) return;
+        loading = true;
+        $.get(fetchUrlBase + (currentPage + 1) + '&ajax=1', function(html) {
+            $tbody.append(html);
+            currentPage++;
+            loading = false;
+        });
+    }
+
+    $(window).on('scroll', function() {
+        if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
+            loadMore();
+        }
     });
 });
 </script>
