@@ -312,11 +312,11 @@ openlibBtn.addEventListener('click', () => {
                 return;
             }
             let html = '';
-            data.docs.forEach(doc => {
-                const title = doc.title || '';
-                const authors = Array.isArray(doc.author_name) ? doc.author_name.join(', ') : '';
-                const coverId = doc.cover_i || '';
-                const year = doc.first_publish_year || '';
+            data.books.forEach(b => {
+                const title = b.title || '';
+                const authors = b.authors || '';
+                const coverId = b.cover_id || '';
+                const year = b.year || '';
                 html += '<div class="mb-2">';
                 if (coverId) html += '<img src="https://covers.openlibrary.org/b/id/' + escapeHTML(coverId) + '-S.jpg" style="height:100px" class="me-2">';
                 html += '<strong>' + escapeHTML(title) + '</strong>';
