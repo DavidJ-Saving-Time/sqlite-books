@@ -28,6 +28,7 @@ if (!$coverId && !empty($covers)) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 </head>
 <body>
+<?php include "navbar.php"; ?>
 <div class="container my-4">
     <a href="javascript:history.back()" class="btn btn-secondary mb-3">Back</a>
     <h1 class="mb-4"><?= htmlspecialchars($workTitle) ?></h1>

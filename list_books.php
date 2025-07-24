@@ -439,6 +439,7 @@ if ($isAjax) {
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
+<?php include "navbar.php"; ?>
 <div class="container-fluid my-4">
     <div class="row">
         <nav class="col-md-3 col-lg-2 mb-3">
@@ -543,31 +544,7 @@ if ($isAjax) {
         </nav>
         <div class="col-md-9 col-lg-10">
             <h1 class="mb-4">Books</h1>
-    <form method="get" class="mb-3">
-        <input type="hidden" name="page" value="1">
-        <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
-        <?php if ($authorId): ?>
-            <input type="hidden" name="author_id" value="<?= htmlspecialchars($authorId) ?>">
-        <?php endif; ?>
-        <?php if ($seriesId): ?>
-            <input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesId) ?>">
-        <?php endif; ?>
-        <?php if ($genreId): ?>
-            <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreId) ?>">
-        <?php endif; ?>
-        <?php if ($shelfName !== ''): ?>
-            <input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfName) ?>">
-        <?php endif; ?>
-        <div class="input-group">
-            <input type="text" class="form-control" name="search" placeholder="Search by title or author" value="<?= htmlspecialchars($search) ?>">
-            <select name="source" class="form-select" style="max-width: 12rem;">
-                <option value="local"<?= $source === 'local' ? ' selected' : '' ?>>Local</option>
-                <option value="openlibrary"<?= $source === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
-            </select>
-            <button class="btn btn-outline-secondary" type="submit">Search</button>
-        </div>
-    </form>
-    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $search !== ''): ?>
+        <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $search !== ''): ?>
         <div class="alert alert-info mb-3">
             Showing
             <?php if ($filterAuthorName): ?>
@@ -608,41 +585,7 @@ if ($isAjax) {
             <a class="btn btn-sm btn-secondary ms-2" href="list_books.php?sort=<?= urlencode($sort) ?>">Clear</a>
         </div>
     <?php endif; ?>
-    <form method="get" class="row g-2 mb-3 align-items-center">
-        <input type="hidden" name="page" value="1">
-        <input type="hidden" name="source" value="<?= htmlspecialchars($source) ?>">
-        <?php if ($search !== ''): ?>
-            <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
-        <?php endif; ?>
-        <?php if ($authorId): ?>
-            <input type="hidden" name="author_id" value="<?= htmlspecialchars($authorId) ?>">
-        <?php endif; ?>
-        <?php if ($seriesId): ?>
-            <input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesId) ?>">
-        <?php endif; ?>
-        <?php if ($genreId): ?>
-            <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreId) ?>">
-        <?php endif; ?>
-        <?php if ($shelfName !== ''): ?>
-            <input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfName) ?>">
-        <?php endif; ?>
-        <?php if ($statusName !== ''): ?>
-            <input type="hidden" name="status" value="<?= htmlspecialchars($statusName) ?>">
-        <?php endif; ?>
-        <div class="col-auto">
-            <label for="sort" class="col-form-label">Sort by:</label>
-        </div>
-        <div class="col-auto">
-            <select id="sort" name="sort" class="form-select" onchange="this.form.submit()">
-                <option value="title"<?= $sort === 'title' ? ' selected' : '' ?>>Title</option>
-                <option value="author"<?= $sort === 'author' ? ' selected' : '' ?>>Author</option>
-                <option value="series"<?= $sort === 'series' ? ' selected' : '' ?>>Series</option>
-                <option value="author_series"<?= $sort === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
-                <option value="recommended"<?= $sort === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
-            </select>
-        </div>
-    </form>
-    <table class="table table-striped">
+        <table class="table table-striped">
         <thead>
             <tr>
                 <th>Cover</th>
