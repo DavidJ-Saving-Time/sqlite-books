@@ -87,6 +87,11 @@ try {
         <?php endif; ?>
     </p>
     <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4">Get Book Recommendations</button>
+    <?php
+        $annasQuery = urlencode($book['title'] . ' ' . $book['authors']);
+        $annasUrl = 'list_books.php?source=annas&search=' . $annasQuery;
+    ?>
+    <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
