@@ -410,7 +410,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php endif; ?>
                 </td>
                 <td>
-                    <?= htmlspecialchars($book['title']) ?>
+                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
+                        <?= htmlspecialchars($book['title']) ?>
+                    </a>
                     <?php if (!empty($book['has_recs'])): ?>
                         <span class="text-success ms-1">&#10003;</span>
                     <?php endif; ?>
