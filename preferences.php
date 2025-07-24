@@ -2,6 +2,7 @@
 require_once 'db.php';
 
 $message = '';
+$alertClass = 'success';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPath = trim($_POST['db_path'] ?? '');
     if ($newPath !== '') {
@@ -9,7 +10,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['save_global'])) {
             setPreference('db_path', $newPath);
         }
-        $message = 'Preferences saved.';
+
+        $writable = file_exists($newPath)
+            ? is_writable($newPath)
+            : (is_dir(dirname($newPath)) && is_writable(dirname($newPath)));
+
+        if ($writable) {
+            $message = 'Preferences saved.';
+        } else {
+            $message = 'Database path is not writable.';
+            $alertClass = 'danger';
+        }
     }
 }
 
@@ -25,7 +36,7 @@ $currentPath = currentDatabasePath();
 <body class="container py-4">
   <h1 class="mb-4">Preferences</h1>
   <?php if ($message): ?>
-    <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
+    <div class="alert alert-<?php echo $alertClass; ?>"><?php echo htmlspecialchars($message); ?></div>
   <?php endif; ?>
   <form method="post">
     <div class="mb-3">
