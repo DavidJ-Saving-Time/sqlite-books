@@ -16,8 +16,8 @@ $authors_str = $argv[2];
 $file_path = $argv[3];
 $tags_str = $argc > 4 ? $argv[4] : "";
 
-$libraryPath = "/path/to/Calibre Library";  // Adjust this to your Calibre library path
-$dbPath = $libraryPath . "/metadata.db";
+$libraryPath = "/home/david/nilla";  // Adjust this to your Calibre library path
+$dbPath = $libraryPath . "./metadata.old.db";
 
 if (!file_exists($dbPath)) {
     die("Error: metadata.db not found at $dbPath\n");
