@@ -430,6 +430,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 </td>
                 <td>
                     <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
+                    <button type="button" class="btn btn-sm btn-danger delete-book ms-1" data-book-id="<?= htmlspecialchars($book['id']) ?>">Delete</button>
                 </td>
             </tr>
             <?php
@@ -719,6 +720,16 @@ $(function() {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ status: status })
+        }).then(function() { location.reload(); });
+    });
+
+    $(document).on('click', '.delete-book', function() {
+        if (!confirm('Are you sure you want to permanently delete this book?')) return;
+        var bookId = $(this).data('book-id');
+        fetch('delete_book.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: bookId })
         }).then(function() { location.reload(); });
     });
 
