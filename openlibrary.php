@@ -24,7 +24,8 @@ function search_openlibrary(string $query): array {
             'title' => $doc['title'] ?? '',
             'authors' => isset($doc['author_name']) ? implode(', ', (array)$doc['author_name']) : '',
             'cover_id' => $doc['cover_i'] ?? null,
-            'key' => $doc['key'] ?? ''
+            'key' => $doc['key'] ?? '',
+            'year' => $doc['first_publish_year'] ?? null
         ];
     }
     return $results;
