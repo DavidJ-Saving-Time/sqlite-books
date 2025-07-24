@@ -377,8 +377,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php endif; ?>
                 </td>
                 <td><?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?></td>
-                <td>&mdash;</td>
-                <td>&mdash;</td>
+                <td><?= $book['genre'] !== '' ? htmlspecialchars($book['genre']) : '&mdash;' ?></td>
+                <td><?= $book['year'] !== '' ? htmlspecialchars($book['year']) : '&mdash;' ?></td>
+                <td><?= $book['size'] !== '' ? htmlspecialchars($book['size']) : '&mdash;' ?></td>
                 <td>
                     <?php if (!empty($book['md5'])): ?>
                         <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">
@@ -670,8 +671,14 @@ if ($isAjax) {
                 <th>Cover</th>
                 <th>Title</th>
                 <th>Author(s)</th>
-                <th>Genre</th>
-                <th>Shelf</th>
+                <?php if ($source === 'annas'): ?>
+                    <th>Genre</th>
+                    <th>Year</th>
+                    <th>Size</th>
+                <?php else: ?>
+                    <th>Genre</th>
+                    <th>Shelf</th>
+                <?php endif; ?>
                 <th>Actions</th>
             </tr>
         </thead>
