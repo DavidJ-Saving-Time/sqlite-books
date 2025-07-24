@@ -6,6 +6,7 @@ $bookId = isset($_POST['book_id']) ? (int)$_POST['book_id'] : 0;
 $title = trim($_POST['title'] ?? '');
 $authors = trim($_POST['authors'] ?? '');
 $year = trim($_POST['year'] ?? '');
+$imgUrl = trim($_POST['imgurl'] ?? '');
 
 if ($bookId <= 0) {
     http_response_code(400);
@@ -17,6 +18,22 @@ $pdo = getDatabaseConnection();
 
 try {
     $pdo->beginTransaction();
+
+    if ($imgUrl !== '') {
+        $pathStmt = $pdo->prepare('SELECT path FROM books WHERE id = :id');
+        $pathStmt->execute([':id' => $bookId]);
+        $bookPath = $pathStmt->fetchColumn();
+        if ($bookPath !== false) {
+            $data = @file_get_contents($imgUrl);
+            if ($data !== false) {
+                $coverFile = __DIR__ . '/ebooks/' . $bookPath . '/cover.jpg';
+                if (is_dir(dirname($coverFile))) {
+                    file_put_contents($coverFile, $data);
+                    $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = :id')->execute([':id' => $bookId]);
+                }
+            }
+        }
+    }
 
     if ($title !== '') {
         $stmt = $pdo->prepare('UPDATE books SET title = :title, sort = :sort, last_modified = CURRENT_TIMESTAMP WHERE id = :id');

@@ -270,7 +270,8 @@ annasBtn.addEventListener('click', () => {
                 html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 annas-use" ' +
                         'data-title="' + b.title.replace(/"/g,'&quot;') + '" ' +
                         'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" ' +
-                        'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
+                        'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" ' +
+                        'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
                 html += '</div>';
             });
             annasResults.innerHTML = html;
@@ -284,10 +285,11 @@ document.addEventListener('click', function(e) {
         const t = e.target.dataset.title;
         const a = e.target.dataset.authors;
         const y = e.target.dataset.year;
+        const img = e.target.dataset.imgurl;
         fetch('update_metadata.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: currentBookId, title: t, authors: a, year: y })
+            body: new URLSearchParams({ book_id: currentBookId, title: t, authors: a, year: y, imgurl: img })
         }).then(r => r.json())
         .then(data => {
             if (data.status === 'ok') {
