@@ -1,12 +1,14 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once 'annas_archive.php';
 
 $bookId = isset($_POST['book_id']) ? (int)$_POST['book_id'] : 0;
 $title = trim($_POST['title'] ?? '');
 $authors = trim($_POST['authors'] ?? '');
 $year = trim($_POST['year'] ?? '');
 $imgUrl = trim($_POST['imgurl'] ?? '');
+$md5 = trim($_POST['md5'] ?? '');
 
 if ($bookId <= 0) {
     http_response_code(400);
@@ -72,6 +74,23 @@ try {
             }
         }
         $pdo->prepare('UPDATE books SET author_sort = :sort WHERE id = :id')->execute([':sort' => $primaryAuthor, ':id' => $bookId]);
+    }
+
+    if ($md5 !== '') {
+        $info = annas_archive_info($md5);
+        $description = '';
+        if (isset($info['description']) && is_string($info['description'])) {
+            $description = $info['description'];
+        } elseif (isset($info['descr']) && is_string($info['descr'])) {
+            $description = $info['descr'];
+        } elseif (isset($info['comment']) && is_string($info['comment'])) {
+            $description = $info['comment'];
+        }
+        if ($description !== '') {
+            $stmt = $pdo->prepare('INSERT INTO comments (book, text) VALUES (:book, :text) '
+                . 'ON CONFLICT(book) DO UPDATE SET text=excluded.text');
+            $stmt->execute([':book' => $bookId, ':text' => $description]);
+        }
     }
 
     $pdo->commit();
