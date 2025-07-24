@@ -1,0 +1,80 @@
+api key can be found in the env var ANNA_API_KEY
+
+Example code to call annas-archive 
+
+PHP ----------------------
+$curl = curl_init();
+
+curl_setopt_array($curl, [
+	CURLOPT_URL => "https://annas-archive-api.p.rapidapi.com/search?q=BOOK%20NAME&author=AUTHOR%20&cat=fiction%2C%20nonfiction%2Cother%2C%20unknown&skip=0&limit=10&ext=pdf%2C%20epub%2C%20mobi%2C%20azw3&sort=mostRelevant&source=libgenLi%2C%20libgenRs%2C%20zLibrary%2C%20sciHub",
+	CURLOPT_RETURNTRANSFER => true,
+	CURLOPT_ENCODING => "",
+	CURLOPT_MAXREDIRS => 10,
+	CURLOPT_TIMEOUT => 30,
+	CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+	CURLOPT_CUSTOMREQUEST => "GET",
+	CURLOPT_HTTPHEADER => [
+		"x-rapidapi-host: annas-archive-api.p.rapidapi.com",
+		"x-rapidapi-key: ANNA_API_KEY"
+	],
+]);
+
+$response = curl_exec($curl);
+$err = curl_error($curl);
+
+curl_close($curl);
+
+if ($err) {
+	echo "cURL Error #:" . $err;
+} else {
+	echo $response;
+}
+
+
+END PHP ---------------------------------
+
+Example Schema
+
+{
+  "type": "object",
+  "properties": {
+    "total": {
+      "type": "integer"
+    },
+    "books": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "md5": {
+            "type": "string"
+          },
+          "imgUrl": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          },
+          "genre": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "year": {
+            "type": "string"
+          },
+          "imgFallbackColor": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
