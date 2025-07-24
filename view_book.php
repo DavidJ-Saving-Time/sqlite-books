@@ -155,14 +155,21 @@ function parseRecommendations(text) {
     const recs = [];
     for (let line of lines) {
         line = line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '');
-        const match = line.match(/\*?"?([^"\*]+)"?\*?\s+by\s+([^\-]+?)(?:\s+-\s+(.*))?$/i);
-        if (match) {
-            recs.push({
-                title: match[1].trim(),
-                author: match[2].trim(),
-                reason: match[3] ? match[3].trim() : ''
-            });
+        const byPos = line.toLowerCase().indexOf(' by ');
+        if (byPos === -1) continue;
+        let title = line.slice(0, byPos).trim();
+        title = title.replace(/^['"*_]+|['"*_]+$/g, '');
+        let rest = line.slice(byPos + 4).trim();
+        let author, reason = '';
+        const dashPos = rest.indexOf(' - ');
+        if (dashPos !== -1) {
+            author = rest.slice(0, dashPos).trim();
+            reason = rest.slice(dashPos + 3).trim();
+        } else {
+            author = rest;
         }
+        author = author.replace(/^['"*_]+|['"*_]+$/g, '');
+        recs.push({ title, author, reason });
     }
     return recs;
 }
