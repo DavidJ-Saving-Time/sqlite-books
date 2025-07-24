@@ -7,6 +7,12 @@ Each book also has a "Shelf" value stored in the `books_custom_column_11` table.
 Genres are stored in `custom_column_2` and listed in the sidebar. You can add,
 rename or delete genres from that list just like shelves and status values.
 
+## Adding Your Own Books
+
+Use `add_physical_book.php` to upload an eBook file directly through the web
+interface. The page stores the file in the Calibre library structure and
+inserts the metadata into the database, similar to Calibre's "Add Book" feature.
+
 ## Searching
 
 Use the search bar at the top of `list_books.php` to search for books by title or author name. A dropdown next to the search field lets you choose between searching the **local** Calibre database, querying the **Open Library** API, or searching **Anna's Archive**. Results from external sources are shown in the same table layout but without local-only actions.
