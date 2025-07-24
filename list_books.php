@@ -739,7 +739,7 @@ $(function() {
     });
 
     $(document).on('click', '.delete-shelf', function() {
-        if (!confirm('Remove this shelf?')) return;
+        if (!confirm('Are you sure you want to remove this shelf?')) return;
         var shelf = $(this).data('shelf');
         fetch('delete_shelf.php', {
             method: 'POST',
@@ -762,7 +762,7 @@ $(function() {
     });
 
     $(document).on('click', '.delete-status', function() {
-        if (!confirm('Remove this status?')) return;
+        if (!confirm('Are you sure you want to remove this status?')) return;
         var status = $(this).data('status');
         fetch('delete_status.php', {
             method: 'POST',
