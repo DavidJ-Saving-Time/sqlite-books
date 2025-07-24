@@ -47,6 +47,25 @@ try {
         $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :value)")->execute([':book' => $bookId, ':value' => $value]);
     }
 
+    // Default status
+    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
+    $stmt->execute();
+    $statusId = $stmt->fetchColumn();
+    if ($statusId !== false) {
+        $base = 'books_custom_column_' . (int)$statusId;
+        $link = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "_link'")->fetchColumn();
+        if ($link) {
+            $valueTable = 'custom_column_' . (int)$statusId;
+            $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Want to Read')")->execute();
+            $defaultId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Want to Read'")->fetchColumn();
+            $pdo->prepare("INSERT INTO {$base}_link (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $defaultId]);
+        } else {
+            $statusTable = $base;
+            $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+            $pdo->prepare("INSERT INTO $statusTable (book, value) VALUES (:book, 'Want to Read')")->execute([':book' => $bookId]);
+        }
+    }
+
     $pdo->commit();
     echo json_encode(['status' => 'ok', 'book_id' => $bookId]);
 } catch (PDOException $e) {
