@@ -529,7 +529,8 @@ if ($isAjax) {
                         </div>
                     </form>
                 </div>
-                <div class="list-group">
+                <div class="mb-3">
+                    <h6 class="mb-1">Genres</h6>
                     <?php
                         $genreBase = 'list_books.php?sort=' . urlencode($sort);
                         if ($authorId) $genreBase .= '&author_id=' . urlencode((string)$authorId);
@@ -539,22 +540,38 @@ if ($isAjax) {
                         if ($source !== '') $genreBase .= '&source=' . urlencode($source);
                         if ($statusName !== '') $genreBase .= '&status=' . urlencode($statusName);
                     ?>
-                    <a href="<?= htmlspecialchars($genreBase) ?>" class="list-group-item list-group-item-action<?= $genreId ? '' : ' active' ?>">All Genres</a>
-                    <?php foreach ($genreList as $g): ?>
-                        <?php
-                            $url = 'list_books.php?sort=' . urlencode($sort);
-                            if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
-                            if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
-                            $url .= '&genre_id=' . urlencode((string)$g['id']);
-                            if ($shelfName !== '') $url .= '&shelf=' . urlencode($shelfName);
-                            if ($search !== '') $url .= '&search=' . urlencode($search);
-                            if ($source !== '') $url .= '&source=' . urlencode($source);
-                            if ($statusName !== '') $url .= '&status=' . urlencode($statusName);
-                        ?>
-                        <a href="<?= htmlspecialchars($url) ?>" class="list-group-item list-group-item-action<?= $genreId == $g['id'] ? ' active' : '' ?>">
-                            <?= htmlspecialchars($g['value']) ?>
-                        </a>
-                    <?php endforeach; ?>
+                    <ul class="list-group" id="genreList">
+                        <li class="list-group-item<?= $genreId ? '' : ' active' ?>">
+                            <a href="<?= htmlspecialchars($genreBase) ?>" class="text-decoration-none<?= $genreId ? '' : ' text-white' ?>">All Genres</a>
+                        </li>
+                        <?php foreach ($genreList as $g): ?>
+                            <?php
+                                $url = 'list_books.php?sort=' . urlencode($sort);
+                                if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
+                                if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
+                                $url .= '&genre_id=' . urlencode((string)$g['id']);
+                                if ($shelfName !== '') $url .= '&shelf=' . urlencode($shelfName);
+                                if ($search !== '') $url .= '&search=' . urlencode($search);
+                                if ($source !== '') $url .= '&source=' . urlencode($source);
+                                if ($statusName !== '') $url .= '&status=' . urlencode($statusName);
+                            ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreId == $g['id'] ? ' active' : '' ?>">
+                                <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $genreId == $g['id'] ? ' text-white' : '' ?>">
+                                    <?= htmlspecialchars($g['value']) ?>
+                                </a>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-secondary edit-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>" data-genre="<?= htmlspecialchars($g['value']) ?>">E</button>
+                                    <button type="button" class="btn btn-outline-danger delete-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>">&times;</button>
+                                </div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <form id="addGenreForm" class="mt-2">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" name="genre" placeholder="New genre">
+                            <button class="btn btn-primary" type="submit">Add</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </nav>
@@ -690,6 +707,17 @@ $(function() {
         }).then(function() { location.reload(); });
     });
 
+    $('#addGenreForm').on('submit', function(e) {
+        e.preventDefault();
+        var genre = $(this).find('input[name="genre"]').val().trim();
+        if (!genre) return;
+        fetch('add_genre.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ genre: genre })
+        }).then(function() { location.reload(); });
+    });
+
     $(document).on('click', '.delete-shelf', function() {
         if (!confirm('Are you sure you want to remove this shelf?')) return;
         var shelf = $(this).data('shelf');
@@ -723,6 +751,16 @@ $(function() {
         }).then(function() { location.reload(); });
     });
 
+    $(document).on('click', '.delete-genre', function() {
+        if (!confirm('Are you sure you want to remove this genre?')) return;
+        var id = $(this).data('genre-id');
+        fetch('delete_genre.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ id: id })
+        }).then(function() { location.reload(); });
+    });
+
     $(document).on('click', '.delete-book', function() {
         if (!confirm('Are you sure you want to permanently delete this book?')) return;
         var bookId = $(this).data('book-id');
@@ -743,6 +781,20 @@ $(function() {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ status: status, new: name })
+        }).then(function() { location.reload(); });
+    });
+
+    $(document).on('click', '.edit-genre', function() {
+        var id = $(this).data('genre-id');
+        var current = $(this).data('genre');
+        var name = prompt('Rename genre:', current);
+        if (name === null) return;
+        name = name.trim();
+        if (!name || name === current) return;
+        fetch('rename_genre.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ id: id, new: name })
         }).then(function() { location.reload(); });
     });
 
