@@ -3,6 +3,8 @@ function getDatabaseConnection($path = 'metadata.old.db') {
     try {
         $pdo = new PDO('sqlite:' . $path);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        // Enforce foreign key constraints for the connection
+        $pdo->exec('PRAGMA foreign_keys = ON');
 
         // Register a PHP implementation of Calibre's title_sort function so
         // database triggers referring to title_sort() work correctly.
