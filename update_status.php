@@ -60,7 +60,7 @@ try {
     }
 
     $currentYear = (int)date('Y');
-    if (strcasecmp($value, 'Read') === 0) {
+    if (strcasecmp($value, 'Read Challenge') === 0) {
         $stmt = $pdo->prepare('REPLACE INTO reading_log (book, year, read_date) VALUES (:book, :year, :read_date)');
         $stmt->execute([
             ':book' => $bookId,

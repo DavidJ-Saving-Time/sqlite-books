@@ -95,6 +95,7 @@ try {
                 <th>Title</th>
                 <th>Author(s)</th>
                 <th>Finished</th>
+                <th>Remove</th>
             </tr>
             </thead>
             <tbody>
@@ -116,6 +117,9 @@ try {
                             <?= htmlspecialchars(date('M j, Y', strtotime($b['read_date']))) ?>
                         <?php endif; ?>
                     </td>
+                    <td>
+                        <button class="btn btn-sm btn-danger remove-challenge" data-book-id="<?= htmlspecialchars($b['id']) ?>">Remove</button>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
@@ -123,5 +127,17 @@ try {
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+document.querySelectorAll('.remove-challenge').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-book-id');
+        fetch('update_status.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: id, value: 'Read' })
+        }).then(function() { location.reload(); });
+    });
+});
+</script>
 </body>
 </html>
