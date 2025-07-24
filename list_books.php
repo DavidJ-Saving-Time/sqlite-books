@@ -388,6 +388,12 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
+                    <button type="button" class="btn btn-sm btn-primary ms-1 annas-add"
+                            data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"
+                            data-authors="<?= htmlspecialchars($book['author'], ENT_QUOTES) ?>">
+                        Add to Library
+                    </button>
+                    <span class="annas-add-result ms-1"></span>
                 </td>
             </tr>
             <?php
@@ -865,6 +871,27 @@ $(function() {
                 }
             })
             .catch(function() { alert('Download failed'); });
+    });
+
+    $(document).on('click', '.annas-add', function() {
+        var title = $(this).data('title');
+        var authors = $(this).data('authors');
+        var $result = $(this).siblings('.annas-add-result');
+        $result.text('Adding...');
+        fetch('add_book.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ title: title, authors: authors })
+        }).then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                $result.text('Book added');
+            } else {
+                $result.text(data.error || 'Error adding');
+            }
+        }).catch(function() {
+            $result.text('Error adding');
+        });
     });
 
     $(window).on('scroll', function() {
