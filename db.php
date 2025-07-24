@@ -18,6 +18,15 @@ function getDatabaseConnection($path = 'metadata.old.db') {
             return $title;
         }, 1);
 
+        // Provide a uuid4() function used by triggers in the Calibre schema.
+        // Generates a version 4 UUID string in the standard 8-4-4-4-12 format.
+        $pdo->sqliteCreateFunction('uuid4', function () {
+            $data = random_bytes(16);
+            $data[6] = chr((ord($data[6]) & 0x0f) | 0x40); // set version to 0100
+            $data[8] = chr((ord($data[8]) & 0x3f) | 0x80); // set variant to 10
+            return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+        }, 0);
+
         return $pdo;
     } catch (PDOException $e) {
         die('Connection failed: ' . $e->getMessage());
