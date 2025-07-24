@@ -3,6 +3,14 @@ require_once 'db.php';
 
 $pdo = getDatabaseConnection();
 
+// Ensure shelf custom column exists and rows for all books
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+    $pdo->exec("INSERT INTO books_custom_column_11 (book, value)\n            SELECT id, 'Ebook Calibre' FROM books\n            WHERE id NOT IN (SELECT book FROM books_custom_column_11)");
+} catch (PDOException $e) {
+    // Ignore errors if the table cannot be created
+}
+
 // Check if the recommendations table exists
 $recColumnExists = false;
 try {
@@ -130,7 +138,8 @@ if ($source === 'openlibrary' && $search !== '') {
                        (SELECT GROUP_CONCAT(c.id || ':' || c.value, '|')
                             FROM books_custom_column_2_link bcc
                             JOIN custom_column_2 c ON bcc.value = c.id
-                            WHERE bcc.book = b.id) AS genre_data";
+                            WHERE bcc.book = b.id) AS genre_data,
+                       bc11.value AS shelf";
         if ($recColumnExists) {
             $selectFields .= ", EXISTS(SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '') AS has_recs";
         }
@@ -139,6 +148,7 @@ if ($source === 'openlibrary' && $search !== '') {
                 FROM books b
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id
+                LEFT JOIN books_custom_column_11 bc11 ON bc11.book = b.id
                 $where
                 ORDER BY {$orderBy}
                 LIMIT :limit OFFSET :offset";
@@ -200,6 +210,7 @@ function render_book_rows(array $books, string $source, string $sort, ?int $auth
                     </a>
                 </td>
                 <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
+                <td>&mdash;</td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
             </tr>
@@ -267,6 +278,13 @@ function render_book_rows(array $books, string $source, string $sort, ?int $auth
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm shelf-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                        <option value="Ebook Calibre"<?= $book['shelf'] === 'Ebook Calibre' ? ' selected' : '' ?>>Ebook Calibre</option>
+                        <option value="Physical"<?= $book['shelf'] === 'Physical' ? ' selected' : '' ?>>Physical</option>
+                        <option value="PDFs"<?= $book['shelf'] === 'PDFs' ? ' selected' : '' ?>>PDFs</option>
+                    </select>
                 </td>
                 <td>
                     <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
@@ -409,6 +427,7 @@ if ($isAjax) {
                 <th>Title</th>
                 <th>Author(s)</th>
                 <th>Genre</th>
+                <th>Shelf</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -447,6 +466,16 @@ $(function() {
             loading = false;
         });
     }
+
+    $(document).on('change', '.shelf-select', function() {
+        var bookId = $(this).data('book-id');
+        var value = $(this).val();
+        fetch('update_shelf.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: bookId, value: value })
+        });
+    });
 
     $(window).on('scroll', function() {
         if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
