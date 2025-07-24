@@ -30,6 +30,23 @@ if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
     $shelfName = '';
 }
 
+// Locate custom column for reading status
+$statusTable = null;
+$statusOptions = [];
+try {
+    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
+    $stmt->execute();
+    $statusId = $stmt->fetchColumn();
+    if ($statusId !== false) {
+        $statusTable = 'books_custom_column_' . (int)$statusId;
+        $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+        $statusOptions = $pdo->query("SELECT DISTINCT value FROM $statusTable WHERE TRIM(COALESCE(value,'')) <> '' ORDER BY value")->fetchAll(PDO::FETCH_COLUMN);
+    }
+} catch (PDOException $e) {
+    $statusTable = null;
+    $statusOptions = [];
+}
+
 // Check if the recommendations table exists
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
@@ -172,6 +189,9 @@ if ($source === 'openlibrary' && $search !== '') {
                             JOIN custom_column_2 c ON bcc.value = c.id
                             WHERE bcc.book = b.id) AS genre_data,
                        bc11.value AS shelf";
+        if ($statusTable) {
+            $selectFields .= ", sc.value AS status";
+        }
         if ($recColumnExists) {
             $selectFields .= ", EXISTS(SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '') AS has_recs";
         }
@@ -180,8 +200,11 @@ if ($source === 'openlibrary' && $search !== '') {
                 FROM books b
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id
-                LEFT JOIN books_custom_column_11 bc11 ON bc11.book = b.id
-                $where
+                LEFT JOIN books_custom_column_11 bc11 ON bc11.book = b.id";
+        if ($statusTable) {
+            $sql .= " LEFT JOIN $statusTable sc ON sc.book = b.id";
+        }
+        $sql .= " $where
                 ORDER BY {$orderBy}
                 LIMIT :limit OFFSET :offset";
         $stmt = $pdo->prepare($sql);
@@ -196,6 +219,12 @@ if ($source === 'openlibrary' && $search !== '') {
         if (!$recColumnExists) {
             foreach ($books as &$b) {
                 $b['has_recs'] = 0;
+            }
+            unset($b);
+        }
+        if (!$statusTable) {
+            foreach ($books as &$b) {
+                $b['status'] = null;
             }
             unset($b);
         }
@@ -226,7 +255,7 @@ if ($search !== '') {
 }
 $baseUrl .= '&page=';
 
-function render_book_rows(array $books, array $shelfList, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
+function render_book_rows(array $books, array $shelfList, array $statusOptions, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
     foreach ($books as $book) {
         if ($source === 'openlibrary') {
             ?>
@@ -244,6 +273,7 @@ function render_book_rows(array $books, array $shelfList, string $source, string
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
                 </td>
+                <td>&mdash;</td>
                 <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
@@ -279,6 +309,17 @@ function render_book_rows(array $books, array $shelfList, string $source, string
                             <?php endif; ?>
                         </small>
                     <?php endif; ?>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm status-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                        <option value=""></option>
+                        <?php foreach ($statusOptions as $s): ?>
+                            <option value="<?= htmlspecialchars($s) ?>"<?= $book['status'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
+                        <?php endforeach; ?>
+                        <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
+                            <option value="<?= htmlspecialchars($book['status']) ?>" selected><?= htmlspecialchars($book['status']) ?></option>
+                        <?php endif; ?>
+                    </select>
                 </td>
                 <td>
                     <?php if (!empty($book['author_data'])): ?>
@@ -331,7 +372,7 @@ function render_book_rows(array $books, array $shelfList, string $source, string
 }
 
 if ($isAjax) {
-    render_book_rows($books, $shelfList, $source, $sort, $authorId, $seriesId);
+    render_book_rows($books, $shelfList, $statusOptions, $source, $sort, $authorId, $seriesId);
     exit;
 }
 ?>
@@ -509,6 +550,7 @@ if ($isAjax) {
                 <th>ID</th>
                 <th>Cover</th>
                 <th>Title</th>
+                <th>Status</th>
                 <th>Author(s)</th>
                 <th>Genre</th>
                 <th>Shelf</th>
@@ -516,7 +558,7 @@ if ($isAjax) {
             </tr>
         </thead>
         <tbody>
-        <?php render_book_rows($books, $shelfList, $source, $sort, $authorId, $seriesId); ?>
+        <?php render_book_rows($books, $shelfList, $statusOptions, $source, $sort, $authorId, $seriesId); ?>
         </tbody>
     </table>
         </div>
@@ -555,6 +597,16 @@ $(function() {
         var bookId = $(this).data('book-id');
         var value = $(this).val();
         fetch('update_shelf.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: bookId, value: value })
+        });
+    });
+
+    $(document).on('change', '.status-select', function() {
+        var bookId = $(this).data('book-id');
+        var value = $(this).val();
+        fetch('update_status.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ book_id: bookId, value: value })
