@@ -47,9 +47,40 @@ if (!$coverId && !empty($covers)) {
             <?php if (!empty($subjects)): ?>
                 <p><strong>Subjects:</strong> <?= htmlspecialchars(implode(', ', $subjects)) ?></p>
             <?php endif; ?>
+            <button id="addBtn" type="button" class="btn btn-primary mt-3"
+                    data-title="<?= htmlspecialchars($workTitle, ENT_QUOTES) ?>"
+                    data-authors="<?= htmlspecialchars($authors, ENT_QUOTES) ?>">
+                Add to Library
+            </button>
+            <div id="addResult" class="mt-2"></div>
         </div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+document.getElementById('addBtn').addEventListener('click', function () {
+    const title = this.dataset.title;
+    const authors = this.dataset.authors;
+    const params = new URLSearchParams({title: title, authors: authors});
+    const resultEl = document.getElementById('addResult');
+    resultEl.textContent = 'Adding...';
+    fetch('add_book.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: params
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            resultEl.textContent = 'Book added to library';
+        } else {
+            resultEl.textContent = data.error || 'Error adding book';
+        }
+    })
+    .catch(() => {
+        resultEl.textContent = 'Error adding book';
+    });
+});
+</script>
 </body>
 </html>
