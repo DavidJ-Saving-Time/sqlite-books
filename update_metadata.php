@@ -24,13 +24,19 @@ try {
         $pathStmt->execute([':id' => $bookId]);
         $bookPath = $pathStmt->fetchColumn();
         if ($bookPath !== false) {
+            $libraryPath = realpath(__DIR__ . '/ebooks');
+            if ($libraryPath === false) {
+                $libraryPath = __DIR__ . '/ebooks';
+            }
             $data = @file_get_contents($imgUrl);
             if ($data !== false) {
-                $coverFile = __DIR__ . '/ebooks/' . $bookPath . '/cover.jpg';
-                if (is_dir(dirname($coverFile))) {
-                    file_put_contents($coverFile, $data);
-                    $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = :id')->execute([':id' => $bookId]);
+                $coverFile = $libraryPath . '/' . $bookPath . '/cover.jpg';
+                $dir = dirname($coverFile);
+                if (!is_dir($dir)) {
+                    mkdir($dir, 0777, true);
                 }
+                file_put_contents($coverFile, $data);
+                $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = :id')->execute([':id' => $bookId]);
             }
         }
     }
