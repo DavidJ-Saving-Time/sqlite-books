@@ -470,7 +470,10 @@ if ($isAjax) {
                             <?php $url = $shelfUrlBase . '&shelf=' . urlencode($s); ?>
                             <li class="list-group-item d-flex justify-content-between align-items-center<?= $shelfName === $s ? ' active' : '' ?>">
                                 <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $shelfName === $s ? ' text-white' : '' ?>"><?= htmlspecialchars($s) ?></a>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s) ?>">&times;</button>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-secondary edit-shelf" data-shelf="<?= htmlspecialchars($s) ?>">E</button>
+                                    <button type="button" class="btn btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s) ?>">&times;</button>
+                                </div>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -500,7 +503,10 @@ if ($isAjax) {
                             <?php $url = $statusUrlBase . '&status=' . urlencode($s); ?>
                             <li class="list-group-item d-flex justify-content-between align-items-center<?= $statusName === $s ? ' active' : '' ?>">
                                 <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $statusName === $s ? ' text-white' : '' ?>"><?= htmlspecialchars($s) ?></a>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-status" data-status="<?= htmlspecialchars($s) ?>">&times;</button>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-secondary edit-status" data-status="<?= htmlspecialchars($s) ?>">E</button>
+                                    <button type="button" class="btn btn-outline-danger delete-status" data-status="<?= htmlspecialchars($s) ?>">&times;</button>
+                                </div>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -742,6 +748,19 @@ $(function() {
         }).then(function() { location.reload(); });
     });
 
+    $(document).on('click', '.edit-shelf', function() {
+        var shelf = $(this).data('shelf');
+        var name = prompt('Rename shelf:', shelf);
+        if (name === null) return;
+        name = name.trim();
+        if (!name || name === shelf) return;
+        fetch('rename_shelf.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ shelf: shelf, new: name })
+        }).then(function() { location.reload(); });
+    });
+
     $(document).on('click', '.delete-status', function() {
         if (!confirm('Remove this status?')) return;
         var status = $(this).data('status');
@@ -749,6 +768,19 @@ $(function() {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ status: status })
+        }).then(function() { location.reload(); });
+    });
+
+    $(document).on('click', '.edit-status', function() {
+        var status = $(this).data('status');
+        var name = prompt('Rename status:', status);
+        if (name === null) return;
+        name = name.trim();
+        if (!name || name === status) return;
+        fetch('rename_status.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ status: status, new: name })
         }).then(function() { location.reload(); });
     });
 
