@@ -410,9 +410,10 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php endif; ?>
                 </td>
                 <td>
-                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
+                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>" class="book-title" data-book-id="<?= htmlspecialchars($book['id']) ?>">
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 edit-title" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"><i class="fa-solid fa-pen"></i></button>
                     <?php if (!empty($book['has_recs'])): ?>
                         <span class="text-success ms-1">&#10003;</span>
                     <?php endif; ?>
@@ -857,6 +858,24 @@ $(function() {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ id: id, new: name })
         }).then(function() { location.reload(); });
+    });
+
+    $(document).on('click', '.edit-title', function() {
+        var bookId = $(this).data('book-id');
+        var current = $(this).data('title');
+        var name = prompt('Rename title:', current);
+        if (name === null) return;
+        name = name.trim();
+        if (!name || name === current) return;
+        var $link = $(this).siblings('a.book-title');
+        fetch('update_title.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: bookId, title: name })
+        }).then(function() {
+            $link.text(name);
+            $(this).data('title', name);
+        }.bind(this));
     });
 
     $(document).on('click', '.annas-download', function() {
