@@ -327,7 +327,6 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
                 </td>
-                <td>&mdash;</td>
                 <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
@@ -362,18 +361,6 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                             <?php endif; ?>
                         </small>
                     <?php endif; ?>
-                </td>
-                <td>
-                    <select class="form-select form-select-sm status-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                        <option value="Want to Read"<?= ($book['status'] === null || $book['status'] === '') ? ' selected' : '' ?>>Want to Read</option>
-                        <?php foreach ($statusOptions as $s): ?>
-                            <?php if ($s === 'Want to Read') continue; ?>
-                            <option value="<?= htmlspecialchars($s) ?>"<?= $book['status'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
-                        <?php endforeach; ?>
-                        <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
-                            <option value="<?= htmlspecialchars($book['status']) ?>" selected><?= htmlspecialchars($book['status']) ?></option>
-                        <?php endif; ?>
-                    </select>
                 </td>
                 <td>
                     <?php if (!empty($book['author_data'])): ?>
@@ -414,6 +401,16 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         <?php foreach ($shelfList as $s): ?>
                             <option value="<?= htmlspecialchars($s) ?>"<?= $book['shelf'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
                         <?php endforeach; ?>
+                    </select>
+                    <select class="form-select form-select-sm status-select mt-1" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                        <option value="Want to Read"<?= ($book['status'] === null || $book['status'] === '') ? ' selected' : '' ?>>Want to Read</option>
+                        <?php foreach ($statusOptions as $s): ?>
+                            <?php if ($s === 'Want to Read') continue; ?>
+                            <option value="<?= htmlspecialchars($s) ?>"<?= $book['status'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
+                        <?php endforeach; ?>
+                        <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
+                            <option value="<?= htmlspecialchars($book['status']) ?>" selected><?= htmlspecialchars($book['status']) ?></option>
+                        <?php endif; ?>
                     </select>
                 </td>
                 <td>
@@ -650,7 +647,6 @@ if ($isAjax) {
             <tr>
                 <th>Cover</th>
                 <th>Title</th>
-                <th>Status</th>
                 <th>Author(s)</th>
                 <th>Genre</th>
                 <th>Shelf</th>
