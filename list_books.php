@@ -33,18 +33,33 @@ if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
 // Locate custom column for reading status
 $statusTable = null;
 $statusOptions = [];
+$statusIsLink = false;
+$statusId = null;
 try {
     $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
     $stmt->execute();
     $statusId = $stmt->fetchColumn();
     if ($statusId !== false) {
-        $statusTable = 'books_custom_column_' . (int)$statusId;
-        $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-        $statusOptions = $pdo->query("SELECT DISTINCT value FROM $statusTable WHERE TRIM(COALESCE(value,'')) <> '' ORDER BY value")->fetchAll(PDO::FETCH_COLUMN);
+        $base = 'books_custom_column_' . (int)$statusId;
+        $direct = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "'")->fetchColumn();
+        $link = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "_link'")->fetchColumn();
+        if ($link) {
+            // Enumerated column stored via link table
+            $statusTable = $base . '_link';
+            $statusIsLink = true;
+            $valueTable = 'custom_column_' . (int)$statusId;
+            $statusOptions = $pdo->query("SELECT value FROM $valueTable ORDER BY value COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
+        } else {
+            // Text column stored directly
+            $statusTable = $base;
+            $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+            $statusOptions = $pdo->query("SELECT DISTINCT value FROM $statusTable WHERE TRIM(COALESCE(value,'')) <> '' ORDER BY value")->fetchAll(PDO::FETCH_COLUMN);
+        }
     }
 } catch (PDOException $e) {
     $statusTable = null;
     $statusOptions = [];
+    $statusIsLink = false;
 }
 
 // Check if the recommendations table exists
@@ -190,7 +205,11 @@ if ($source === 'openlibrary' && $search !== '') {
                             WHERE bcc.book = b.id) AS genre_data,
                        bc11.value AS shelf";
         if ($statusTable) {
-            $selectFields .= ", sc.value AS status";
+            if ($statusIsLink) {
+                $selectFields .= ", scv.value AS status";
+            } else {
+                $selectFields .= ", sc.value AS status";
+            }
         }
         if ($recColumnExists) {
             $selectFields .= ", EXISTS(SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '') AS has_recs";
@@ -202,7 +221,11 @@ if ($source === 'openlibrary' && $search !== '') {
                 LEFT JOIN series s ON bsl.series = s.id
                 LEFT JOIN books_custom_column_11 bc11 ON bc11.book = b.id";
         if ($statusTable) {
-            $sql .= " LEFT JOIN $statusTable sc ON sc.book = b.id";
+            if ($statusIsLink) {
+                $sql .= " LEFT JOIN $statusTable sc ON sc.book = b.id LEFT JOIN custom_column_" . (int)$statusId . " scv ON sc.value = scv.id";
+            } else {
+                $sql .= " LEFT JOIN $statusTable sc ON sc.book = b.id";
+            }
         }
         $sql .= " $where
                 ORDER BY {$orderBy}
