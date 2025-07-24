@@ -9,7 +9,11 @@ $message = '';
 try {
     // Ensure tables exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS reading_challenges (year INTEGER PRIMARY KEY, goal INTEGER)");
-    $pdo->exec("CREATE TABLE IF NOT EXISTS reading_log (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, year INTEGER)");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS reading_log (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, year INTEGER, read_date TEXT)");
+    $cols = $pdo->query("PRAGMA table_info(reading_log)")->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (!in_array('read_date', $cols, true)) {
+        $pdo->exec("ALTER TABLE reading_log ADD COLUMN read_date TEXT");
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $goal = isset($_POST['goal']) ? (int)$_POST['goal'] : 0;
@@ -29,10 +33,11 @@ try {
     $readCount = (int)$countStmt->fetchColumn();
 
     $booksStmt = $pdo->prepare(
-        "SELECT b.id, b.title, (SELECT GROUP_CONCAT(a.name, ', ')
-            FROM books_authors_link bal
-            JOIN authors a ON bal.author = a.id
-            WHERE bal.book = b.id) AS authors
+        "SELECT b.id, b.title, b.path, b.has_cover, rl.read_date,
+            (SELECT GROUP_CONCAT(a.name, ', ')
+                FROM books_authors_link bal
+                JOIN authors a ON bal.author = a.id
+                WHERE bal.book = b.id) AS authors
          FROM reading_log rl
          JOIN books b ON rl.book = b.id
          WHERE rl.year = :year
@@ -86,15 +91,31 @@ try {
         <table class="table table-striped" style="max-width: 40rem;">
             <thead>
             <tr>
+                <th>Cover</th>
                 <th>Title</th>
                 <th>Author(s)</th>
+                <th>Finished</th>
             </tr>
             </thead>
             <tbody>
             <?php foreach ($readBooks as $b): ?>
                 <tr>
+                    <td>
+                        <?php if (!empty($b['has_cover'])): ?>
+                            <a href="view_book.php?id=<?= urlencode($b['id']) ?>">
+                                <img src="ebooks/<?= htmlspecialchars($b['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 80px; height: auto;">
+                            </a>
+                        <?php else: ?>
+                            &mdash;
+                        <?php endif; ?>
+                    </td>
                     <td><a href="view_book.php?id=<?= urlencode($b['id']) ?>"><?= htmlspecialchars($b['title']) ?></a></td>
                     <td><?= htmlspecialchars($b['authors']) ?></td>
+                    <td>
+                        <?php if (!empty($b['read_date'])): ?>
+                            <?= htmlspecialchars(date('M j, Y', strtotime($b['read_date']))) ?>
+                        <?php endif; ?>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

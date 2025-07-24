@@ -7,7 +7,11 @@ $value = trim($_POST['value'] ?? '');
 
 $pdo = getDatabaseConnection();
 try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS reading_log (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, year INTEGER)");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS reading_log (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, year INTEGER, read_date TEXT)");
+    $cols = $pdo->query("PRAGMA table_info(reading_log)")->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (!in_array('read_date', $cols, true)) {
+        $pdo->exec("ALTER TABLE reading_log ADD COLUMN read_date TEXT");
+    }
     $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
     $stmt->execute();
     $statusId = $stmt->fetchColumn();
@@ -57,8 +61,12 @@ try {
 
     $currentYear = (int)date('Y');
     if (strcasecmp($value, 'Read') === 0) {
-        $stmt = $pdo->prepare('REPLACE INTO reading_log (book, year) VALUES (:book, :year)');
-        $stmt->execute([':book' => $bookId, ':year' => $currentYear]);
+        $stmt = $pdo->prepare('REPLACE INTO reading_log (book, year, read_date) VALUES (:book, :year, :read_date)');
+        $stmt->execute([
+            ':book' => $bookId,
+            ':year' => $currentYear,
+            ':read_date' => date('Y-m-d')
+        ]);
     } else {
         $stmt = $pdo->prepare('DELETE FROM reading_log WHERE book = :book');
         $stmt->execute([':book' => $bookId]);
