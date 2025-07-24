@@ -315,7 +315,6 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
         if ($source === 'openlibrary') {
             ?>
             <tr>
-                <td>&mdash;</td>
                 <td>
                     <?php if (!empty($book['cover_id'])): ?>
                         <img src="https://covers.openlibrary.org/b/id/<?= htmlspecialchars($book['cover_id']) ?>-S.jpg" alt="Cover" class="img-thumbnail" style="width: 50px; height: auto;">
@@ -338,7 +337,6 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
         } else {
             ?>
             <tr>
-                <td><?= htmlspecialchars($book['id']) ?></td>
                 <td>
                     <?php if (!empty($book['has_cover'])): ?>
                         <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
@@ -650,7 +648,6 @@ if ($isAjax) {
     <table class="table table-striped">
         <thead>
             <tr>
-                <th>ID</th>
                 <th>Cover</th>
                 <th>Title</th>
                 <th>Status</th>
