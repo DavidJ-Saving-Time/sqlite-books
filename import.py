@@ -2,6 +2,7 @@ import csv
 import os
 import sqlite3
 import uuid
+import json
 from datetime import datetime
 
 # === CONFIGURATION ===
@@ -44,7 +45,18 @@ def uuid4_sqlite() -> str:
     return str(uuid.uuid4())
 
 # === MAIN SCRIPT ===
-db_path = os.path.join(LIBRARY_PATH, "metadata.db")
+prefs_file = os.path.join(os.path.dirname(__file__), "preferences.json")
+db_path = None
+if os.path.exists(prefs_file):
+    try:
+        with open(prefs_file, "r", encoding="utf-8") as f:
+            db_path = json.load(f).get("db_path")
+    except Exception:
+        db_path = None
+if not db_path:
+    db_path = os.path.join(LIBRARY_PATH, "metadata.db")
+else:
+    LIBRARY_PATH = os.path.dirname(db_path)
 print(f"Using Calibre DB: {db_path}")
 
 conn = sqlite3.connect(db_path)

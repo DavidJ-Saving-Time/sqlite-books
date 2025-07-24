@@ -16,40 +16,16 @@ $authors_str = $argv[2];
 $file_path = $argv[3];
 $tags_str = $argc > 4 ? $argv[4] : "";
 
-$libraryPath = "/home/david/nilla";  // Adjust this to your Calibre library path
-$dbPath = $libraryPath . "./metadata.old.db";
+require_once 'db.php';
+$libraryPath = getLibraryPath();
+$dbPath = currentDatabasePath();
 
 if (!file_exists($dbPath)) {
     die("Error: metadata.db not found at $dbPath\n");
 }
 
 // --- Database Setup ---
-$pdo = new PDO("sqlite:$dbPath");
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-// Register Calibre-like functions
-$pdo->sqliteCreateFunction('title_sort', function ($title) {
-    $title = trim($title ?? '');
-    if ($title === '') return '';
-    if (preg_match('/^(a|an|the)\s+(.+)/i', $title, $m)) {
-        return $m[2] . ', ' . ucfirst(strtolower($m[1]));
-    }
-    return $title;
-}, 1);
-
-$pdo->sqliteCreateFunction('author_sort', function ($author) {
-    $author = trim($author ?? '');
-    if ($author === '') return '';
-    $parts = explode(' ', $author);
-    return count($parts) > 1 ? array_pop($parts) . ', ' . implode(' ', $parts) : $author;
-}, 1);
-
-$pdo->sqliteCreateFunction('uuid4', function () {
-    $data = random_bytes(16);
-    $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-    $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-}, 0);
+$pdo = getDatabaseConnection($dbPath);
 
 // --- Helper Functions ---
 function safe_filename($name, $max_length = 150) {

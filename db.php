@@ -1,5 +1,48 @@
 <?php
-function getDatabaseConnection($path = 'metadata.old.db') {
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+function getPreferences(): array {
+    $file = __DIR__ . '/preferences.json';
+    if (file_exists($file)) {
+        $data = json_decode(file_get_contents($file), true);
+        if (is_array($data)) {
+            return $data;
+        }
+    }
+    return [];
+}
+
+function savePreferences(array $prefs): bool {
+    $file = __DIR__ . '/preferences.json';
+    return file_put_contents($file, json_encode($prefs, JSON_PRETTY_PRINT)) !== false;
+}
+
+function getPreference(string $key, $default = null) {
+    $prefs = getPreferences();
+    return $prefs[$key] ?? $default;
+}
+
+function setPreference(string $key, $value): bool {
+    $prefs = getPreferences();
+    $prefs[$key] = $value;
+    return savePreferences($prefs);
+}
+
+function currentDatabasePath(): string {
+    if (!empty($_SESSION['db_path'])) {
+        return $_SESSION['db_path'];
+    }
+    return getPreference('db_path', 'metadata.old.db');
+}
+
+function getLibraryPath(): string {
+    return dirname(currentDatabasePath());
+}
+
+function getDatabaseConnection(?string $path = null) {
+    $path = $path ?? currentDatabasePath();
     try {
         $pdo = new PDO('sqlite:' . $path);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
