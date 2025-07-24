@@ -4,6 +4,9 @@ This project is a small PHP application for browsing and editing an eBook databa
 
 Each book also has a "Shelf" value stored in the `books_custom_column_11` table. Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar and click a shelf name to filter the list. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
 
+Genres are stored in `custom_column_2` and listed in the sidebar. You can add,
+rename or delete genres from that list just like shelves and status values.
+
 ## Searching
 
 Use the search bar at the top of `list_books.php` to search for books by title or author name. A dropdown next to the search field lets you choose between searching the **local** Calibre database or querying the **Open Library** API. Results from Open Library are shown in the same table layout but without local-only actions.
