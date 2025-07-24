@@ -8,7 +8,7 @@ $genreIdVal = isset($genreId) ? $genreId : null;
 $shelfNameVal = isset($shelfName) ? $shelfName : '';
 $statusNameVal = isset($statusName) ? $statusName : '';
 ?>
-<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+<nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
   <div class="container-fluid">
     <a class="navbar-brand" href="list_books.php">Books</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">

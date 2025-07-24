@@ -438,7 +438,7 @@ if ($isAjax) {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" crossorigin="anonymous"></script>
 </head>
-<body>
+<body class="pt-5">
 <?php include "navbar.php"; ?>
 <div class="container-fluid my-4">
     <div class="row">
