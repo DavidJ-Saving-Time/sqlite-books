@@ -93,7 +93,6 @@ try {
     ?>
     <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
     <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
-    <button type="button" id="openlibMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata (Open Library)</button>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
@@ -156,21 +155,6 @@ try {
       </div>
       <div class="modal-body">
         <div id="annasResults">Loading...</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Open Library Metadata Modal -->
-<div class="modal fade" id="openlibModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Open Library Results</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div id="openlibResults">Loading...</div>
       </div>
     </div>
   </div>
@@ -267,11 +251,6 @@ const annasModal = new bootstrap.Modal(annasModalEl);
 const annasSearchQuery = <?= json_encode($book['title'] . ' ' . $book['authors']) ?>;
 const currentBookId = <?= (int)$book['id'] ?>;
 
-const openlibBtn = document.getElementById('openlibMetaBtn');
-const openlibResults = document.getElementById('openlibResults');
-const openlibModalEl = document.getElementById('openlibModal');
-const openlibModal = new bootstrap.Modal(openlibModalEl);
-const openlibSearchQuery = <?= json_encode($book['title'] . ' ' . $book['authors']) ?>;
 
 annasBtn.addEventListener('click', () => {
     annasResults.textContent = 'Loading...';
@@ -303,42 +282,9 @@ annasBtn.addEventListener('click', () => {
     annasModal.show();
 });
 
-openlibBtn.addEventListener('click', () => {
-    openlibResults.textContent = 'Loading...';
-    fetch('https://openlibrary.org/search.json?q=' + encodeURIComponent(openlibSearchQuery))
-        .then(r => r.json())
-        .then(data => {
-            if (!data.docs || data.docs.length === 0) {
-                openlibResults.textContent = 'No results';
-                return;
-            }
-            let html = '';
-            data.books.forEach(b => {
-                const title = b.title || '';
-                const authors = b.authors || '';
-                const coverId = b.cover_id || '';
-                const year = b.year || '';
-                html += '<div class="mb-2">';
-                if (coverId) html += '<img src="https://covers.openlibrary.org/b/id/' + escapeHTML(coverId) + '-S.jpg" style="height:100px" class="me-2">';
-                html += '<strong>' + escapeHTML(title) + '</strong>';
-                if (authors) html += ' by ' + escapeHTML(authors);
-                if (year) html += ' (' + escapeHTML(year) + ')';
-                const img = coverId ? 'https://covers.openlibrary.org/b/id/' + coverId + '-L.jpg' : '';
-                html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 openlib-use" ' +
-                        'data-title="' + title.replace(/"/g,'&quot;') + '" ' +
-                        'data-authors="' + authors.replace(/"/g,'&quot;') + '" ' +
-                        'data-year="' + String(year).replace(/"/g,'&quot;') + '" ' +
-                        'data-imgurl="' + img.replace(/"/g,'&quot;') + '">Use This</button></div>';
-                html += '</div>';
-            });
-            openlibResults.innerHTML = html;
-        })
-        .catch(() => { openlibResults.textContent = 'Error fetching results'; });
-    openlibModal.show();
-});
 
 document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('annas-use') || e.target.classList.contains('openlib-use')) {
+    if (e.target.classList.contains('annas-use')) {
         const t = e.target.dataset.title;
         const a = e.target.dataset.authors;
         const y = e.target.dataset.year;
@@ -351,8 +297,7 @@ document.addEventListener('click', function(e) {
         }).then(r => r.json())
         .then(data => {
             if (data.status === 'ok') {
-                if (e.target.classList.contains('annas-use')) annasModal.hide();
-                if (e.target.classList.contains('openlib-use')) openlibModal.hide();
+                annasModal.hide();
                 location.reload();
             } else {
                 alert(data.error || 'Error updating metadata');
