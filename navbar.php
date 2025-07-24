@@ -68,6 +68,11 @@ $statusNameVal = isset($statusName) ? $statusName : '';
           <option value="recommended"<?= $sortVal === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
         </select>
       </form>
+      <ul class="navbar-nav ms-3">
+        <li class="nav-item">
+          <a class="nav-link" href="reading_challenges.php">Reading Challenge</a>
+        </li>
+      </ul>
     </div>
   </div>
 </nav>

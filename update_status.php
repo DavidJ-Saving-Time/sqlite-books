@@ -7,6 +7,7 @@ $value = trim($_POST['value'] ?? '');
 
 $pdo = getDatabaseConnection();
 try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS reading_log (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, year INTEGER)");
     $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
     $stmt->execute();
     $statusId = $stmt->fetchColumn();
@@ -43,8 +44,8 @@ try {
                 $stmt->execute([':val' => $value]);
                 $valId = $pdo->lastInsertId();
             }
-            $stmt = $pdo->prepare("REPLACE INTO $table (book, value) VALUES (:book, :val)");
-            $stmt->execute([':book' => $bookId, ':val' => $valId]);
+        $stmt = $pdo->prepare("REPLACE INTO $table (book, value) VALUES (:book, :val)");
+        $stmt->execute([':book' => $bookId, ':val' => $valId]);
         }
     } else {
         // Simple text column
@@ -52,6 +53,15 @@ try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS $table (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
         $stmt = $pdo->prepare("REPLACE INTO $table (book, value) VALUES (:book, :value)");
         $stmt->execute([':book' => $bookId, ':value' => $value]);
+    }
+
+    $currentYear = (int)date('Y');
+    if (strcasecmp($value, 'Read') === 0) {
+        $stmt = $pdo->prepare('REPLACE INTO reading_log (book, year) VALUES (:book, :year)');
+        $stmt->execute([':book' => $bookId, ':year' => $currentYear]);
+    } else {
+        $stmt = $pdo->prepare('DELETE FROM reading_log WHERE book = :book');
+        $stmt->execute([':book' => $bookId]);
     }
 
     echo json_encode(['status' => 'ok']);
