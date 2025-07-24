@@ -48,11 +48,19 @@ try {
             $statusTable = $base . '_link';
             $statusIsLink = true;
             $valueTable = 'custom_column_' . (int)$statusId;
+            $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Want to Read')")->execute();
+            $defaultId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Want to Read'")->fetchColumn();
+            $pdo->exec("INSERT INTO $statusTable (book, value)
+                        SELECT id, $defaultId FROM books
+                        WHERE id NOT IN (SELECT book FROM $statusTable)");
             $statusOptions = $pdo->query("SELECT value FROM $valueTable ORDER BY value COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
         } else {
             // Text column stored directly
             $statusTable = $base;
             $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+            $pdo->exec("INSERT INTO $statusTable (book, value)
+                        SELECT id, 'Want to Read' FROM books
+                        WHERE id NOT IN (SELECT book FROM $statusTable)");
             $statusOptions = $pdo->query("SELECT DISTINCT value FROM $statusTable WHERE TRIM(COALESCE(value,'')) <> '' ORDER BY value")->fetchAll(PDO::FETCH_COLUMN);
         }
     }
@@ -88,6 +96,10 @@ $sort = $_GET['sort'] ?? 'author_series';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
 $genreId = isset($_GET['genre_id']) ? (int)$_GET['genre_id'] : null;
+$statusName = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
+if ($statusName !== '' && !in_array($statusName, $statusOptions, true)) {
+    $statusName = '';
+}
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $source = $_GET['source'] ?? 'local';
 $allowedSorts = ['title', 'author', 'series', 'author_series', 'recommended'];
@@ -123,6 +135,22 @@ if ($shelfName !== '') {
     $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_11 WHERE value = :shelf_name)';
     $params[':shelf_name'] = $shelfName;
 }
+if ($statusName !== '' && $statusTable) {
+    if ($statusIsLink) {
+        $stmt = $pdo->prepare('SELECT id FROM custom_column_' . (int)$statusId . ' WHERE value = :v');
+        $stmt->execute([':v' => $statusName]);
+        $sid = $stmt->fetchColumn();
+        if ($sid !== false) {
+            $whereClauses[] = 'EXISTS (SELECT 1 FROM ' . $statusTable . ' WHERE book = b.id AND value = :status_val)';
+            $params[':status_val'] = $sid;
+        } else {
+            $whereClauses[] = '0';
+        }
+    } else {
+        $whereClauses[] = 'b.id IN (SELECT book FROM ' . $statusTable . ' WHERE value = :status_val)';
+        $params[':status_val'] = $statusName;
+    }
+}
 if ($recommendedOnly) {
     $whereClauses[] = "EXISTS (SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '')";
 }
@@ -154,6 +182,7 @@ if ($genreId) {
     $stmt->execute([$genreId]);
     $filterGenreName = $stmt->fetchColumn();
 }
+$filterStatusName = $statusName !== '' ? $statusName : null;
 $filterShelfName = $shelfName !== '' ? $shelfName : null;
 
 // Fetch full genre list for sidebar
@@ -273,6 +302,9 @@ if ($genreId) {
 if ($shelfName !== '') {
     $baseUrl .= '&shelf=' . urlencode($shelfName);
 }
+if ($statusName !== '') {
+    $baseUrl .= '&status=' . urlencode($statusName);
+}
 if ($search !== '') {
     $baseUrl .= '&search=' . urlencode($search);
 }
@@ -335,8 +367,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 </td>
                 <td>
                     <select class="form-select form-select-sm status-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                        <option value=""></option>
+                        <option value="Want to Read"<?= ($book['status'] === null || $book['status'] === '') ? ' selected' : '' ?>>Want to Read</option>
                         <?php foreach ($statusOptions as $s): ?>
+                            <?php if ($s === 'Want to Read') continue; ?>
                             <option value="<?= htmlspecialchars($s) ?>"<?= $book['status'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
                         <?php endforeach; ?>
                         <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
@@ -427,6 +460,7 @@ if ($isAjax) {
                         if ($genreId) $shelfUrlBase .= '&genre_id=' . urlencode((string)$genreId);
                         if ($search !== '') $shelfUrlBase .= '&search=' . urlencode($search);
                         if ($source !== '') $shelfUrlBase .= '&source=' . urlencode($source);
+                        if ($statusName !== '') $shelfUrlBase .= '&status=' . urlencode($statusName);
                     ?>
                     <ul class="list-group" id="shelfList">
                         <li class="list-group-item<?= $shelfName === '' ? ' active' : '' ?>">
@@ -447,6 +481,36 @@ if ($isAjax) {
                         </div>
                     </form>
                 </div>
+                <div class="mb-3">
+                    <h6 class="mb-1">Status</h6>
+                    <?php
+                        $statusUrlBase = 'list_books.php?sort=' . urlencode($sort);
+                        if ($authorId) $statusUrlBase .= '&author_id=' . urlencode((string)$authorId);
+                        if ($seriesId) $statusUrlBase .= '&series_id=' . urlencode((string)$seriesId);
+                        if ($genreId) $statusUrlBase .= '&genre_id=' . urlencode((string)$genreId);
+                        if ($shelfName !== '') $statusUrlBase .= '&shelf=' . urlencode($shelfName);
+                        if ($search !== '') $statusUrlBase .= '&search=' . urlencode($search);
+                        if ($source !== '') $statusUrlBase .= '&source=' . urlencode($source);
+                    ?>
+                    <ul class="list-group" id="statusList">
+                        <li class="list-group-item<?= $statusName === '' ? ' active' : '' ?>">
+                            <a href="<?= htmlspecialchars($statusUrlBase) ?>" class="text-decoration-none<?= $statusName === '' ? ' text-white' : '' ?>">All Status</a>
+                        </li>
+                        <?php foreach ($statusOptions as $s): ?>
+                            <?php $url = $statusUrlBase . '&status=' . urlencode($s); ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center<?= $statusName === $s ? ' active' : '' ?>">
+                                <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $statusName === $s ? ' text-white' : '' ?>"><?= htmlspecialchars($s) ?></a>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-status" data-status="<?= htmlspecialchars($s) ?>">&times;</button>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <form id="addStatusForm" class="mt-2">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" name="status" placeholder="New status">
+                            <button class="btn btn-primary" type="submit">Add</button>
+                        </div>
+                    </form>
+                </div>
                 <div class="list-group">
                     <?php
                         $genreBase = 'list_books.php?sort=' . urlencode($sort);
@@ -455,6 +519,7 @@ if ($isAjax) {
                         if ($shelfName !== '') $genreBase .= '&shelf=' . urlencode($shelfName);
                         if ($search !== '') $genreBase .= '&search=' . urlencode($search);
                         if ($source !== '') $genreBase .= '&source=' . urlencode($source);
+                        if ($statusName !== '') $genreBase .= '&status=' . urlencode($statusName);
                     ?>
                     <a href="<?= htmlspecialchars($genreBase) ?>" class="list-group-item list-group-item-action<?= $genreId ? '' : ' active' ?>">All Genres</a>
                     <?php foreach ($genreList as $g): ?>
@@ -466,6 +531,7 @@ if ($isAjax) {
                             if ($shelfName !== '') $url .= '&shelf=' . urlencode($shelfName);
                             if ($search !== '') $url .= '&search=' . urlencode($search);
                             if ($source !== '') $url .= '&source=' . urlencode($source);
+                            if ($statusName !== '') $url .= '&status=' . urlencode($statusName);
                         ?>
                         <a href="<?= htmlspecialchars($url) ?>" class="list-group-item list-group-item-action<?= $genreId == $g['id'] ? ' active' : '' ?>">
                             <?= htmlspecialchars($g['value']) ?>
@@ -500,7 +566,7 @@ if ($isAjax) {
             <button class="btn btn-outline-secondary" type="submit">Search</button>
         </div>
     </form>
-    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $search !== ''): ?>
+    <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $search !== ''): ?>
         <div class="alert alert-info mb-3">
             Showing
             <?php if ($filterAuthorName): ?>
@@ -522,6 +588,11 @@ if ($isAjax) {
                 <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
                 <?php endif; ?>
                 shelf: <?= htmlspecialchars($filterShelfName) ?>
+            <?php endif; ?>
+            <?php if ($filterStatusName): ?>
+                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName): ?>,
+                <?php endif; ?>
+                status: <?= htmlspecialchars($filterStatusName) ?>
             <?php endif; ?>
             <?php if ($search !== ''): ?>
                 <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
@@ -553,6 +624,9 @@ if ($isAjax) {
         <?php endif; ?>
         <?php if ($shelfName !== ''): ?>
             <input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfName) ?>">
+        <?php endif; ?>
+        <?php if ($statusName !== ''): ?>
+            <input type="hidden" name="status" value="<?= htmlspecialchars($statusName) ?>">
         <?php endif; ?>
         <div class="col-auto">
             <label for="sort" class="col-form-label">Sort by:</label>
@@ -647,6 +721,17 @@ $(function() {
         }).then(function() { location.reload(); });
     });
 
+    $('#addStatusForm').on('submit', function(e) {
+        e.preventDefault();
+        var status = $(this).find('input[name="status"]').val().trim();
+        if (!status) return;
+        fetch('add_status.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ status: status })
+        }).then(function() { location.reload(); });
+    });
+
     $(document).on('click', '.delete-shelf', function() {
         if (!confirm('Remove this shelf?')) return;
         var shelf = $(this).data('shelf');
@@ -654,6 +739,16 @@ $(function() {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ shelf: shelf })
+        }).then(function() { location.reload(); });
+    });
+
+    $(document).on('click', '.delete-status', function() {
+        if (!confirm('Remove this status?')) return;
+        var status = $(this).data('status');
+        fetch('delete_status.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ status: status })
         }).then(function() { location.reload(); });
     });
 
