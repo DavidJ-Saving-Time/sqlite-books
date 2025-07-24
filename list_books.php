@@ -84,6 +84,15 @@ if ($genreId) {
     $filterGenreName = $stmt->fetchColumn();
 }
 
+// Fetch full genre list for sidebar
+$genreList = [];
+try {
+    $stmt = $pdo->query('SELECT id, value FROM custom_column_2 ORDER BY value');
+    $genreList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $genreList = [];
+}
+
 $books = [];
 if ($source === 'openlibrary' && $search !== '') {
     require_once 'openlibrary.php';
@@ -285,8 +294,33 @@ if ($isAjax) {
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-<div class="container my-4">
-    <h1 class="mb-4">Books</h1>
+<div class="container-fluid my-4">
+    <div class="row">
+        <nav class="col-md-3 col-lg-2 mb-3">
+            <button class="btn btn-outline-secondary d-md-none mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#genreSidebar" aria-controls="genreSidebar" aria-expanded="false" aria-label="Toggle genres">
+                Genres
+            </button>
+            <div id="genreSidebar" class="collapse d-md-block">
+                <div class="list-group">
+                    <a href="list_books.php?sort=<?= urlencode($sort) ?>" class="list-group-item list-group-item-action<?= $genreId ? '' : ' active' ?>">All Genres</a>
+                    <?php foreach ($genreList as $g): ?>
+                        <?php
+                            $url = 'list_books.php?sort=' . urlencode($sort);
+                            if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
+                            if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
+                            $url .= '&genre_id=' . urlencode((string)$g['id']);
+                            if ($search !== '') $url .= '&search=' . urlencode($search);
+                            if ($source !== '') $url .= '&source=' . urlencode($source);
+                        ?>
+                        <a href="<?= htmlspecialchars($url) ?>" class="list-group-item list-group-item-action<?= $genreId == $g['id'] ? ' active' : '' ?>">
+                            <?= htmlspecialchars($g['value']) ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </nav>
+        <div class="col-md-9 col-lg-10">
+            <h1 class="mb-4">Books</h1>
     <form method="get" class="mb-3">
         <input type="hidden" name="page" value="1">
         <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
@@ -382,6 +416,8 @@ if ($isAjax) {
         <?php render_book_rows($books, $source, $sort, $authorId, $seriesId); ?>
         </tbody>
     </table>
+        </div>
+    </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
