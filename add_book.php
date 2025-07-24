@@ -37,32 +37,39 @@ try {
     $balStmt = $pdo->prepare('INSERT INTO books_authors_link (book, author) VALUES (:book, :author)');
     $balStmt->execute([':book' => $bookId, ':author' => $authorId]);
 
-    $tableStmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'books_custom_column_%' AND name NOT LIKE '%_link'");
+    $tableStmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'books_custom_column_%'");
     $tables = $tableStmt->fetchAll(PDO::FETCH_COLUMN);
     foreach ($tables as $table) {
-        $value = null;
-        if ($table === 'books_custom_column_11') {
-            $value = 'Physical';
+        if (!preg_match('/^books_custom_column_(\d+)(?:_link)?$/', $table, $m)) {
+            continue;
         }
-        $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :value)")->execute([':book' => $bookId, ':value' => $value]);
-    }
+        $colId = (int)$m[1];
+        $isLink = str_ends_with($table, '_link');
 
-    // Default status
-    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
-    $stmt->execute();
-    $statusId = $stmt->fetchColumn();
-    if ($statusId !== false) {
-        $base = 'books_custom_column_' . (int)$statusId;
-        $link = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "_link'")->fetchColumn();
-        if ($link) {
-            $valueTable = 'custom_column_' . (int)$statusId;
-            $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Want to Read')")->execute();
-            $defaultId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Want to Read'")->fetchColumn();
-            $pdo->prepare("INSERT INTO {$base}_link (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $defaultId]);
+        if ($isLink) {
+            $infoStmt = $pdo->prepare('SELECT label, is_multiple FROM custom_columns WHERE id = :id');
+            $infoStmt->execute([':id' => $colId]);
+            $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$info || (int)$info['is_multiple'] === 1) {
+                continue;
+            }
+            $valTable = 'custom_column_' . $colId;
+            $defaultId = null;
+            if ($info['label'] === 'status') {
+                $pdo->prepare("INSERT OR IGNORE INTO $valTable (value) VALUES ('Want to Read')")->execute();
+                $defaultId = $pdo->query("SELECT id FROM $valTable WHERE value = 'Want to Read'")->fetchColumn();
+            } else {
+                $defaultId = $pdo->query("SELECT id FROM $valTable ORDER BY id LIMIT 1")->fetchColumn();
+            }
+            if ($defaultId !== false && $defaultId !== null) {
+                $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $defaultId]);
+            }
         } else {
-            $statusTable = $base;
-            $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-            $pdo->prepare("INSERT INTO $statusTable (book, value) VALUES (:book, 'Want to Read')")->execute([':book' => $bookId]);
+            $value = null;
+            if ($colId === 11) {
+                $value = 'Physical';
+            }
+            $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :value)")->execute([':book' => $bookId, ':value' => $value]);
         }
     }
 
