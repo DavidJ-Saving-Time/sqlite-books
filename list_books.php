@@ -381,7 +381,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <td>&mdash;</td>
                 <td>
                     <?php if (!empty($book['md5'])): ?>
-                        <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">Download</button>
+                        <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">
+                            Download<?php if (!empty($book['format'])): ?> <?= htmlspecialchars(strtoupper($book['format'])) ?><?php endif; ?>
+                        </button>
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
