@@ -92,6 +92,7 @@ try {
         $annasUrl = 'list_books.php?source=annas&search=' . $annasQuery;
     ?>
     <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
+    <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
@@ -144,7 +145,23 @@ try {
 
 <?php endif; ?>
 
+<!-- Anna's Archive Metadata Modal -->
+<div class="modal fade" id="annasModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Anna's Archive Results</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="annasResults">Loading...</div>
+      </div>
+    </div>
+  </div>
 </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
 const recommendBtn = document.getElementById('recommendBtn');
 const recommendSection = document.getElementById('recommendSection');
@@ -223,8 +240,66 @@ recommendBtn.addEventListener('click', function () {
             }
         })
         .catch(() => {
-            recommendSection.textContent = 'Error fetching recommendations';
+        recommendSection.textContent = 'Error fetching recommendations';
+    });
+});
+
+const annasBtn = document.getElementById('annasMetaBtn');
+const annasResults = document.getElementById('annasResults');
+const annasModalEl = document.getElementById('annasModal');
+const annasModal = new bootstrap.Modal(annasModalEl);
+const annasSearchQuery = <?= json_encode($book['title'] . ' ' . $book['authors']) ?>;
+const currentBookId = <?= (int)$book['id'] ?>;
+
+annasBtn.addEventListener('click', () => {
+    annasResults.textContent = 'Loading...';
+    fetch('annas_search.php?q=' + encodeURIComponent(annasSearchQuery))
+        .then(r => r.json())
+        .then(data => {
+            if (!data.books || data.books.length === 0) {
+                annasResults.textContent = 'No results';
+                return;
+            }
+            let html = '';
+            data.books.forEach(b => {
+                html += '<div class="mb-2">';
+                if (b.imgUrl) html += '<img src="' + escapeHTML(b.imgUrl) + '" style="height:100px" class="me-2">';
+                html += '<strong>' + escapeHTML(b.title) + '</strong>';
+                if (b.author) html += ' by ' + escapeHTML(b.author);
+                if (b.year) html += ' (' + escapeHTML(b.year) + ')';
+                html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 annas-use" ' +
+                        'data-title="' + b.title.replace(/"/g,'&quot;') + '" ' +
+                        'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" ' +
+                        'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
+                html += '</div>';
+            });
+            annasResults.innerHTML = html;
+        })
+        .catch(() => { annasResults.textContent = 'Error fetching results'; });
+    annasModal.show();
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('annas-use')) {
+        const t = e.target.dataset.title;
+        const a = e.target.dataset.authors;
+        const y = e.target.dataset.year;
+        fetch('update_metadata.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: currentBookId, title: t, authors: a, year: y })
+        }).then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                annasModal.hide();
+                location.reload();
+            } else {
+                alert(data.error || 'Error updating metadata');
+            }
+        }).catch(() => {
+            alert('Error updating metadata');
         });
+    }
 });
 </script>
 </body>
