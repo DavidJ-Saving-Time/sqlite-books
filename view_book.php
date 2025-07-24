@@ -313,16 +313,20 @@ openlibBtn.addEventListener('click', () => {
             }
             let html = '';
             data.books.forEach(b => {
+                const title = b.title || '';
+                const authors = b.authors || '';
+                const coverId = b.cover_id || '';
+                const year = b.year || '';
                 html += '<div class="mb-2">';
-                if (b.cover_id) html += '<img src="https://covers.openlibrary.org/b/id/' + escapeHTML(b.cover_id) + '-S.jpg" style="height:100px" class="me-2">';
-                html += '<strong>' + escapeHTML(b.title) + '</strong>';
-                if (b.authors) html += ' by ' + escapeHTML(b.authors);
-                if (b.year) html += ' (' + escapeHTML(b.year) + ')';
-                const img = b.cover_id ? 'https://covers.openlibrary.org/b/id/' + b.cover_id + '-L.jpg' : '';
+                if (coverId) html += '<img src="https://covers.openlibrary.org/b/id/' + escapeHTML(coverId) + '-S.jpg" style="height:100px" class="me-2">';
+                html += '<strong>' + escapeHTML(title) + '</strong>';
+                if (authors) html += ' by ' + escapeHTML(authors);
+                if (year) html += ' (' + escapeHTML(year) + ')';
+                const img = coverId ? 'https://covers.openlibrary.org/b/id/' + coverId + '-L.jpg' : '';
                 html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 openlib-use" ' +
-                        'data-title="' + b.title.replace(/"/g,'&quot;') + '" ' +
-                        'data-authors="' + (b.authors || '').replace(/"/g,'&quot;') + '" ' +
-                        'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" ' +
+                        'data-title="' + title.replace(/"/g,'&quot;') + '" ' +
+                        'data-authors="' + authors.replace(/"/g,'&quot;') + '" ' +
+                        'data-year="' + String(year).replace(/"/g,'&quot;') + '" ' +
                         'data-imgurl="' + img.replace(/"/g,'&quot;') + '">Use This</button></div>';
                 html += '</div>';
             });
