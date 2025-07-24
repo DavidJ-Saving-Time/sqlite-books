@@ -379,7 +379,13 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <td><?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?></td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
-                <td>&mdash;</td>
+                <td>
+                    <?php if (!empty($book['md5'])): ?>
+                        <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">Download</button>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
             </tr>
             <?php
         } else {
