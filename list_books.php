@@ -327,7 +327,20 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
                 </td>
-                <td><?= $book['authors'] !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
+                <td>
+                    <?php if ($book['authors'] !== ''): ?>
+                        <?php
+                            $parts = array_map('trim', explode(',', $book['authors']));
+                            $display = implode(', ', array_slice($parts, 0, 3));
+                            if (count($parts) > 3) {
+                                $display .= '...';
+                            }
+                            echo htmlspecialchars($display);
+                        ?>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
                 <td>&mdash;</td>
@@ -365,13 +378,15 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <td>
                     <?php if (!empty($book['author_data'])): ?>
                         <?php
+                            $pairs = array_filter(explode('|', $book['author_data']), 'strlen');
                             $links = [];
-                            foreach (explode('|', $book['author_data']) as $pair) {
+                            foreach (array_slice($pairs, 0, 3) as $pair) {
                                 list($aid, $aname) = explode(':', $pair, 2);
                                 $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
                                 $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
                             }
                             echo implode(', ', $links);
+                            if (count($pairs) > 3) echo '...';
                         ?>
                     <?php else: ?>
                         &mdash;
