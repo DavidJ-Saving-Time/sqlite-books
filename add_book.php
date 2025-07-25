@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+requireLogin();
 
 $title = trim($_POST['title'] ?? '');
 $authors = trim($_POST['authors'] ?? '');

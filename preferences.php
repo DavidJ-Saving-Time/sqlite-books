@@ -1,12 +1,13 @@
 <?php
 require_once 'db.php';
+requireLogin();
 
 $message = '';
 $alertClass = 'success';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPath = trim($_POST['db_path'] ?? '');
     if ($newPath !== '') {
-        $_SESSION['db_path'] = $newPath;
+        setUserPreference(currentUser(), 'db_path', $newPath);
         if (isset($_POST['save_global'])) {
             setPreference('db_path', $newPath);
         }

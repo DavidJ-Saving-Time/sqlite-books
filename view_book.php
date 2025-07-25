@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+requireLogin();
 
 $pdo = getDatabaseConnection();
 

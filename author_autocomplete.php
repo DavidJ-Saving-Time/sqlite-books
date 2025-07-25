@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+requireLogin();
 header('Content-Type: application/json');
 
 $term = isset($_GET['term']) ? trim((string)$_GET['term']) : '';

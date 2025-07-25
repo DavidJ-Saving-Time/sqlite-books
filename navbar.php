@@ -76,6 +76,16 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         <li class="nav-item ms-2">
           <select id="themeSelect" class="form-select form-select-sm" style="min-width: 10rem;"></select>
         </li>
+        <?php if (currentUser()): ?>
+        <li class="nav-item ms-3">
+          <span class="navbar-text me-2"><?= htmlspecialchars(currentUser()) ?></span>
+          <a class="btn btn-sm btn-outline-light" href="logout.php">Logout</a>
+        </li>
+        <?php else: ?>
+        <li class="nav-item ms-3">
+          <a class="btn btn-sm btn-outline-light" href="login.php">Login</a>
+        </li>
+        <?php endif; ?>
       </ul>
     </div>
   </div>

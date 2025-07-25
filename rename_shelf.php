@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+requireLogin();
 
 $old = trim($_POST['shelf'] ?? '');
 $new = trim($_POST['new'] ?? '');
