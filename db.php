@@ -1,4 +1,6 @@
 <?php
+// Ensure new files are group writable
+umask(0002);
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

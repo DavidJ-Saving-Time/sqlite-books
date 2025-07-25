@@ -1,4 +1,6 @@
 #!/bin/bash
+# Ensure new files are group writable
+umask 0002
 # Determine DB path from PHP preferences
 DB=$(php -r "require 'db.php'; echo currentDatabasePath();")
 
