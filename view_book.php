@@ -96,6 +96,7 @@ $missingFile = !bookHasFile($book['path']);
         <?php endif; ?>
     </p>
     <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4">Get Book Recommendations</button>
+    <button type="button" id="synopsisBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4 ms-2">Generate Synopsis</button>
     <?php
         $annasQuery = urlencode($book['title'] . ' ' . $book['authors']);
         $annasUrl = 'list_books.php?source=annas&search=' . $annasQuery;
@@ -151,13 +152,7 @@ $missingFile = !bookHasFile($book['path']);
             </div>
         </div>
     </div>
-    <?php if (!empty($comment)): ?>
-        <div class="mb-4">
-            <h2>Description</h2>
-            <p><?= nl2br(htmlspecialchars($comment)) ?></p>
-        </div>
-
-<?php endif; ?>
+    <div id="descriptionSection" class="mb-4"<?php if (!empty($comment)): ?> data-saved="<?= htmlspecialchars($comment, ENT_QUOTES) ?>"<?php endif; ?>></div>
 
 <!-- Anna's Archive Metadata Modal -->
 <div class="modal fade" id="annasModal" tabindex="-1" aria-hidden="true">
@@ -179,6 +174,8 @@ $missingFile = !bookHasFile($book['path']);
 <script>
 const recommendBtn = document.getElementById('recommendBtn');
 const recommendSection = document.getElementById('recommendSection');
+const synopsisBtn = document.getElementById('synopsisBtn');
+const descriptionSection = document.getElementById('descriptionSection');
 
 function escapeHTML(str) {
     return str.replace(/&/g, '&amp;')
@@ -235,6 +232,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (recommendSection.dataset.saved) {
         recommendSection.innerHTML = renderRecommendations(recommendSection.dataset.saved);
     }
+    if (descriptionSection && descriptionSection.dataset.saved) {
+        descriptionSection.innerHTML = '<h2>Description</h2><p>' +
+            escapeHTML(descriptionSection.dataset.saved).replace(/\n/g, '<br>') +
+            '</p>';
+    }
 });
 
 recommendBtn.addEventListener('click', function () {
@@ -256,6 +258,34 @@ recommendBtn.addEventListener('click', function () {
         .catch(() => {
         recommendSection.textContent = 'Error fetching recommendations';
     });
+});
+
+synopsisBtn.addEventListener('click', function () {
+    const bookId = this.dataset.bookId;
+    const authors = this.dataset.authors;
+    const title = this.dataset.title;
+    if (descriptionSection) {
+        descriptionSection.innerHTML = '<h2>Description</h2><p>Loading...</p>';
+    }
+
+    fetch('synopsis.php?book_id=' + encodeURIComponent(bookId) +
+        '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
+        .then(resp => resp.json())
+        .then(data => {
+            if (descriptionSection) {
+                if (data.output) {
+                    descriptionSection.innerHTML = '<h2>Description</h2><p>' +
+                        escapeHTML(data.output).replace(/\n/g, '<br>') + '</p>';
+                } else {
+                    descriptionSection.textContent = data.error || 'Error';
+                }
+            }
+        })
+        .catch(() => {
+            if (descriptionSection) {
+                descriptionSection.textContent = 'Error fetching synopsis';
+            }
+        });
 });
 
 const annasBtn = document.getElementById('annasMetaBtn');
