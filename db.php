@@ -63,6 +63,24 @@ function getDatabaseConnection(?string $path = null) {
             return $title;
         }, 1);
 
+        // Register a PHP implementation of Calibre's author_sort function so
+        // SQL statements can use author_sort() just like in Calibre.
+        $pdo->sqliteCreateFunction('author_sort', function ($author) {
+            $author = trim($author ?? '');
+            if ($author === '') {
+                return '';
+            }
+            if (strpos($author, ',') !== false) {
+                return $author;
+            }
+            $parts = preg_split('/\s+/', $author);
+            if (count($parts) > 1) {
+                $last = array_pop($parts);
+                return $last . ', ' . implode(' ', $parts);
+            }
+            return $author;
+        }, 1);
+
 
         // Provide a uuid4() function used by triggers in the Calibre schema.
         // Generates a version 4 UUID string in the standard 8-4-4-4-12 format.
