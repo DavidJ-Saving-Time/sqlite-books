@@ -102,9 +102,11 @@ $missingFile = !bookHasFile($book['path']);
     ?>
     <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
     <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
-    <button type="button" id="uploadFileButton" class="btn btn-secondary mb-4 ms-2">Upload File</button>
-    <input type="file" id="bookFileInput" style="display:none">
-    <div id="uploadMessage" class="mt-2 mb-2 h2"></div>
+    <?php if ($missingFile): ?>
+        <button type="button" id="uploadFileButton" class="btn btn-secondary mb-4 ms-2">Upload File</button>
+        <input type="file" id="bookFileInput" style="display:none">
+        <div id="uploadMessage" class="mt-2 mb-2 h2"></div>
+    <?php endif; ?>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
@@ -324,32 +326,34 @@ const uploadBtn = document.getElementById('uploadFileButton');
 const uploadInput = document.getElementById('bookFileInput');
 const uploadMsg = document.getElementById('uploadMessage');
 
-uploadBtn.addEventListener('click', () => {
-    uploadInput.click();
-});
+if (uploadBtn) {
+    uploadBtn.addEventListener('click', () => {
+        uploadInput.click();
+    });
 
-uploadInput.addEventListener('change', () => {
-    if (!uploadInput.files.length) return;
-    const formData = new FormData();
-    formData.append('id', currentBookId);
-    formData.append('file', uploadInput.files[0]);
-    uploadMsg.textContent = 'Uploading...';
-    fetch('upload_book_file.php', {
-        method: 'POST',
-        headers: { 'Accept': 'application/json' },
-        body: formData
-    }).then(r => r.json())
-      .then(data => {
-          if (data.status === 'ok') {
-              uploadMsg.textContent = data.message || 'File uploaded';
-          } else {
-              uploadMsg.textContent = data.error || 'Upload failed';
-          }
-      })
-      .catch(() => {
-          uploadMsg.textContent = 'Upload failed';
-      });
-});
+    uploadInput.addEventListener('change', () => {
+        if (!uploadInput.files.length) return;
+        const formData = new FormData();
+        formData.append('id', currentBookId);
+        formData.append('file', uploadInput.files[0]);
+        uploadMsg.textContent = 'Uploading...';
+        fetch('upload_book_file.php', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            body: formData
+        }).then(r => r.json())
+          .then(data => {
+              if (data.status === 'ok') {
+                  uploadMsg.textContent = data.message || 'File uploaded';
+              } else {
+                  uploadMsg.textContent = data.error || 'Upload failed';
+              }
+          })
+          .catch(() => {
+              uploadMsg.textContent = 'Upload failed';
+          });
+    });
+}
 </script>
 </body>
 </html>
