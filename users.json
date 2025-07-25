@@ -1,8 +1,8 @@
 {
-    "admin": {
-        "password": "admin",
+    "nilla": {
+        "password": "nilla",
         "prefs": {
-            "db_path": "metadata.old.db"
+            "db_path": "ebooks/metadata.db"
         }
     }
 }

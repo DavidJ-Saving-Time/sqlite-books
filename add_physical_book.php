@@ -42,13 +42,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$author, $author]);
             }
 
+            // Temporary book path (will be updated after we get the bookId)
+            $tmpPath = safe_filename($title);
+
             // Add book (uuid4 handled by DB)
-            $bookPath = safe_filename($title);
             $stmt = $pdo->prepare(
                 'INSERT INTO books (title, sort, author_sort, timestamp, pubdate, series_index, last_modified, path, uuid)
                  VALUES (?, title_sort(?), author_sort(?), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1.0, CURRENT_TIMESTAMP, ?, uuid4())'
             );
-            $stmt->execute([$title, $title, $firstAuthor, $bookPath]);
+            $stmt->execute([$title, $title, $firstAuthor, $tmpPath]);
             $bookId = (int)$pdo->lastInsertId();
 
             // Link authors
@@ -68,63 +70,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Handle custom columns
-            $tableStmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'books_custom_column_%'");
-            $tables = $tableStmt->fetchAll(PDO::FETCH_COLUMN);
-            foreach ($tables as $table) {
-                if (!preg_match('/^books_custom_column_(\d+)(?:_link)?$/', $table, $m)) {
-                    continue;
-                }
-                $colId = (int)$m[1];
-                $isLink = str_ends_with($table, '_link');
-
-                if ($isLink) {
-                    $infoStmt = $pdo->prepare('SELECT label, is_multiple FROM custom_columns WHERE id = :id');
-                    $infoStmt->execute([':id' => $colId]);
-                    $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
-                    if (!$info || (int)$info['is_multiple'] === 1) {
-                        continue;
-                    }
-                    $valTable = 'custom_column_' . $colId;
-                    $defaultId = null;
-                    if ($info['label'] === 'status') {
-                        $pdo->prepare("INSERT OR IGNORE INTO $valTable (value) VALUES ('Want to Read')")->execute();
-                        $defaultId = $pdo->query("SELECT id FROM $valTable WHERE value = 'Want to Read'")->fetchColumn();
-                    } else {
-                        $defaultId = $pdo->query("SELECT id FROM $valTable ORDER BY id LIMIT 1")->fetchColumn();
-                    }
-                    if ($defaultId !== false && $defaultId !== null) {
-                        $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $defaultId]);
-                    }
-                } else {
-                    $value = null;
-                    if ($colId === 11) {
-                        $value = 'Physical';
-                    }
-                    $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :value)")->execute([':book' => $bookId, ':value' => $value]);
-                }
-            }
-
-            // Create folders
+            // Build proper folder structure
             $authorFolderName = safe_filename($firstAuthor . (count($authors) > 1 ? ' et al.' : ''));
-            $authorFolder = $libraryPath . '/' . $authorFolderName;
-            if (!is_dir($authorFolder)) {
-                mkdir($authorFolder, 0777, true);
+            $bookFolderName = safe_filename($title) . " ($bookId)";
+            $bookPath = $authorFolderName . '/' . $bookFolderName; // relative path for DB
+            $fullBookFolder = $libraryPath . '/' . $bookPath;
+
+            if (!is_dir(dirname($fullBookFolder))) {
+                mkdir(dirname($fullBookFolder), 0777, true);
+            }
+            if (!is_dir($fullBookFolder)) {
+                mkdir($fullBookFolder, 0777, true);
             }
 
-            $bookFolder = $authorFolder . '/' . safe_filename($title) . " ($bookId)";
-            if (!is_dir($bookFolder)) {
-                mkdir($bookFolder, 0777, true);
-            }
+            // Update book path in database
+            $pdo->prepare('UPDATE books SET path = ? WHERE id = ?')->execute([$bookPath, $bookId]);
 
             // Move uploaded file
             $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            $destFile = $bookFolder . '/' . safe_filename($title) . ' - ' . safe_filename($firstAuthor) . '.' . $ext;
+            $baseFileName = safe_filename($title) . ' - ' . safe_filename($firstAuthor);
+            $destFile = $fullBookFolder . '/' . $baseFileName . '.' . $ext;
             move_uploaded_file($file['tmp_name'], $destFile);
 
             // Add entry to 'data' table (linking the book to its file format)
             $stmt = $pdo->prepare('INSERT INTO data (book, format, uncompressed_size, name) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$bookId, strtoupper($ext), filesize($destFile), safe_filename($title)]);
+            $stmt->execute([$bookId, strtoupper($ext), filesize($destFile), $baseFileName]);
 
             // Fetch the UUID from the database
             $uuid = $pdo->query("SELECT uuid FROM books WHERE id = $bookId")->fetchColumn();
@@ -144,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    "    <dc:identifier opf:scheme=\"uuid\">$uuid</dc:identifier>\n" .
                    "    <meta name=\"calibre:timestamp\" content=\"$timestamp+00:00\"/>\n" .
                    "  </metadata>\n</package>";
-            file_put_contents($bookFolder . '/metadata.opf', $opf);
+            file_put_contents($fullBookFolder . '/metadata.opf', $opf);
 
             $pdo->commit();
             $message = 'Book added successfully.';
