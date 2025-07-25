@@ -2,6 +2,14 @@
 $searchVal = isset($search) ? $search : '';
 $sortVal = isset($sort) ? $sort : 'title';
 $sourceVal = isset($source) ? $source : 'local';
+$action = 'list_books.php';
+if ($sourceVal === 'openlibrary') {
+    $action = 'openlibrary_results.php';
+} elseif ($sourceVal === 'google') {
+    $action = 'google_results.php';
+} elseif ($sourceVal === 'annas') {
+    $action = 'annas_results.php';
+}
 $authorIdVal = isset($authorId) ? $authorId : null;
 $seriesIdVal = isset($seriesId) ? $seriesId : null;
 $genreIdVal = isset($genreId) ? $genreId : null;
@@ -15,7 +23,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarContent">
-      <form class="d-flex me-auto" method="get" action="list_books.php">
+      <form class="d-flex me-auto" method="get" action="<?= htmlspecialchars($action) ?>">
         <input type="hidden" name="page" value="1">
         <input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>">
         <?php if ($authorIdVal): ?>
@@ -42,7 +50,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         </select>
         <button class="btn btn-outline-secondary" type="submit">Search</button>
       </form>
-      <form class="d-flex" method="get" action="list_books.php">
+      <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
         <input type="hidden" name="page" value="1">
         <?php if ($searchVal !== ''): ?>
           <input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>">
