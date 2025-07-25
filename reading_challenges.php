@@ -2,7 +2,6 @@
 require_once 'db.php';
 
 $pdo = getDatabaseConnection();
-$libraryUrl = rtrim(currentLibraryPath(), '/');
 
 $year = (int)date('Y');
 $message = '';
@@ -106,7 +105,7 @@ try {
                     <td>
                         <?php if (!empty($b['has_cover'])): ?>
                             <a href="view_book.php?id=<?= urlencode($b['id']) ?>">
-                                <img src="<?= htmlspecialchars($libraryUrl . '/' . $b['path'] . '/cover.jpg') ?>" alt="Cover" class="img-thumbnail" style="width: 80px; height: auto;">
+                                <img src="ebooks/<?= htmlspecialchars($b['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 80px; height: auto;">
                             </a>
                         <?php else: ?>
                             &mdash;

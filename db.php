@@ -37,19 +37,8 @@ function currentDatabasePath(): string {
     return getPreference('db_path', 'metadata.old.db');
 }
 
-function currentLibraryPath(): string {
-    if (!empty($_SESSION['library_path'])) {
-        return rtrim($_SESSION['library_path'], '/');
-    }
-    $pref = getPreference('library_path');
-    if ($pref !== null && $pref !== '') {
-        return rtrim($pref, '/');
-    }
-    return __DIR__ . '/ebooks';
-}
-
 function getLibraryPath(): string {
-    return currentLibraryPath();
+    return dirname(currentDatabasePath());
 }
 
 function getDatabaseConnection(?string $path = null) {
