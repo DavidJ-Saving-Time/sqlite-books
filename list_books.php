@@ -243,7 +243,8 @@ if ($source === 'openlibrary' && $search !== '') {
                             FROM books_custom_column_2_link bcc
                             JOIN custom_column_2 c ON bcc.value = c.id
                             WHERE bcc.book = b.id) AS genre_data,
-                       bc11.value AS shelf";
+                       bc11.value AS shelf,
+                       com.text AS description";
         if ($statusTable) {
             if ($statusIsLink) {
                 $selectFields .= ", scv.value AS status";
@@ -259,7 +260,8 @@ if ($source === 'openlibrary' && $search !== '') {
                 FROM books b
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id
-                LEFT JOIN books_custom_column_11 bc11 ON bc11.book = b.id";
+                LEFT JOIN books_custom_column_11 bc11 ON bc11.book = b.id
+                LEFT JOIN comments com ON com.book = b.id";
         if ($statusTable) {
             if ($statusIsLink) {
                 $sql .= " LEFT JOIN $statusTable sc ON sc.book = b.id LEFT JOIN custom_column_" . (int)$statusId . " scv ON sc.value = scv.id";
@@ -518,6 +520,20 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                             data-book-id="<?= htmlspecialchars($book['id']) ?>"
                             data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">Metadata Google</button>
                     <button type="button" class="btn btn-sm btn-danger delete-book ms-1" data-book-id="<?= htmlspecialchars($book['id']) ?>">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="5" class="small">
+                    <?php
+                        $desc = trim($book['description'] ?? '');
+                        if ($desc !== '') {
+                            $lines = preg_split('/\r?\n/', $desc);
+                            $preview = implode("\n", array_slice($lines, 0, 2));
+                            echo nl2br(htmlspecialchars($preview));
+                        } else {
+                            echo '&mdash;';
+                        }
+                    ?>
                 </td>
             </tr>
             <?php
