@@ -1,4 +1,5 @@
 <?php
+require_once 'db.php';
 require_once 'openlibrary.php';
 
 $key = isset($_GET['key']) ? trim((string)$_GET['key']) : '';
