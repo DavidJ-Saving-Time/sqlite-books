@@ -41,11 +41,18 @@ function search_google_books(string $query): array {
                 $img = 'https://' . substr($img, 7);
             }
         }
+        $description = '';
+        if (!empty($info['description'])) {
+            $description = strip_tags($info['description']);
+        } elseif (!empty($item['searchInfo']['textSnippet'])) {
+            $description = strip_tags($item['searchInfo']['textSnippet']);
+        }
         $books[] = [
             'title' => $title,
             'author' => $authors,
             'year' => $year,
             'imgUrl' => $img,
+            'description' => $description,
             'md5' => ''
         ];
     }

@@ -9,6 +9,7 @@ $title = trim($_POST['title'] ?? '');
 $authors = trim($_POST['authors'] ?? '');
 $year = trim($_POST['year'] ?? '');
 $imgUrl = trim($_POST['imgurl'] ?? '');
+$descriptionPost = trim($_POST['description'] ?? '');
 $md5 = trim($_POST['md5'] ?? '');
 
 if ($bookId <= 0) {
@@ -75,6 +76,12 @@ try {
             }
         }
         $pdo->prepare('UPDATE books SET author_sort = :sort WHERE id = :id')->execute([':sort' => $primaryAuthor, ':id' => $bookId]);
+    }
+
+    if ($descriptionPost !== '') {
+        $stmt = $pdo->prepare('INSERT INTO comments (book, text) VALUES (:book, :text) '
+            . 'ON CONFLICT(book) DO UPDATE SET text=excluded.text');
+        $stmt->execute([':book' => $bookId, ':text' => $descriptionPost]);
     }
 
     if ($md5 !== '') {
