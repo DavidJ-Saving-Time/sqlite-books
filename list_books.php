@@ -780,6 +780,27 @@ $(function() {
     var googleModalEl = document.getElementById('googleModal');
     var googleModal = new bootstrap.Modal(googleModalEl);
 
+    var restorePage = parseInt(sessionStorage.getItem('listBooksPage') || '0', 10);
+    var restoreScroll = parseInt(sessionStorage.getItem('listBooksScroll') || '0', 10);
+    if (!isNaN(restorePage) && restorePage > currentPage) {
+        var restoreInterval = setInterval(function() {
+            if (currentPage < restorePage) {
+                loadMore();
+            } else {
+                clearInterval(restoreInterval);
+                if (!isNaN(restoreScroll)) {
+                    $(window).scrollTop(restoreScroll);
+                }
+                sessionStorage.removeItem('listBooksPage');
+                sessionStorage.removeItem('listBooksScroll');
+            }
+        }, 300);
+    } else if (!isNaN(restoreScroll) && restoreScroll > 0) {
+        $(window).scrollTop(restoreScroll);
+        sessionStorage.removeItem('listBooksPage');
+        sessionStorage.removeItem('listBooksScroll');
+    }
+
     function loadMore() {
         if (loading || currentPage >= totalPages) return;
         loading = true;
@@ -1037,6 +1058,8 @@ $(function() {
         .then(function(data) {
             if (data.status === 'ok') {
                 googleModal.hide();
+                sessionStorage.setItem('listBooksPage', currentPage);
+                sessionStorage.setItem('listBooksScroll', $(window).scrollTop());
                 location.reload();
             } else {
                 alert(data.error || 'Error updating metadata');
