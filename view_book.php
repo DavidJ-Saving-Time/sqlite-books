@@ -94,7 +94,9 @@ try {
     ?>
     <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
     <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
-    <a href="upload_book_file.php?id=<?= urlencode($book['id']) ?>" class="btn btn-secondary mb-4 ms-2">Upload File</a>
+    <button type="button" id="uploadFileButton" class="btn btn-secondary mb-4 ms-2">Upload File</button>
+    <input type="file" id="bookFileInput" style="display:none">
+    <div id="uploadMessage" class="mt-2"></div>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
@@ -308,6 +310,37 @@ document.addEventListener('click', function(e) {
             alert('Error updating metadata');
         });
     }
+});
+
+const uploadBtn = document.getElementById('uploadFileButton');
+const uploadInput = document.getElementById('bookFileInput');
+const uploadMsg = document.getElementById('uploadMessage');
+
+uploadBtn.addEventListener('click', () => {
+    uploadInput.click();
+});
+
+uploadInput.addEventListener('change', () => {
+    if (!uploadInput.files.length) return;
+    const formData = new FormData();
+    formData.append('id', currentBookId);
+    formData.append('file', uploadInput.files[0]);
+    uploadMsg.textContent = 'Uploading...';
+    fetch('upload_book_file.php', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: formData
+    }).then(r => r.json())
+      .then(data => {
+          if (data.status === 'ok') {
+              uploadMsg.textContent = data.message || 'File uploaded';
+          } else {
+              uploadMsg.textContent = data.error || 'Upload failed';
+          }
+      })
+      .catch(() => {
+          uploadMsg.textContent = 'Upload failed';
+      });
 });
 </script>
 </body>
