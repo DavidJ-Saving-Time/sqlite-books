@@ -103,6 +103,18 @@ if ($statusName !== '' && !in_array($statusName, $statusOptions, true)) {
 }
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $source = $_GET['source'] ?? 'local';
+$redirectParams = $_GET;
+unset($redirectParams['source']);
+if ($source === 'openlibrary') {
+    header('Location: openlibrary_results.php?' . http_build_query($redirectParams));
+    exit;
+} elseif ($source === 'google') {
+    header('Location: google_results.php?' . http_build_query($redirectParams));
+    exit;
+} elseif ($source === 'annas') {
+    header('Location: annas_results.php?' . http_build_query($redirectParams));
+    exit;
+}
 $allowedSorts = ['title', 'author', 'series', 'author_series', 'recommended'];
 if (!in_array($sort, $allowedSorts, true)) {
     $sort = 'author_series';
@@ -196,22 +208,6 @@ try {
 }
 
 $books = [];
-if ($source === 'openlibrary' && $search !== '') {
-    require_once 'openlibrary.php';
-    $books = search_openlibrary($search);
-    $totalBooks = count($books);
-    $totalPages = 1;
-} elseif ($source === 'google' && $search !== '') {
-    require_once 'google_books.php';
-    $books = search_google_books($search);
-    $totalBooks = count($books);
-    $totalPages = 1;
-} elseif ($source === 'annas' && $search !== '') {
-    require_once 'annas_archive.php';
-    $books = search_annas_archive($search);
-    $totalBooks = count($books);
-    $totalPages = 1;
-} else {
     try {
         $totalSql = "SELECT COUNT(*) FROM books b $where";
         $totalStmt = $pdo->prepare($totalSql);
@@ -297,8 +293,7 @@ if ($source === 'openlibrary' && $search !== '') {
         die('Query failed: ' . $e->getMessage());
     }
 
-    $totalPages = max(1, ceil($totalBooks / $perPage));
-}
+$totalPages = max(1, ceil($totalBooks / $perPage));
 $baseUrl = '?sort=' . urlencode($sort);
 if ($source !== '') {
     $baseUrl .= '&source=' . urlencode($source);
@@ -323,110 +318,8 @@ if ($search !== '') {
 }
 $baseUrl .= '&page=';
 
-function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
+function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId): void {
     foreach ($books as $book) {
-        if ($source === 'openlibrary') {
-            ?>
-            <tr>
-                <td>
-                    <?php if (!empty($book['cover_id'])): ?>
-                        <img src="https://covers.openlibrary.org/b/id/<?= htmlspecialchars($book['cover_id']) ?>-S.jpg" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td class="title-col">
-                    <a href="openlibrary_view.php?key=<?= urlencode($book['key']) ?>&title=<?= urlencode($book['title']) ?>&authors=<?= urlencode($book['authors']) ?>&cover_id=<?= urlencode((string)$book['cover_id']) ?>">
-                        <?= htmlspecialchars($book['title']) ?>
-                    </a>
-                </td>
-                <td>
-                    <?php if ($book['authors'] !== ''): ?>
-                        <?php
-                            $parts = array_map('trim', explode(',', $book['authors']));
-                            $display = implode(', ', array_slice($parts, 0, 3));
-                            if (count($parts) > 3) {
-                                $display .= '...';
-                            }
-                            echo htmlspecialchars($display);
-                        ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td>&mdash;</td>
-                <td>&mdash;</td>
-                <td>
-                    <?php if (!empty($book['md5'])): ?>
-                        <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">Download</button>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-            </tr>
-            <?php
-        } elseif ($source === 'google') {
-            ?>
-            <tr>
-                <td>
-                    <?php if (!empty($book['imgUrl'])): ?>
-                        <img src="<?= htmlspecialchars($book['imgUrl']) ?>" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td class="title-col">
-                    <?= htmlspecialchars($book['title']) ?>
-                </td>
-                <td>
-                    <?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?>
-                </td>
-                <td>&mdash;</td>
-                <td>&mdash;</td>
-                <td>&mdash;</td>
-            </tr>
-            <?php
-        } elseif ($source === 'annas') {
-            ?>
-            <tr>
-                <td>
-                    <?php if (!empty($book['imgUrl'])): ?>
-                        <img src="<?= htmlspecialchars($book['imgUrl']) ?>" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td class="title-col">
-                    <?php if (!empty($book['md5'])): ?>
-                        <a href="https://annas-archive.org/md5/<?= urlencode($book['md5']) ?>" target="_blank">
-                            <?= htmlspecialchars($book['title']) ?>
-                        </a>
-                    <?php else: ?>
-                        <?= htmlspecialchars($book['title']) ?>
-                    <?php endif; ?>
-                </td>
-                <td><?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?></td>
-                <td><?= $book['genre'] !== '' ? htmlspecialchars($book['genre']) : '&mdash;' ?></td>
-                <td><?= $book['year'] !== '' ? htmlspecialchars($book['year']) : '&mdash;' ?></td>
-                <td><?= $book['size'] !== '' ? htmlspecialchars($book['size']) : '&mdash;' ?></td>
-                <td>
-                    <?php if (!empty($book['md5'])): ?>
-                        <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">
-                            Download<?php if (!empty($book['format'])): ?> <?= htmlspecialchars(strtoupper($book['format'])) ?><?php endif; ?>
-                        </button>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                    <button type="button" class="btn btn-sm btn-primary ms-1 annas-add"
-                            data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"
-                            data-authors="<?= htmlspecialchars($book['author'], ENT_QUOTES) ?>">
-                        Add to Library
-                    </button>
-                    <span class="annas-add-result ms-1"></span>
-                </td>
-            </tr>
-            <?php
-        } else {
             ?>
             <tr>
                 <td>
@@ -539,10 +432,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
             <?php
         }
     }
-}
 
 if ($isAjax) {
-    render_book_rows($books, $shelfList, $statusOptions, $genreList, $source, $sort, $authorId, $seriesId);
+    render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId);
     exit;
 }
 ?>
@@ -747,7 +639,7 @@ if ($isAjax) {
             </tr>
         </thead>
         <tbody>
-        <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $source, $sort, $authorId, $seriesId); ?>
+        <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId); ?>
         </tbody>
     </table>
     <!-- Google Books Metadata Modal -->
