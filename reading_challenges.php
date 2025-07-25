@@ -69,7 +69,7 @@ try {
     <p>You have read <?= $readCount ?><?= $goal ? ' of ' . $goal : '' ?> books this year.</p>
     <?php if ($goal): ?>
         <?php $percent = min(100, (int)(($readCount / $goal) * 100)); ?>
-        <div class="progress mb-3" style="max-width: 20rem;">
+        <div class="progress mb-3">
             <div class="progress-bar" role="progressbar" style="width: <?= $percent ?>%;" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100">
                 <?= $percent ?>%
             </div>
@@ -81,7 +81,7 @@ try {
         <?php endif; ?>
     <?php endif; ?>
     <form method="post" class="mb-3">
-        <div class="input-group" style="max-width: 20rem;">
+        <div class="input-group" >
             <label class="input-group-text" for="goal">Yearly Goal</label>
             <input type="number" class="form-control" name="goal" id="goal" value="<?= htmlspecialchars((string)$goal) ?>" min="1">
             <button type="submit" class="btn btn-primary">Save</button>
@@ -90,7 +90,7 @@ try {
 
     <?php if (!empty($readBooks)): ?>
         <h2 class="h4 mt-4">Books Read in <?= htmlspecialchars((string)$year) ?></h2>
-        <table class="table table-striped" style="max-width: 40rem;">
+        <table class="table table-striped" >
             <thead>
             <tr>
                 <th>Cover</th>

@@ -16,11 +16,11 @@ function get_book_synopsis(string $title, string $authors): string {
             ],
             [
                 'role' => 'user',
-                'content' => "Give me a one paragraph synopsis of '{$title}' by {$authors}."
+                'content' => "Give me a one or two paragraph synopsis of '{$title}' by {$authors}."
             ]
         ],
         'temperature' => 0.7,
-        'max_tokens' => 300
+        'max_tokens' => 500
     ];
 
     $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
