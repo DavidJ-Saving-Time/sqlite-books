@@ -107,9 +107,11 @@ function bookHasFile(string $relativePath): bool {
         return false;
     }
     foreach (glob($dir . '/*') as $file) {
-        if (!is_file($file)) continue;
+        if (!is_file($file)) {
+            continue;
+        }
         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-        if (!in_array($ext, ['epub', 'mobi', 'azw3', 'txt'])) {
+        if (in_array($ext, ['epub', 'mobi', 'azw3', 'txt'])) {
             return true;
         }
     }
