@@ -94,6 +94,7 @@ try {
     ?>
     <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
     <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
+    <a href="upload_book_file.php?id=<?= urlencode($book['id']) ?>" class="btn btn-secondary mb-4 ms-2">Upload File</a>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
