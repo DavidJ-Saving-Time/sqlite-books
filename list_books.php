@@ -316,7 +316,7 @@ if ($search !== '') {
 }
 $baseUrl .= '&page=';
 
-function render_book_rows(array $books, array $shelfList, array $statusOptions, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
+function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $source, string $sort, ?int $authorId, ?int $seriesId): void {
     foreach ($books as $book) {
         if ($source === 'openlibrary') {
             ?>
@@ -452,23 +452,22 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php endif; ?>
                 </td>
                 <td>
-                    <?php if (!empty($book['genre_data'])): ?>
-                        <?php
-                            $links = [];
-                            foreach (explode('|', $book['genre_data']) as $pair) {
-                                if ($pair === '') continue;
-                                list($gid, $gname) = explode(':', $pair, 2);
-                                $url = 'list_books.php?sort=' . urlencode($sort);
-                                if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
-                                if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
-                                $url .= '&genre_id=' . urlencode($gid);
-                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($gname) . '</a>';
+                    <?php
+                        $firstGenreId = '';
+                        if (!empty($book['genre_data'])) {
+                            $first = explode('|', $book['genre_data'])[0];
+                            if ($first !== '') {
+                                list($gid,) = explode(':', $first, 2);
+                                $firstGenreId = (string)$gid;
                             }
-                            echo implode(', ', $links);
-                        ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
+                        }
+                    ?>
+                    <select class="form-select form-select-sm genre-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                        <option value=""<?= $firstGenreId === '' ? ' selected' : '' ?>>None</option>
+                        <?php foreach ($genreList as $g): ?>
+                            <option value="<?= htmlspecialchars($g['id']) ?>"<?= (string)$g['id'] === $firstGenreId ? ' selected' : '' ?>><?= htmlspecialchars($g['value']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </td>
                 <td>
                     <select class="form-select form-select-sm shelf-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
@@ -498,7 +497,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
 }
 
 if ($isAjax) {
-    render_book_rows($books, $shelfList, $statusOptions, $source, $sort, $authorId, $seriesId);
+    render_book_rows($books, $shelfList, $statusOptions, $genreList, $source, $sort, $authorId, $seriesId);
     exit;
 }
 ?>
@@ -703,7 +702,7 @@ if ($isAjax) {
             </tr>
         </thead>
         <tbody>
-        <?php render_book_rows($books, $shelfList, $statusOptions, $source, $sort, $authorId, $seriesId); ?>
+        <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $source, $sort, $authorId, $seriesId); ?>
         </tbody>
     </table>
         </div>
@@ -742,6 +741,16 @@ $(function() {
         var bookId = $(this).data('book-id');
         var value = $(this).val();
         fetch('update_shelf.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: bookId, value: value })
+        });
+    });
+
+    $(document).on('change', '.genre-select', function() {
+        var bookId = $(this).data('book-id');
+        var value = $(this).val();
+        fetch('update_genre.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ book_id: bookId, value: value })
