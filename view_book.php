@@ -364,11 +364,13 @@ googleBtn.addEventListener('click', () => {
                 html += '<strong>' + escapeHTML(b.title) + '</strong>';
                 if (b.author) html += ' by ' + escapeHTML(b.author);
                 if (b.year) html += ' (' + escapeHTML(b.year) + ')';
+                if (b.description) html += '<br><em>' + escapeHTML(b.description) + '</em>';
                 html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 google-use" '
                         + 'data-title="' + b.title.replace(/"/g,'&quot;') + '" '
                         + 'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" '
                         + 'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" '
-                        + 'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
+                        + 'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '" '
+                        + 'data-description="' + (b.description || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
                 html += '</div>';
             });
             googleResults.innerHTML = html;
@@ -405,10 +407,11 @@ document.addEventListener('click', function(e) {
         const a = e.target.dataset.authors;
         const y = e.target.dataset.year;
         const img = e.target.dataset.imgurl;
+        const desc = e.target.dataset.description || '';
         fetch('update_metadata.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: currentBookId, title: t, authors: a, year: y, imgurl: img })
+            body: new URLSearchParams({ book_id: currentBookId, title: t, authors: a, year: y, imgurl: img, description: desc })
         }).then(r => r.json())
         .then(data => {
             if (data.status === 'ok') {
