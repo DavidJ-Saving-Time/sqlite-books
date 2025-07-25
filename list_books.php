@@ -514,6 +514,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 </td>
                 <td>
                     <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
+                    <button type="button" class="btn btn-sm btn-secondary google-meta ms-1"
+                            data-book-id="<?= htmlspecialchars($book['id']) ?>"
+                            data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">Metadata Google</button>
                     <button type="button" class="btn btn-sm btn-danger delete-book ms-1" data-book-id="<?= htmlspecialchars($book['id']) ?>">Delete</button>
                 </td>
             </tr>
@@ -731,11 +734,33 @@ if ($isAjax) {
         <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $source, $sort, $authorId, $seriesId); ?>
         </tbody>
     </table>
+    <!-- Google Books Metadata Modal -->
+    <div class="modal fade" id="googleModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Google Books Results</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="googleResults">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
         </div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
+function escapeHTML(str) {
+    return str.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+}
+
 $(function() {
     var $searchInput = $('input[name="search"]');
     $searchInput.autocomplete({
@@ -752,6 +777,8 @@ $(function() {
     var loading = false;
     var fetchUrlBase = <?= json_encode($baseUrl) ?>;
     var $tbody = $('table tbody');
+    var googleModalEl = document.getElementById('googleModal');
+    var googleModal = new bootstrap.Modal(googleModalEl);
 
     function loadMore() {
         if (loading || currentPage >= totalPages) return;
@@ -958,6 +985,64 @@ $(function() {
             }
         }).catch(function() {
             $result.text('Error adding');
+        });
+    });
+
+    $(document).on('click', '.google-meta', function() {
+        var bookId = $(this).data('book-id');
+        var query = $(this).data('search');
+        $('#googleResults').text('Loading...');
+        fetch('google_search.php?q=' + encodeURIComponent(query))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.books || data.books.length === 0) {
+                    $('#googleResults').text('No results');
+                    return;
+                }
+                var html = '';
+                data.books.forEach(function(b) {
+                    html += '<div class="mb-2">';
+                    if (b.imgUrl) html += '<img src="' + escapeHTML(b.imgUrl) + '" style="height:100px" class="me-2">';
+                    html += '<strong>' + escapeHTML(b.title) + '</strong>';
+                    if (b.author) html += ' by ' + escapeHTML(b.author);
+                    if (b.year) html += ' (' + escapeHTML(b.year) + ')';
+                    if (b.description) html += '<br><em>' + escapeHTML(b.description) + '</em>';
+                    html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 google-use" '
+                         + 'data-book-id="' + bookId + '" '
+                         + 'data-title="' + b.title.replace(/"/g,'&quot;') + '" '
+                         + 'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" '
+                         + 'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" '
+                         + 'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '" '
+                         + 'data-description="' + (b.description || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
+                    html += '</div>';
+                });
+                $('#googleResults').html(html);
+            })
+            .catch(function() { $('#googleResults').text('Error fetching results'); });
+        googleModal.show();
+    });
+
+    $(document).on('click', '.google-use', function() {
+        var bookId = $(this).data('book-id');
+        var t = $(this).data('title');
+        var a = $(this).data('authors');
+        var y = $(this).data('year');
+        var img = $(this).data('imgurl');
+        var desc = $(this).data('description');
+        fetch('update_metadata.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: bookId, title: t, authors: a, year: y, imgurl: img, description: desc })
+        }).then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                googleModal.hide();
+                location.reload();
+            } else {
+                alert(data.error || 'Error updating metadata');
+            }
+        }).catch(function() {
+            alert('Error updating metadata');
         });
     });
 
