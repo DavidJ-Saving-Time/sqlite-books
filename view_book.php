@@ -103,6 +103,7 @@ $missingFile = !bookHasFile($book['path']);
     ?>
     <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
     <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
+    <button type="button" id="googleMetaBtn" class="btn btn-secondary mb-4 ms-2">Metadata Google</button>
     <?php if ($missingFile): ?>
         <button type="button" id="uploadFileButton" class="btn btn-secondary mb-4 ms-2">Upload File</button>
         <input type="file" id="bookFileInput" style="display:none">
@@ -164,6 +165,21 @@ $missingFile = !bookHasFile($book['path']);
       </div>
       <div class="modal-body">
         <div id="annasResults">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Google Books Metadata Modal -->
+<div class="modal fade" id="googleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Google Books Results</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="googleResults">Loading...</div>
       </div>
     </div>
   </div>
@@ -295,6 +311,12 @@ const annasModal = new bootstrap.Modal(annasModalEl);
 const annasSearchQuery = <?= json_encode($book['title'] . ' ' . $book['authors']) ?>;
 const currentBookId = <?= (int)$book['id'] ?>;
 
+const googleBtn = document.getElementById('googleMetaBtn');
+const googleResults = document.getElementById('googleResults');
+const googleModalEl = document.getElementById('googleModal');
+const googleModal = new bootstrap.Modal(googleModalEl);
+const googleSearchQuery = <?= json_encode($book['title'] . ' ' . $book['authors']) ?>;
+
 
 annasBtn.addEventListener('click', () => {
     annasResults.textContent = 'Loading...';
@@ -326,6 +348,35 @@ annasBtn.addEventListener('click', () => {
     annasModal.show();
 });
 
+googleBtn.addEventListener('click', () => {
+    googleResults.textContent = 'Loading...';
+    fetch('google_search.php?q=' + encodeURIComponent(googleSearchQuery))
+        .then(r => r.json())
+        .then(data => {
+            if (!data.books || data.books.length === 0) {
+                googleResults.textContent = 'No results';
+                return;
+            }
+            let html = '';
+            data.books.forEach(b => {
+                html += '<div class="mb-2">';
+                if (b.imgUrl) html += '<img src="' + escapeHTML(b.imgUrl) + '" style="height:100px" class="me-2">';
+                html += '<strong>' + escapeHTML(b.title) + '</strong>';
+                if (b.author) html += ' by ' + escapeHTML(b.author);
+                if (b.year) html += ' (' + escapeHTML(b.year) + ')';
+                html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 google-use" '
+                        + 'data-title="' + b.title.replace(/"/g,'&quot;') + '" '
+                        + 'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" '
+                        + 'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" '
+                        + 'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
+                html += '</div>';
+            });
+            googleResults.innerHTML = html;
+        })
+        .catch(() => { googleResults.textContent = 'Error fetching results'; });
+    googleModal.show();
+});
+
 
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('annas-use')) {
@@ -342,6 +393,26 @@ document.addEventListener('click', function(e) {
         .then(data => {
             if (data.status === 'ok') {
                 annasModal.hide();
+                location.reload();
+            } else {
+                alert(data.error || 'Error updating metadata');
+            }
+        }).catch(() => {
+            alert('Error updating metadata');
+        });
+    } else if (e.target.classList.contains('google-use')) {
+        const t = e.target.dataset.title;
+        const a = e.target.dataset.authors;
+        const y = e.target.dataset.year;
+        const img = e.target.dataset.imgurl;
+        fetch('update_metadata.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ book_id: currentBookId, title: t, authors: a, year: y, imgurl: img })
+        }).then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                googleModal.hide();
                 location.reload();
             } else {
                 alert(data.error || 'Error updating metadata');
