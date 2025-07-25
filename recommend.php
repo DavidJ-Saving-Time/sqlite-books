@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 
 require_once 'book_recommend.php';
 require_once 'db.php';
+requireLogin();
 
 $authors = $_GET['authors'] ?? '';
 $title = $_GET['title'] ?? '';

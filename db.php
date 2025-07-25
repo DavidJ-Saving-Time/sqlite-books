@@ -1,8 +1,18 @@
 <?php
 // Ensure new files are group writable
 umask(0002);
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+// Simple cookie based login
+function currentUser(): ?string {
+    return $_COOKIE['user'] ?? null;
+}
+
+function requireLogin(): string {
+    $user = currentUser();
+    if (!$user) {
+        header('Location: login.php');
+        exit;
+    }
+    return $user;
 }
 
 function getPreferences(): array {
@@ -32,9 +42,56 @@ function setPreference(string $key, $value): bool {
     return savePreferences($prefs);
 }
 
+function getUsers(): array {
+    $file = __DIR__ . '/users.json';
+    if (file_exists($file)) {
+        $data = json_decode(file_get_contents($file), true);
+        if (is_array($data)) {
+            return $data;
+        }
+    }
+    return [];
+}
+
+function saveUsers(array $users): bool {
+    $file = __DIR__ . '/users.json';
+    return file_put_contents($file, json_encode($users, JSON_PRETTY_PRINT)) !== false;
+}
+
+function getUser(string $username): ?array {
+    $users = getUsers();
+    return $users[$username] ?? null;
+}
+
+function validateUser(string $username, string $password): bool {
+    $user = getUser($username);
+    return $user && ($user['password'] === $password);
+}
+
+function getUserPreference(string $username, string $key, $default = null) {
+    $user = getUser($username);
+    if ($user && isset($user['prefs'][$key])) {
+        return $user['prefs'][$key];
+    }
+    return $default;
+}
+
+function setUserPreference(string $username, string $key, $value): bool {
+    $users = getUsers();
+    if (!isset($users[$username])) {
+        return false;
+    }
+    $users[$username]['prefs'][$key] = $value;
+    return saveUsers($users);
+}
+
 function currentDatabasePath(): string {
-    if (!empty($_SESSION['db_path'])) {
-        return $_SESSION['db_path'];
+    $user = currentUser();
+    if ($user) {
+        $path = getUserPreference($user, 'db_path');
+        if ($path) {
+            return $path;
+        }
     }
     return getPreference('db_path', 'metadata.old.db');
 }

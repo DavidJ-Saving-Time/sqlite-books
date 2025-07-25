@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+requireLogin();
 
 $genre = trim($_POST['genre'] ?? '');
 if ($genre === '') {

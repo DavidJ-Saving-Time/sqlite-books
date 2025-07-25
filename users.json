@@ -1,0 +1,8 @@
+{
+    "admin": {
+        "password": "admin",
+        "prefs": {
+            "db_path": "metadata.old.db"
+        }
+    }
+}

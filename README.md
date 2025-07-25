@@ -9,10 +9,11 @@ rename or delete genres from that list just like shelves and status values.
 
 ## Preferences
 
-Open `preferences.php` to set the path to your Calibre `metadata.db` file. The
-chosen path is stored in the session so different users can work with separate
-databases. You can also choose to save the path for all users which updates the
-`preferences.json` file used as the global default.
+Visit `login.php` to sign in. User accounts and their preferences are stored in
+`users.json`. After logging in you can open `preferences.php` to set the path to
+your Calibre `metadata.db` file. Preferences are saved per user without using
+PHP sessions. You can still choose to save the path globally for all users which
+updates the `preferences.json` file.
 
 ## Adding Your Own Books
 
