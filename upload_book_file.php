@@ -2,6 +2,11 @@
 require_once 'db.php';
 requireLogin();
 
+$accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+$reqWith = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+$wantJson = stripos($accept, 'application/json') !== false ||
+            strtolower($reqWith) === 'xmlhttprequest';
+
 function safe_filename(string $name, int $max_length = 150): string {
     $name = preg_replace('/[^A-Za-z0-9 _-]/', '', $name);
     return substr(trim($name), 0, $max_length);
@@ -15,6 +20,11 @@ if ($libraryPath === false) {
 
 $bookId = isset($_GET['id']) ? (int)$_GET['id'] : (int)($_POST['id'] ?? 0);
 if ($bookId <= 0) {
+    if ($wantJson) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid book ID']);
+        exit;
+    }
     die('Invalid book ID');
 }
 
@@ -27,6 +37,11 @@ $stmt = $pdo->prepare("SELECT b.title, b.path,
 $stmt->execute([':id' => $bookId]);
 $book = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$book) {
+    if ($wantJson) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Book not found']);
+        exit;
+    }
     die('Book not found');
 }
 
@@ -87,6 +102,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->rollBack();
             $errors[] = $e->getMessage();
         }
+    }
+
+    if ($wantJson) {
+        header('Content-Type: application/json');
+        if ($errors) {
+            http_response_code(400);
+            echo json_encode(['error' => implode(' ', $errors)]);
+        } else {
+            echo json_encode(['status' => 'ok', 'message' => $message]);
+        }
+        exit;
     }
 }
 ?>
