@@ -155,3 +155,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Add Book</title>
+    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <script src="theme.js"></script>
+</head>
+<body>
+<?php include 'navbar.php'; ?>
+<div class="container my-4">
+    <h1 class="mb-4">Add Book</h1>
+    <?php if ($message): ?>
+        <div class="alert alert-success"><?= htmlspecialchars($message) ?></div>
+    <?php elseif ($errors): ?>
+        <div class="alert alert-danger"><?= htmlspecialchars(implode(' ', $errors)) ?></div>
+    <?php endif; ?>
+    <form method="post" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label for="title" class="form-label">Title</label>
+            <input type="text" name="title" id="title" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="authors" class="form-label">Author(s)</label>
+            <input type="text" name="authors" id="authors" class="form-control" placeholder="Separate multiple authors with commas" required>
+        </div>
+        <div class="mb-3">
+            <label for="file" class="form-label">Book File</label>
+            <input type="file" name="file" id="file" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="tags" class="form-label">Tags</label>
+            <input type="text" name="tags" id="tags" class="form-control" placeholder="Optional, comma separated">
+        </div>
+        <button type="submit" class="btn btn-primary">Add</button>
+        <a href="list_books.php" class="btn btn-secondary ms-2">Back</a>
+    </form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</body>
+</html>
