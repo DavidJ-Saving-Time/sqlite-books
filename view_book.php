@@ -96,7 +96,7 @@ try {
     <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
     <button type="button" id="uploadFileButton" class="btn btn-secondary mb-4 ms-2">Upload File</button>
     <input type="file" id="bookFileInput" style="display:none">
-    <div id="uploadMessage" class="mt-2"></div>
+    <div id="uploadMessage" class="mt-2 mb-2 h2"></div>
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
