@@ -862,21 +862,72 @@ $(function() {
     });
 
     $(document).on('click', '.edit-title', function() {
-        var bookId = $(this).data('book-id');
-        var current = $(this).data('title');
-        var name = prompt('Rename title:', current);
-        if (name === null) return;
-        name = name.trim();
-        if (!name || name === current) return;
-        var $link = $(this).siblings('a.book-title');
+        var $btn = $(this);
+        var bookId = $btn.data('book-id');
+        var current = $btn.data('title');
+        var $td = $btn.closest('td');
+        var $link = $td.find('a.book-title');
+        if ($td.find('input.title-input').length) return;
+
+        var $input = $('<input>', {
+            type: 'text',
+            class: 'form-control form-control-sm d-inline-block title-input',
+            css: { width: 'auto', 'max-width': '300px' }
+        }).val(current).data('book-id', bookId);
+
+        var $save = $('<button>', {
+            type: 'button',
+            class: 'btn btn-sm btn-primary ms-1 save-title',
+            text: 'Save'
+        });
+        var $cancel = $('<button>', {
+            type: 'button',
+            class: 'btn btn-sm btn-secondary ms-1 cancel-title',
+            text: 'Cancel'
+        });
+
+        $btn.after($cancel).after($save);
+        $link.after($input);
+        $link.add($btn).addClass('d-none');
+        $input.focus();
+    });
+
+    $(document).on('click', '.cancel-title', function() {
+        var $td = $(this).closest('td');
+        $td.find('.title-input, .save-title, .cancel-title').remove();
+        $td.find('.book-title, .edit-title').removeClass('d-none');
+    });
+
+    $(document).on('click', '.save-title', function() {
+        var $td = $(this).closest('td');
+        var $input = $td.find('.title-input');
+        var name = $input.val().trim();
+        if (!name) {
+            alert('Title cannot be empty');
+            return;
+        }
+        var bookId = $input.data('book-id');
+        var $link = $td.find('a.book-title');
+        var $btn = $td.find('.edit-title');
         fetch('update_title.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ book_id: bookId, title: name })
         }).then(function() {
             $link.text(name);
-            $(this).data('title', name);
-        }.bind(this));
+            $btn.data('title', name);
+        }).finally(function() {
+            $td.find('.title-input, .save-title, .cancel-title').remove();
+            $link.add($btn).removeClass('d-none');
+        });
+    });
+
+    $(document).on('keydown', '.title-input', function(e) {
+        if (e.key === 'Enter') {
+            $(this).closest('td').find('.save-title').trigger('click');
+        } else if (e.key === 'Escape') {
+            $(this).closest('td').find('.cancel-title').trigger('click');
+        }
     });
 
     $(document).on('click', '.annas-download', function() {
