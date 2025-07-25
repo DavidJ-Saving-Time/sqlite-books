@@ -100,6 +100,22 @@ function getLibraryPath(): string {
     return dirname(currentDatabasePath());
 }
 
+function bookHasFile(string $relativePath): bool {
+    $library = getLibraryPath();
+    $dir = $library . '/' . $relativePath;
+    if (!is_dir($dir)) {
+        return false;
+    }
+    foreach (glob($dir . '/*') as $file) {
+        if (!is_file($file)) continue;
+        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['jpg', 'jpeg', 'png', 'opf'])) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function getDatabaseConnection(?string $path = null) {
     $path = $path ?? currentDatabasePath();
     try {

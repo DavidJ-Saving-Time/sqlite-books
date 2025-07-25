@@ -411,6 +411,10 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php endif; ?>
                 </td>
                 <td>
+                    <?php $missing = !bookHasFile($book['path']); ?>
+                    <?php if ($missing): ?>
+                        <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
+                    <?php endif; ?>
                     <a href="view_book.php?id=<?= urlencode($book['id']) ?>" class="book-title" data-book-id="<?= htmlspecialchars($book['id']) ?>">
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
