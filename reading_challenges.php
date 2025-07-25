@@ -1,6 +1,6 @@
 <?php
 require_once 'db.php';
-requireLogin();
+$user = requireLogin();
 
 $pdo = getDatabaseConnection();
 
@@ -21,6 +21,7 @@ try {
         if ($goal > 0) {
             $stmt = $pdo->prepare('REPLACE INTO reading_challenges (year, goal) VALUES (:year, :goal)');
             $stmt->execute([':year' => $year, ':goal' => $goal]);
+            setUserPreference($user, 'reading_goal_' . $year, $goal);
             $message = 'Goal saved.';
         }
     }
@@ -28,6 +29,12 @@ try {
     $goalStmt = $pdo->prepare('SELECT goal FROM reading_challenges WHERE year = :year');
     $goalStmt->execute([':year' => $year]);
     $goal = $goalStmt->fetchColumn();
+    if ($goal === false) {
+        $prefGoal = getUserPreference($user, 'reading_goal_' . $year);
+        if ($prefGoal) {
+            $goal = (int)$prefGoal;
+        }
+    }
 
     $countStmt = $pdo->prepare('SELECT COUNT(*) FROM reading_log WHERE year = :year');
     $countStmt->execute([':year' => $year]);
@@ -46,6 +53,19 @@ try {
     );
     $booksStmt->execute([':year' => $year]);
     $readBooks = $booksStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $weeksInYear = (int)date('W', strtotime($year . '-12-28'));
+    $currentWeek = (int)date('W');
+    $booksPerWeekGoal = $goal ? $goal / $weeksInYear : 0;
+    $booksPerWeekCurrent = $currentWeek > 0 ? $readCount / $currentWeek : 0;
+    $expectedByNow = $goal ? ($booksPerWeekGoal * $currentWeek) : 0;
+    $onTrack = $goal ? ($readCount >= $expectedByNow) : false;
+    $remainingWeeks = max(0, $weeksInYear - $currentWeek);
+    $booksPerWeekNeeded = $remainingWeeks > 0 ? ($goal - $readCount) / $remainingWeeks : 0;
+    $today = new DateTime();
+    $endOfYear = new DateTime($year . '-12-31');
+    $daysLeft = (int)$today->diff($endOfYear)->format('%a') + 1;
+    $booksPerDayNeeded = $daysLeft > 0 ? ($goal - $readCount) / $daysLeft : 0;
 } catch (PDOException $e) {
     die('Database error: ' . $e->getMessage());
 }
@@ -79,6 +99,20 @@ try {
         <?php else: ?>
             <div class="mb-3">Only <?= $goal - $readCount ?> more book<?= $goal - $readCount === 1 ? '' : 's' ?> to reach your goal.</div>
         <?php endif; ?>
+    <?php endif; ?>
+    <?php if ($goal): ?>
+        <div class="mb-3">
+            <strong>Weekly target:</strong> <?= number_format($booksPerWeekGoal, 2) ?> books/week<br>
+            <strong>Current pace:</strong> <?= number_format($booksPerWeekCurrent, 2) ?> books/week<br>
+            <?php if ($onTrack): ?>
+                <span class="text-success">You are on track to meet your goal!</span>
+            <?php else: ?>
+                <span class="text-danger">You need about <?= number_format($booksPerWeekNeeded, 2) ?> books/week to catch up.</span>
+            <?php endif; ?>
+            <br>
+            <strong>Days left:</strong> <?= $daysLeft ?>,
+            <strong>Books/day needed:</strong> <?= number_format($booksPerDayNeeded, 2) ?>
+        </div>
     <?php endif; ?>
     <form method="post" class="mb-3">
         <div class="input-group" >
