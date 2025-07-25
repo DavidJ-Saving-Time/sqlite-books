@@ -2,7 +2,6 @@
 require_once 'db.php';
 
 $pdo = getDatabaseConnection();
-$libraryUrl = rtrim(currentLibraryPath(), '/');
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) {
@@ -97,7 +96,7 @@ try {
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
-                <img src="<?= htmlspecialchars($libraryUrl . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="img-fluid">
+                <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-fluid">
             <?php else: ?>
                 <div class="text-muted">No cover</div>
             <?php endif; ?>

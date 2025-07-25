@@ -2,7 +2,6 @@
 require_once 'db.php';
 
 $pdo = getDatabaseConnection();
-$libraryUrl = rtrim(currentLibraryPath(), '/');
 
 // Ensure shelf table and custom column exist
 try {
@@ -404,7 +403,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <td>
                     <?php if (!empty($book['has_cover'])): ?>
                         <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
-                            <img src="<?= htmlspecialchars($libraryUrl . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
+                            <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
                         </a>
                     <?php else: ?>
                         &mdash;
