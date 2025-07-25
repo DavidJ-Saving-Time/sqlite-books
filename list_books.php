@@ -328,7 +328,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         &mdash;
                     <?php endif; ?>
                 </td>
-                <td>
+                <td class="title-col">
                     <a href="openlibrary_view.php?key=<?= urlencode($book['key']) ?>&title=<?= urlencode($book['title']) ?>&authors=<?= urlencode($book['authors']) ?>&cover_id=<?= urlencode((string)$book['cover_id']) ?>">
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
@@ -368,7 +368,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         &mdash;
                     <?php endif; ?>
                 </td>
-                <td>
+                <td class="title-col">
                     <?php if (!empty($book['md5'])): ?>
                         <a href="https://annas-archive.org/md5/<?= urlencode($book['md5']) ?>" target="_blank">
                             <?= htmlspecialchars($book['title']) ?>
@@ -410,7 +410,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         &mdash;
                     <?php endif; ?>
                 </td>
-                <td>
+                <td class="title-col">
                     <?php $missing = !bookHasFile($book['path']); ?>
                     <?php if ($missing): ?>
                         <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
@@ -514,6 +514,12 @@ if ($isAjax) {
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" crossorigin="anonymous">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" crossorigin="anonymous"></script>
+    <style>
+        .title-col {
+            max-width: 300px;
+            word-break: break-word;
+        }
+    </style>
 </head>
 <body class="pt-5">
 <?php include "navbar.php"; ?>
@@ -683,7 +689,7 @@ if ($isAjax) {
         <thead>
             <tr>
                 <th>Cover</th>
-                <th>Title</th>
+                <th class="title-col">Title</th>
                 <th>Author(s)</th>
                 <?php if ($source === 'annas'): ?>
                     <th>Genre</th>
