@@ -201,6 +201,11 @@ if ($source === 'openlibrary' && $search !== '') {
     $books = search_openlibrary($search);
     $totalBooks = count($books);
     $totalPages = 1;
+} elseif ($source === 'google' && $search !== '') {
+    require_once 'google_books.php';
+    $books = search_google_books($search);
+    $totalBooks = count($books);
+    $totalPages = 1;
 } elseif ($source === 'annas' && $search !== '') {
     require_once 'annas_archive.php';
     $books = search_annas_archive($search);
@@ -356,6 +361,27 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         &mdash;
                     <?php endif; ?>
                 </td>
+            </tr>
+            <?php
+        } elseif ($source === 'google') {
+            ?>
+            <tr>
+                <td>
+                    <?php if (!empty($book['imgUrl'])): ?>
+                        <img src="<?= htmlspecialchars($book['imgUrl']) ?>" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </td>
+                <td class="title-col">
+                    <?= htmlspecialchars($book['title']) ?>
+                </td>
+                <td>
+                    <?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?>
+                </td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
+                <td>&mdash;</td>
             </tr>
             <?php
         } elseif ($source === 'annas') {

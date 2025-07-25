@@ -37,6 +37,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         <select name="source" class="form-select me-2" style="max-width: 12rem;">
           <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>
           <option value="openlibrary"<?= $sourceVal === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
+          <option value="google"<?= $sourceVal === 'google' ? ' selected' : '' ?>>Google Books</option>
           <option value="annas"<?= $sourceVal === 'annas' ? ' selected' : '' ?>>Anna's Archive</option>
         </select>
         <button class="btn btn-outline-secondary" type="submit">Search</button>
