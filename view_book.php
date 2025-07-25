@@ -53,6 +53,8 @@ try {
     // Table may not exist in some databases
     $savedRecommendations = null;
 }
+
+$missingFile = !bookHasFile($book['path']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -61,13 +63,19 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($book['title']) ?></title>
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="theme.js"></script>
 </head>
 <body class="pt-5">
 <?php include "navbar.php"; ?>
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">Back to list</a>
-    <h1 class="mb-0"><?= htmlspecialchars($book['title']) ?></h1>
+    <h1 class="mb-0">
+        <?php if ($missingFile): ?>
+            <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
+        <?php endif; ?>
+        <?= htmlspecialchars($book['title']) ?>
+    </h1>
     <?php
         $formattedPubdate = '';
         if (!empty($book['pubdate'])) {
