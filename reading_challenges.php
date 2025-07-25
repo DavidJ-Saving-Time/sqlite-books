@@ -7,6 +7,23 @@ $pdo = getDatabaseConnection();
 $year = (int)date('Y');
 $message = '';
 
+// Approximate pages in a book used when converting fractional book counts
+const PAGES_PER_BOOK = 450;
+
+/**
+ * Format a book count as either books or pages depending on size.
+ *
+ * @param float $booksPerUnit Books per time unit (week/day/etc.)
+ * @return string Human readable count with units
+ */
+function formatBooksOrPages(float $booksPerUnit): string {
+    if ($booksPerUnit >= 1 || $booksPerUnit <= 0) {
+        return number_format($booksPerUnit, 2) . ' books';
+    }
+    $pages = round($booksPerUnit * PAGES_PER_BOOK);
+    return $pages . ' pages';
+}
+
 try {
     // Ensure tables exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS reading_challenges (year INTEGER PRIMARY KEY, goal INTEGER)");
@@ -102,16 +119,17 @@ try {
     <?php endif; ?>
     <?php if ($goal): ?>
         <div class="mb-3">
-            <strong>Weekly target:</strong> <?= number_format($booksPerWeekGoal, 2) ?> books/week<br>
-            <strong>Current pace:</strong> <?= number_format($booksPerWeekCurrent, 2) ?> books/week<br>
+            <strong>Weekly target:</strong> <?= formatBooksOrPages($booksPerWeekGoal) ?>/week<br>
+            <strong>Current pace:</strong> <?= formatBooksOrPages($booksPerWeekCurrent) ?>/week<br>
             <?php if ($onTrack): ?>
                 <span class="text-success">You are on track to meet your goal!</span>
             <?php else: ?>
-                <span class="text-danger">You need about <?= number_format($booksPerWeekNeeded, 2) ?> books/week to catch up.</span>
+                <span class="text-danger">You need about <?= formatBooksOrPages($booksPerWeekNeeded) ?>/week to catch up.</span>
             <?php endif; ?>
             <br>
             <strong>Days left:</strong> <?= $daysLeft ?>,
-            <strong>Books/day needed:</strong> <?= number_format($booksPerDayNeeded, 2) ?>
+            <?php $dayLabel = $booksPerDayNeeded >= 1 ? 'Books/day needed:' : 'Pages/day needed:'; ?>
+            <strong><?= $dayLabel ?></strong> <?= formatBooksOrPages($booksPerDayNeeded) ?>/day
         </div>
     <?php endif; ?>
     <form method="post" class="mb-3">
