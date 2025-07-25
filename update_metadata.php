@@ -26,10 +26,7 @@ try {
         $pathStmt->execute([':id' => $bookId]);
         $bookPath = $pathStmt->fetchColumn();
         if ($bookPath !== false) {
-            $libraryPath = realpath(__DIR__ . '/ebooks');
-            if ($libraryPath === false) {
-                $libraryPath = __DIR__ . '/ebooks';
-            }
+            $libraryPath = currentLibraryPath();
             $data = @file_get_contents($imgUrl);
             if ($data !== false) {
                 $coverFile = $libraryPath . '/' . $bookPath . '/cover.jpg';
