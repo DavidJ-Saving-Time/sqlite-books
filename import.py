@@ -1,5 +1,8 @@
 import csv
 import os
+
+# Ensure new files are group writable
+os.umask(0o002)
 import sqlite3
 import uuid
 import json
