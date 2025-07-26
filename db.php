@@ -243,34 +243,23 @@ function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): 
 }
 
 function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): int {
-    if ($name === null) $name = ltrim($label, '#');
-    
+    if ($name === null) $name = ltrim($label, "#");
+
     $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = ?");
     $stmt->execute([$label]);
     $id = $stmt->fetchColumn();
 
     if ($id === false) {
-        $pdo->prepare("
-            INSERT INTO custom_columns
-            (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
-            VALUES (?, ?, 'text, is_multiple', 0, 1, '{}', 1, 1)
-        ")->execute([$label, $name]);
+        $pdo->prepare("INSERT INTO custom_columns (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized) VALUES (?, ?, 'text', 0, 1, '{}', 1, 1)")->execute([$label, $name]);
         $id = $pdo->lastInsertId();
     }
 
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS custom_column_$id (
-            book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
-            value INTEGER
-        )
-    ");
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS books_custom_column_{$id}_link (
+    $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_{$id}_link (
             book INTEGER REFERENCES books(id) ON DELETE CASCADE,
             value TEXT NOT NULL,
             PRIMARY KEY (book, value)
-        )
-    ");
+        )");
 
     return (int)$id;
 }
+

@@ -15,21 +15,14 @@ if ($bookId <= 0) {
 $pdo = getDatabaseConnection();
 
 try {
-    [$genreId, $valueTable, $linkTable] = ensureMultivalueColumn($pdo, 'genre');
+    $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
+    $linkTable = "books_custom_column_{$genreId}_link";
 
     $pdo->prepare("DELETE FROM $linkTable WHERE book = :book")->execute([':book' => $bookId]);
 
     if ($value !== '') {
-        $genreIdVal = (int)$value;
-        $stmt = $pdo->prepare("SELECT id FROM $valueTable WHERE id = :id");
-        $stmt->execute([':id' => $genreIdVal]);
-        if ($stmt->fetchColumn() === false) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Invalid genre']);
-            exit;
-        }
         $stmt = $pdo->prepare("INSERT INTO $linkTable (book, value) VALUES (:book, :value)");
-        $stmt->execute([':book' => $bookId, ':value' => $genreIdVal]);
+        $stmt->execute([':book' => $bookId, ':value' => $value]);
     }
 
     echo json_encode(['status' => 'ok']);

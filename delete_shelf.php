@@ -14,7 +14,9 @@ $pdo = getDatabaseConnection();
 try {
     $stmt = $pdo->prepare('DELETE FROM shelves WHERE name = :name');
     $stmt->execute([':name' => $shelf]);
-    $update = $pdo->prepare("UPDATE books_custom_column_11 SET value = 'Ebook Calibre' WHERE value = :name");
+    $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
+    $table = "custom_column_{$shelfId}";
+    $update = $pdo->prepare("UPDATE $table SET value = 'Ebook Calibre' WHERE value = :name");
     $update->execute([':name' => $shelf]);
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
