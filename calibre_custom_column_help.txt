@@ -1,0 +1,187 @@
+SQL Template for Adding a Custom Column
+Step 1: Insert the Column Definition
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#notes', 'Notes', 'text', '{}');
+label – Must start with #. It’s the internal lookup name (#notes).
+
+name – The human-readable column name shown in Calibre (Notes).
+
+datatype – One of:
+
+text
+
+enumeration
+
+comments
+
+bool
+
+int
+
+float
+
+datetime
+
+rating
+
+composite
+
+text, is_multiple
+
+display – JSON-like string for UI settings (empty {} is fine for defaults).
+
+Step 2: Get the Column ID
+Run:
+
+SELECT id, label FROM custom_columns ORDER BY id DESC;
+Look at the id of the column you just added (e.g., 1).
+
+Step 3: Create the Storage Table
+Each custom column needs its own table. For a text column:
+
+CREATE TABLE custom_column_1 (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value TEXT
+);
+Replace 1 with the id from Step 2.
+
+For other data types:
+
+bool → value BOOLEAN
+
+int → value INTEGER
+
+float → value REAL
+
+datetime → value TIMESTAMP
+
+comments → value TEXT
+
+rating → value INTEGER
+
+enumeration → value TEXT
+
+text, is_multiple → value TEXT
+
+
+
+
+Insert the column definition into custom_columns.
+
+Check the new column's id:
+
+SELECT id, label FROM custom_columns ORDER BY id DESC;
+Create a storage table named custom_column_X where X = id.
+
+
+1. Text Column
+Stores simple text values.
+
+-- Add column
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#notes', 'Notes', 'text', '{}');
+
+-- Create table (replace X with the actual ID)
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value TEXT
+);
+Example usage:
+
+INSERT OR REPLACE INTO custom_column_X (book, value)
+VALUES (10, 'This is my note');
+2. Long Text (Comments)
+For larger text or HTML content.
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#review', 'Review', 'comments', '{}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value TEXT
+);
+3. Yes/No (Boolean)
+Displays as a checkbox in Calibre.
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#read', 'Read', 'bool', '{}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value BOOLEAN
+);
+Set value example:
+
+INSERT OR REPLACE INTO custom_column_X (book, value)
+VALUES (10, 1); -- 1 = Yes, 0 = No
+4. Integer
+Stores whole numbers.
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#pages', 'Pages', 'int', '{}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value INTEGER
+);
+5. Floating Point (Decimal)
+Stores numeric values with decimals.
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#price', 'Price', 'float', '{}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value REAL
+);
+6. Date
+Stores full date/time values.
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#read_date', 'Read Date', 'datetime', '{}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value TIMESTAMP
+);
+
+Example usage:
+INSERT OR REPLACE INTO custom_column_X (book, value)
+VALUES (10, '2025-07-26 14:00:00');
+7. Rating
+Displays as star ratings (0–5 in UI, stored as integers like 0–10).
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#mystars', 'My Stars', 'rating', '{}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value INTEGER
+);
+8. Enumeration (Dropdown with Fixed Options)
+Predefined list of text values.
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#status', 'Status', 'enumeration', '{"enum_values":["Unread","Reading","Finished"]}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value TEXT
+);
+9. Comma-Separated Text (Like Tags)
+Allows multiple values separated by commas.
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#keywords', 'Keywords', 'text, is_multiple', '{}');
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value TEXT
+);
+10. Composite Column (Calculated from Other Columns)
+This is trickier. The data is generated dynamically, not stored.
+To define one:
+
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#summary', 'Summary', 'composite', '{"composite_template":"{title} - {authors}"}');
+No storage table is needed since it’s computed from the template.

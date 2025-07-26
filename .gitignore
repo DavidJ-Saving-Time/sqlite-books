@@ -2,5 +2,6 @@ metadata.old.db
 python/.direnv/
 python/.envrc
 ebooks/
+ebooks2/
 libwall.jpg
 nbproject/private/
