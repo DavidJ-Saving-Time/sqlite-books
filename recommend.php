@@ -34,15 +34,8 @@ try {
                 $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, '#recommendations', 'recommendations', 'text', 0, 1, 0, 1, '{}')")
                     ->execute([':id' => $recId]);
             }
-            $base = 'custom_column_' . (int)$recId;
-            $link = 'books_custom_column_' . (int)$recId . '_link';
-            $linkCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $link . "'");
-            if ($linkCheck->fetch()) {
-                $recTable = $link;
-            } else {
-                $recTable = $base;
-                $pdo->exec("CREATE TABLE IF NOT EXISTS $recTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-            }
+            $recTable = 'custom_column_' . (int)$recId;
+            $pdo->exec("CREATE TABLE IF NOT EXISTS $recTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
             $exists = true;
         } catch (PDOException $e) {
             $exists = false;
