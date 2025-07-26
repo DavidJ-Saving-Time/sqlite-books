@@ -1120,5 +1120,5 @@ CREATE VIEW tag_browser_filtered_custom_column_9 AS SELECT
                            books_list_filter(bl.book)) avg_rating,
                     value AS sort
                 FROM custom_column_9;
-CREATE TABLE custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT);
-CREATE TABLE custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT);
+CREATE TABLE books_custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT);
+CREATE TABLE books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT);
