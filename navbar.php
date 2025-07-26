@@ -94,9 +94,6 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         </li>
         
         
-        <li class="nav-item ms-2">
-          <select id="themeSelect" class="form-select form-select-sm" style="min-width: 10rem;"></select>
-        </li>
         <?php if (currentUser()): ?>
         <li class="nav-item ms-3">
           <span class="navbar-text me-2"><?= htmlspecialchars(currentUser()) ?></span>
