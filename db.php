@@ -185,28 +185,12 @@ function initializeCustomColumns(PDO $pdo): void {
         }
 
         // Shelf assignment column
-        $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#shelf'");
-        $stmt->execute();
-        $shelfId = $stmt->fetchColumn();
-        if ($shelfId === false) {
-            $shelfId = (int)$pdo->query("SELECT COALESCE(MAX(id),0)+1 FROM custom_columns")->fetchColumn();
-            $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, '#shelf', 'shelf', 'text', 0, 1, 0, 1, '{}')")->execute([':id' => $shelfId]);
-        }
-        $shelfTable = 'custom_column_' . (int)$shelfId;
-        $pdo->exec("CREATE TABLE IF NOT EXISTS $shelfTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-        $pdo->exec("INSERT INTO $shelfTable (book, value)\n              SELECT id, 'Ebook Calibre' FROM books\n                WHERE id NOT IN (SELECT book FROM $shelfTable)");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+        $pdo->exec("INSERT INTO books_custom_column_11 (book, value)\n                SELECT id, 'Ebook Calibre' FROM books\n                WHERE id NOT IN (SELECT book FROM books_custom_column_11)");
 
         // Recommendation storage column
+        $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
 
-        $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#recommendations'");
-        $stmt->execute();
-        $recId = $stmt->fetchColumn();
-        if ($recId === false) {
-            $recId = (int)$pdo->query("SELECT COALESCE(MAX(id),0)+1 FROM custom_columns")->fetchColumn();
-            $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, '#recommendations', 'recommendations', 'text', 0, 1, 0, 1, '{}')")->execute([':id' => $recId]);
-        }
-        $recTable = 'custom_column_' . (int)$recId;
-        $pdo->exec("CREATE TABLE IF NOT EXISTS $recTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
         // Genre tables used by the application
         $pdo->exec("CREATE TABLE IF NOT EXISTS custom_column_2 (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '', UNIQUE(value))");
         $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_2_link (book INTEGER REFERENCES books(id) ON DELETE CASCADE, value INTEGER REFERENCES custom_column_2(id), PRIMARY KEY(book,value))");
@@ -227,15 +211,15 @@ function initializeCustomColumns(PDO $pdo): void {
         }
 
         // Reading status column metadata
-        $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#status'");
+        $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
         $stmt->execute();
         $statusId = $stmt->fetchColumn();
         if ($statusId === false) {
             $statusId = (int)$pdo->query("SELECT COALESCE(MAX(id),0)+1 FROM custom_columns")->fetchColumn();
-            $insert = $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, '#status', 'status', 'text', 0, 1, 0, 1, '{}')");
+            $insert = $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, 'status', 'status', 'text', 0, 1, 0, 1, '{}')");
             $insert->execute([':id' => $statusId]);
         }
-        $statusTable = 'custom_column_' . (int)$statusId;
+        $statusTable = 'books_custom_column_' . (int)$statusId;
         $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
         $pdo->exec("INSERT INTO $statusTable (book, value)\n                SELECT id, 'Want to Read' FROM books\n                WHERE id NOT IN (SELECT book FROM $statusTable)");
     } catch (PDOException $e) {

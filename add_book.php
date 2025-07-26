@@ -38,33 +38,39 @@ try {
     $balStmt = $pdo->prepare('INSERT INTO books_authors_link (book, author) VALUES (:book, :author)');
     $balStmt->execute([':book' => $bookId, ':author' => $authorId]);
 
-    $colStmt = $pdo->query("SELECT id, label, is_multiple FROM custom_columns");
-    $columns = $colStmt->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($columns as $col) {
-        $colId = (int)$col['id'];
-        $label = $col['label'];
-        $isMultiple = (int)$col['is_multiple'];
-        $linkTable = 'books_custom_column_' . $colId . '_link';
-        $valueTable = 'custom_column_' . $colId;
-        $linkExists = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $linkTable . "'")->fetchColumn();
-        $directExists = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $valueTable . "'")->fetchColumn();
-        if ($linkExists && $directExists && $isMultiple === 0) {
+    $tableStmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'books_custom_column_%'");
+    $tables = $tableStmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($tables as $table) {
+        if (!preg_match('/^books_custom_column_(\d+)(?:_link)?$/', $table, $m)) {
+            continue;
+        }
+        $colId = (int)$m[1];
+        $isLink = str_ends_with($table, '_link');
+
+        if ($isLink) {
+            $infoStmt = $pdo->prepare('SELECT label, is_multiple FROM custom_columns WHERE id = :id');
+            $infoStmt->execute([':id' => $colId]);
+            $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$info || (int)$info['is_multiple'] === 1) {
+                continue;
+            }
+            $valTable = 'custom_column_' . $colId;
             $defaultId = null;
-            if ($label === '#status') {
-                $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Want to Read')")->execute();
-                $defaultId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Want to Read'")->fetchColumn();
+            if ($info['label'] === 'status') {
+                $pdo->prepare("INSERT OR IGNORE INTO $valTable (value) VALUES ('Want to Read')")->execute();
+                $defaultId = $pdo->query("SELECT id FROM $valTable WHERE value = 'Want to Read'")->fetchColumn();
             } else {
-                $defaultId = $pdo->query("SELECT id FROM $valueTable ORDER BY id LIMIT 1")->fetchColumn();
+                $defaultId = $pdo->query("SELECT id FROM $valTable ORDER BY id LIMIT 1")->fetchColumn();
             }
             if ($defaultId !== false && $defaultId !== null) {
-                $pdo->prepare("INSERT INTO $linkTable (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $defaultId]);
+                $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $defaultId]);
             }
-        } elseif ($directExists) {
+        } else {
             $value = null;
-            if ($label === '#shelf') {
-                $value = 'Ebook Calibre';
+            if ($colId === 11) {
+                $value = 'Physical';
             }
-            $pdo->prepare("INSERT INTO $valueTable (book, value) VALUES (:book, :value)")->execute([':book' => $bookId, ':value' => $value]);
+            $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :value)")->execute([':book' => $bookId, ':value' => $value]);
         }
     }
 

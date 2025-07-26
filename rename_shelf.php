@@ -16,11 +16,7 @@ try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
     $pdo->beginTransaction();
     $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (:new)')->execute([':new' => $new]);
-    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#shelf'");
-    $stmt->execute();
-    $shelfId = $stmt->fetchColumn();
-    $table = 'custom_column_' . (int)$shelfId;
-    $pdo->prepare("UPDATE $table SET value = :new WHERE value = :old")->execute([':new' => $new, ':old' => $old]);
+    $pdo->prepare('UPDATE books_custom_column_11 SET value = :new WHERE value = :old')->execute([':new' => $new, ':old' => $old]);
     $pdo->prepare('DELETE FROM shelves WHERE name = :old')->execute([':old' => $old]);
     $pdo->commit();
     echo json_encode(['status' => 'ok']);

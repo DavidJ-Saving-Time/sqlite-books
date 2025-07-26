@@ -44,19 +44,11 @@ $tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
 $tagsStmt->execute([$id]);
 $tags = $tagsStmt->fetchColumn();
 
-// Fetch saved recommendations from custom column if present
+// Fetch saved recommendations from custom column 10, if present
 try {
-    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#recommendations'");
-    $stmt->execute();
-    $recId = $stmt->fetchColumn();
-    if ($recId !== false) {
-        $recTable = 'custom_column_' . (int)$recId;
-        $recStmt = $pdo->prepare('SELECT value FROM ' . $recTable . ' WHERE book = ?');
-        $recStmt->execute([$id]);
-        $savedRecommendations = $recStmt->fetchColumn();
-    } else {
-        $savedRecommendations = null;
-    }
+    $recStmt = $pdo->prepare('SELECT value FROM books_custom_column_10 WHERE book = ?');
+    $recStmt->execute([$id]);
+    $savedRecommendations = $recStmt->fetchColumn();
 } catch (PDOException $e) {
     // Table may not exist in some databases
     $savedRecommendations = null;
