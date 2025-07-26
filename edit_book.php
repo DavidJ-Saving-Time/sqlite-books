@@ -19,21 +19,6 @@ $commentStmt = $pdo->prepare('SELECT text FROM comments WHERE book = ?');
 $commentStmt->execute([$id]);
 $description = $commentStmt->fetchColumn() ?: '';
 
-// Check if an Open Library cover is available via ISBN
-$openlibraryUrl = '';
-$openlibraryAvailable = false;
-if (!empty($book['isbn'])) {
-    $isbnTrim = trim($book['isbn']);
-    if ($isbnTrim !== '') {
-        $openlibraryUrl = 'https://covers.openlibrary.org/b/isbn/' .
-            rawurlencode($isbnTrim) . '-L.jpg?default=false';
-        $headers = @get_headers($openlibraryUrl);
-        if ($headers && strpos($headers[0], '200') !== false) {
-            $openlibraryAvailable = true;
-        }
-    }
-}
-
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'] ?? '';
@@ -132,28 +117,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="mb-3">
         <p class="mb-1"><i class="fa-solid fa-eye me-1 text-success"></i> Current Cover:</p>
         <div class="position-relative d-inline-block">
-            <img id="coverImagePreview"
-                 src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg"
-                 alt="Cover"
-                 class="img-thumbnail shadow-sm"
+            <img id="coverImagePreview" 
+                 src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" 
+                 alt="Cover" 
+                 class="img-thumbnail shadow-sm" 
                  style="max-width: 200px;">
-            <div id="coverDimensions"
-                 class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75"
+            <div id="coverDimensions" 
+                 class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" 
                  style="font-size: 1.2rem;">
                  Loading...
             </div>
         </div>
-    </div>
-<?php endif; ?>
-
-<?php if ($openlibraryAvailable): ?>
-    <div class="mb-3">
-        <p class="mb-1"><i class="fa-solid fa-book-open-reader me-1 text-info"></i> Open Library Cover:</p>
-        <div class="d-inline-block">
-            <img id="openlibraryImage" src="<?= htmlspecialchars($openlibraryUrl) ?>" alt="Open Library Cover"
-                 class="img-thumbnail shadow-sm" style="max-width: 200px;">
-        </div>
-        <button type="button" id="useOpenlibraryBtn" data-url="<?= htmlspecialchars($openlibraryUrl) ?>" class="btn btn-sm btn-primary ms-2">Use This</button>
     </div>
 <?php endif; ?>
 
@@ -177,7 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 document.addEventListener('DOMContentLoaded', () => {
     const img = document.getElementById('coverImagePreview');
     const dimLabel = document.getElementById('coverDimensions');
-    const useBtn = document.getElementById('useOpenlibraryBtn');
 
     function updateDimensions() {
         if (img.naturalWidth && img.naturalHeight) {
@@ -198,33 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 dimLabel.textContent = 'Image not found';
             });
         }
-    }
-
-    if (useBtn) {
-        useBtn.addEventListener('click', () => {
-            const url = useBtn.dataset.url;
-            useBtn.disabled = true;
-            fetch('update_metadata.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    book_id: <?= json_encode($id) ?>,
-                    imgurl: url
-                })
-            }).then(r => r.json())
-              .then(data => {
-                  if (data.status === 'ok') {
-                      location.reload();
-                  } else {
-                      alert(data.error || 'Error updating cover');
-                      useBtn.disabled = false;
-                  }
-              })
-              .catch(() => {
-                  alert('Error updating cover');
-                  useBtn.disabled = false;
-              });
-        });
     }
 });
 </script>
