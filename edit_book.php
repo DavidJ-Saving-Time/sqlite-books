@@ -9,19 +9,51 @@ if ($id <= 0) {
     die('Invalid book ID');
 }
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $title = $_POST['title'] ?? '';
-    $stmt = $pdo->prepare('UPDATE books SET title = ? WHERE id = ?');
-    $stmt->execute([$title, $id]);
-    $updated = true;
-}
-
 $stmt = $pdo->prepare('SELECT * FROM books WHERE id = ?');
 $stmt->execute([$id]);
 $book = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$book) {
     die('Book not found');
+}
+$commentStmt = $pdo->prepare('SELECT text FROM comments WHERE book = ?');
+$commentStmt->execute([$id]);
+$description = $commentStmt->fetchColumn() ?: '';
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $title = $_POST['title'] ?? '';
+    $descriptionInput = trim($_POST['description'] ?? '');
+
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare('UPDATE books SET title = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt->execute([$title, $id]);
+
+    if ($descriptionInput !== '') {
+        $descStmt = $pdo->prepare('INSERT INTO comments (book, text) VALUES (:book, :text) '
+            . 'ON CONFLICT(book) DO UPDATE SET text = excluded.text');
+        $descStmt->execute([':book' => $id, ':text' => $descriptionInput]);
+    } else {
+        $pdo->prepare('DELETE FROM comments WHERE book = ?')->execute([$id]);
+    }
+
+    if (!empty($_FILES['cover']) && $_FILES['cover']['error'] === UPLOAD_ERR_OK) {
+        $libraryPath = getLibraryPath();
+        $destDir = $libraryPath . '/' . $book['path'];
+        if (!is_dir($destDir)) {
+            mkdir($destDir, 0777, true);
+        }
+        $destFile = $destDir . '/cover.jpg';
+        move_uploaded_file($_FILES['cover']['tmp_name'], $destFile);
+        $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = ?')->execute([$id]);
+    }
+
+    $pdo->commit();
+    $updated = true;
+
+    $stmt = $pdo->prepare('SELECT * FROM books WHERE id = ?');
+    $stmt->execute([$id]);
+    $book = $stmt->fetch(PDO::FETCH_ASSOC);
+    $description = $descriptionInput;
 }
 ?>
 <!DOCTYPE html>
@@ -40,11 +72,24 @@ if (!$book) {
     <?php if (!empty($updated)): ?>
         <div class="alert alert-success">Book updated successfully</div>
     <?php endif; ?>
-    <form method="post" class="mb-3">
+    <form method="post" enctype="multipart/form-data" class="mb-3">
         <div class="mb-3">
             <label for="title" class="form-label">Title</label>
             <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control">
         </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea id="description" name="description" class="form-control" rows="4"><?= htmlspecialchars($description) ?></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="cover" class="form-label">Cover Image</label>
+            <input type="file" id="cover" name="cover" class="form-control">
+        </div>
+        <?php if (!empty($book['has_cover'])): ?>
+            <div class="mb-3">
+                <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" style="max-width:150px" class="img-thumbnail">
+            </div>
+        <?php endif; ?>
         <button type="submit" class="btn btn-primary">Save</button>
         <a href="list_books.php" class="btn btn-secondary">Back to list</a>
     </form>
