@@ -3,4 +3,4 @@ python/.direnv/
 python/.envrc
 ebooks/
 libwall.jpg
-/nbproject/private/
+nbproject/private/

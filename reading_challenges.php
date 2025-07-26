@@ -87,97 +87,197 @@ try {
     die('Database error: ' . $e->getMessage());
 }
 ?>
+
+
+<?php if ($goal): ?>
+    <?php 
+        $percent = min(100, (int)(($readCount / $goal) * 100));
+        $milestones = [25, 50, 75, 100];
+        $nextMilestone = null;
+        foreach ($milestones as $m) {
+            if ($percent < $m) { 
+                $nextMilestone = $m; 
+                break; 
+            }
+        }
+        $booksForNextMilestone = $nextMilestone ? ceil(($nextMilestone * $goal / 100) - $readCount) : 0;
+    ?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Reading Challenge</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <script src="theme.js"></script>
 </head>
 <body class="pt-5">
 <?php include "navbar.php"; ?>
 <div class="container my-4">
-    <h1 class="mb-4">Reading Challenge <?= htmlspecialchars((string)$year) ?></h1>
+    <h1 class="mb-4 d-flex align-items-center">
+        <i class="fa-solid fa-flag-checkered me-2 text-success"></i> 
+        Reading Challenge <?= htmlspecialchars((string)$year) ?>
+    </h1>
+    
     <?php if ($message): ?>
-        <div class="alert alert-success"><?= htmlspecialchars($message) ?></div>
+        <div class="alert alert-success">
+            <i class="fa-solid fa-circle-check me-2"></i> 
+            <?= htmlspecialchars($message) ?>
+        </div>
     <?php endif; ?>
-    <p>You have read <?= $readCount ?><?= $goal ? ' of ' . $goal : '' ?> books this year.</p>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">
+                <i class="fa-solid fa-book me-2"></i>
+                You have read <strong><?= $readCount ?></strong><?= $goal ? " of <strong>{$goal}</strong>" : '' ?> books this year.
+            </h5>
+            <?php if ($goal): ?>
+                <?php $percent = min(100, (int)(($readCount / $goal) * 100)); ?>
+<!-- Progress Bar -->
+    <div class="progress mb-4" style="height: 1.5rem;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated 
+                    <?= $readCount >= $goal ? 'bg-success' : 'bg-info' ?>" 
+             role="progressbar" 
+             style="width: <?= $percent ?>%;" 
+             aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100">
+            <?= $percent ?>% (<?= $readCount ?>/<?= $goal ?>)
+        </div>
+    </div>
+
+    <!-- Badges Row -->
+    <div class="d-flex justify-content-around mb-4">
+        <?php foreach ($milestones as $m): ?>
+            <div class="text-center">
+                <i class="fa-solid fa-medal fa-2x <?= $percent >= $m ? 'text-warning' : 'text-secondary' ?>"></i>
+                <div class="small"><?= $m ?>%</div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Next Milestone -->
+    <?php if ($readCount < $goal && $nextMilestone): ?>
+        <div class="alert alert-info text-center">
+            <i class="fa-solid fa-star me-1"></i>
+            <?= $booksForNextMilestone ?> book<?= $booksForNextMilestone > 1 ? 's' : '' ?> until your <strong><?= $nextMilestone ?>%</strong> badge!
+        </div>
+    <?php else: ?>
+        <div class="alert alert-success text-center">
+            <i class="fa-solid fa-trophy me-1"></i>
+            You've achieved all milestones—amazing job!
+        </div>
+    <?php endif; ?>
+<?php endif; ?>
+                <?php if ($readCount >= $goal): ?>
+                    <div class="alert alert-success mb-0">
+                        <i class="fa-solid fa-trophy me-2"></i>
+                        Goal completed! Fantastic job!
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-warning mb-0">
+                        <i class="fa-solid fa-bolt me-2"></i>
+                        Only <?= $goal - $readCount ?> more book<?= $goal - $readCount === 1 ? '' : 's' ?> to reach your goal.
+                    </div>
+                <?php endif; ?>
+            <?php else: ?>
+                <div class="alert alert-info mb-0">
+                    <i class="fa-solid fa-circle-info me-2"></i>
+                    Set your yearly goal below to start tracking!
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
     <?php if ($goal): ?>
-        <?php $percent = min(100, (int)(($readCount / $goal) * 100)); ?>
-        <div class="progress mb-3">
-            <div class="progress-bar" role="progressbar" style="width: <?= $percent ?>%;" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100">
-                <?= $percent ?>%
+        <div class="row text-center mb-4">
+            <div class="col-md-4 mb-2">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <i class="fa-solid fa-calendar-week fa-2x text-primary mb-2"></i>
+                        <h6 class="fw-bold">Weekly Target</h6>
+                        <p class="mb-0"><?= formatBooksOrPages($booksPerWeekGoal) ?>/week</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-2">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <i class="fa-solid fa-chart-line fa-2x text-info mb-2"></i>
+                        <h6 class="fw-bold">Current Pace</h6>
+                        <p class="mb-0"><?= formatBooksOrPages($booksPerWeekCurrent) ?>/week</p>
+                        <span class="<?= $onTrack ? 'text-success' : 'text-danger' ?>">
+                            <?= $onTrack ? 'On track!' : "Need " . formatBooksOrPages($booksPerWeekNeeded) . "/week" ?>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-2">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <i class="fa-solid fa-hourglass-half fa-2x text-warning mb-2"></i>
+                        <h6 class="fw-bold">Days Left</h6>
+                        <p class="mb-0"><?= $daysLeft ?> days</p>
+                        <?php $dayLabel = $booksPerDayNeeded >= 1 ? 'Books/day needed:' : 'Pages/day needed:'; ?>
+                        <small><?= $dayLabel ?> <strong><?= formatBooksOrPages($booksPerDayNeeded) ?></strong></small>
+                    </div>
+                </div>
             </div>
         </div>
-        <?php if ($readCount >= $goal): ?>
-            <div class="alert alert-success">Goal completed! Great job!</div>
-        <?php else: ?>
-            <div class="mb-3">Only <?= $goal - $readCount ?> more book<?= $goal - $readCount === 1 ? '' : 's' ?> to reach your goal.</div>
-        <?php endif; ?>
     <?php endif; ?>
-    <?php if ($goal): ?>
-        <div class="mb-3">
-            <strong>Weekly target:</strong> <?= formatBooksOrPages($booksPerWeekGoal) ?>/week<br>
-            <strong>Current pace:</strong> <?= formatBooksOrPages($booksPerWeekCurrent) ?>/week<br>
-            <?php if ($onTrack): ?>
-                <span class="text-success">You are on track to meet your goal!</span>
-            <?php else: ?>
-                <span class="text-danger">You need about <?= formatBooksOrPages($booksPerWeekNeeded) ?>/week to catch up.</span>
-            <?php endif; ?>
-            <br>
-            <strong>Days left:</strong> <?= $daysLeft ?>,
-            <?php $dayLabel = $booksPerDayNeeded >= 1 ? 'Books/day needed:' : 'Pages/day needed:'; ?>
-            <strong><?= $dayLabel ?></strong> <?= formatBooksOrPages($booksPerDayNeeded) ?>/day
-        </div>
-    <?php endif; ?>
-    <form method="post" class="mb-3">
-        <div class="input-group" >
-            <label class="input-group-text" for="goal">Yearly Goal</label>
+
+    <form method="post" class="mb-4">
+        <div class="input-group">
+            <label class="input-group-text" for="goal">
+                <i class="fa-solid fa-bullseye me-1"></i> Yearly Goal
+            </label>
             <input type="number" class="form-control" name="goal" id="goal" value="<?= htmlspecialchars((string)$goal) ?>" min="1">
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-save me-1"></i> Save
+            </button>
         </div>
     </form>
 
     <?php if (!empty($readBooks)): ?>
-        <h2 class="h4 mt-4">Books Read in <?= htmlspecialchars((string)$year) ?></h2>
-        <table class="table table-striped" >
-            <thead>
-            <tr>
-                <th>Cover</th>
-                <th>Title</th>
-                <th>Author(s)</th>
-                <th>Finished</th>
-                <th>Remove</th>
-            </tr>
-            </thead>
-            <tbody>
+        <h2 class="h4 mb-3">
+            <i class="fa-solid fa-bookmark me-2"></i>
+            Books Read in <?= htmlspecialchars((string)$year) ?>
+        </h2>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
             <?php foreach ($readBooks as $b): ?>
-                <tr>
-                    <td>
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
                         <?php if (!empty($b['has_cover'])): ?>
-                            <a href="view_book.php?id=<?= urlencode($b['id']) ?>">
-                                <img src="ebooks/<?= htmlspecialchars($b['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 80px; height: auto;">
-                            </a>
+                            <img src="ebooks/<?= htmlspecialchars($b['path']) ?>/cover.jpg" alt="Cover" class="card-img-top" style="height: 600px; object-fit: cover;">
                         <?php else: ?>
-                            &mdash;
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 600px;">
+                                <i class="fa-solid fa-book fa-3x text-secondary"></i>
+                            </div>
                         <?php endif; ?>
-                    </td>
-                    <td><a href="view_book.php?id=<?= urlencode($b['id']) ?>"><?= htmlspecialchars($b['title']) ?></a></td>
-                    <td><?= htmlspecialchars($b['authors']) ?></td>
-                    <td>
-                        <?php if (!empty($b['read_date'])): ?>
-                            <?= htmlspecialchars(date('M j, Y', strtotime($b['read_date']))) ?>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-danger remove-challenge" data-book-id="<?= htmlspecialchars($b['id']) ?>">Remove</button>
-                    </td>
-                </tr>
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title"><?= htmlspecialchars($b['title']) ?></h5>
+                            <p class="text-muted mb-2"><?= htmlspecialchars($b['authors']) ?></p>
+                            <?php if (!empty($b['read_date'])): ?>
+                                <p class="small text-success mb-2">
+                                    <i class="fa-solid fa-check me-1"></i>
+                                    Finished: <?= htmlspecialchars(date('M j, Y', strtotime($b['read_date']))) ?>
+                                </p>
+                            <?php endif; ?>
+                            <div class="mt-auto">
+                                <a href="view_book.php?id=<?= urlencode($b['id']) ?>" class="btn btn-outline-primary btn-sm me-2">
+                                    <i class="fa-solid fa-eye"></i> View
+                                </a>
+                                <button class="btn btn-sm btn-danger remove-challenge" data-book-id="<?= htmlspecialchars($b['id']) ?>">
+                                    <i class="fa-solid fa-trash"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             <?php endforeach; ?>
-            </tbody>
-        </table>
+        </div>
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>

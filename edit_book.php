@@ -62,54 +62,116 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Edit Book</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <script src="theme.js"></script>
+    <style>
+        #description {
+            min-height: 200px;
+            resize: vertical; /* Allow user to resize */
+        }
+    </style>
 </head>
-<body>
+<body style="margin-top: 100px">
 <?php include "navbar.php"; ?>
 <div class="container my-4">
-    <h1 class="mb-4">Edit Book Metadata</h1>
-    <?php if (!empty($updated)): ?>
-        <div class="alert alert-success">Book updated successfully</div>
-    <?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="mb-3">
-        <div class="mb-3">
-            <label for="title" class="form-label">Title</label>
-            <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control">
-        </div>
-        <div class="mb-3">
-            <label for="description" class="form-label">Description</label>
-            <textarea id="description" name="description" class="form-control" rows="4"><?= htmlspecialchars($description) ?></textarea>
-        </div>
-        <div class="mb-3">
-            <label for="cover" class="form-label">Cover Image</label>
-            <input type="file" id="cover" name="cover" class="form-control">
-        </div>
-        <?php if (!empty($book['has_cover'])): ?>
-            <div class="mb-3">
-                <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" style="max-width:150px" class="img-thumbnail">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h1 class="card-title mb-4">
+                <i class="fa-solid fa-pen-to-square me-2"></i> Edit Book Metadata
+            </h1>
+
+            <?php if (!empty($updated)): ?>
+                <div class="alert alert-success">
+                    <i class="fa-solid fa-circle-check me-2"></i> Book updated successfully
+                </div>
+            <?php endif; ?>
+
+            <form method="post" enctype="multipart/form-data" class="mb-3">
+                <!-- Title -->
+                <div class="mb-3">
+                    <label for="title" class="form-label">
+                        <i class="fa-solid fa-book me-1 text-primary"></i> Title
+                    </label>
+                    <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control" required>
+                </div>
+
+                <!-- Description -->
+                <div class="mb-3">
+                    <label for="description" class="form-label">
+                        <i class="fa-solid fa-align-left me-1 text-primary"></i> Description
+                    </label>
+                    <textarea id="description" name="description" class="form-control" rows="16"><?= htmlspecialchars($description) ?></textarea>
+                </div>
+
+                <!-- Cover Image Upload -->
+                <div class="mb-3">
+                    <label for="cover" class="form-label">
+                        <i class="fa-solid fa-image me-1 text-primary"></i> Cover Image
+                    </label>
+                    <input type="file" id="cover" name="cover" class="form-control">
+                </div>
+
+                <!-- Existing Cover Preview -->
+<?php if (!empty($book['has_cover'])): ?>
+    <div class="mb-3">
+        <p class="mb-1"><i class="fa-solid fa-eye me-1 text-success"></i> Current Cover:</p>
+        <div class="position-relative d-inline-block">
+            <img id="coverImagePreview" 
+                 src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" 
+                 alt="Cover" 
+                 class="img-thumbnail shadow-sm" 
+                 style="max-width: 200px;">
+            <div id="coverDimensions" 
+                 class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" 
+                 style="font-size: 1.2rem;">
+                 Loading...
             </div>
-        <?php endif; ?>
-        <button type="submit" class="btn btn-primary">Save</button>
-        <a href="list_books.php" class="btn btn-secondary">Back to list</a>
-    </form>
-    <h2>Metadata</h2>
-    <table class="table table-bordered">
-        <tr><th>ID</th><td><?= htmlspecialchars($book['id']) ?></td></tr>
-        <tr><th>Title</th><td><?= htmlspecialchars($book['title']) ?></td></tr>
-        <tr><th>Sort</th><td><?= htmlspecialchars($book['sort']) ?></td></tr>
-        <tr><th>Timestamp</th><td><?= htmlspecialchars($book['timestamp']) ?></td></tr>
-        <tr><th>Pubdate</th><td><?= htmlspecialchars($book['pubdate']) ?></td></tr>
-        <tr><th>Author Sort</th><td><?= htmlspecialchars($book['author_sort']) ?></td></tr>
-        <tr><th>ISBN</th><td><?= htmlspecialchars($book['isbn']) ?></td></tr>
-        <tr><th>LCCN</th><td><?= htmlspecialchars($book['lccn']) ?></td></tr>
-        <tr><th>Path</th><td><?= htmlspecialchars($book['path']) ?></td></tr>
-        <tr><th>Flags</th><td><?= htmlspecialchars($book['flags']) ?></td></tr>
-        <tr><th>UUID</th><td><?= htmlspecialchars($book['uuid']) ?></td></tr>
-        <tr><th>Has Cover</th><td><?= htmlspecialchars($book['has_cover']) ?></td></tr>
-        <tr><th>Last Modified</th><td><?= htmlspecialchars($book['last_modified']) ?></td></tr>
-    </table>
+        </div>
+    </div>
+<?php endif; ?>
+
+                <!-- Action Buttons -->
+                <div class="d-flex justify-content-between">
+                    <a href="list_books.php" class="btn btn-secondary">
+                        <i class="fa-solid fa-arrow-left me-1"></i> Back to list
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-save me-1"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"  crossorigin="anonymous"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 </body>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const img = document.getElementById('coverImagePreview');
+    const dimLabel = document.getElementById('coverDimensions');
+
+    function updateDimensions() {
+        if (img.naturalWidth && img.naturalHeight) {
+            dimLabel.textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
+        } else {
+            dimLabel.textContent = 'No image data';
+        }
+    }
+
+    if (img) {
+        if (img.complete) {
+            // Image already loaded from cache
+            updateDimensions();
+        } else {
+            // Wait for image to load
+            img.addEventListener('load', updateDimensions);
+            img.addEventListener('error', () => {
+                dimLabel.textContent = 'Image not found';
+            });
+        }
+    }
+});
+</script>
 </html>

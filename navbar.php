@@ -18,93 +18,108 @@ $statusNameVal = isset($statusName) ? $statusName : '';
 ?>
 <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
   <div class="container-fluid">
-    <a class="navbar-brand" href="list_books.php">Books</a>
+
+    <!-- Left: Menu Button + Brand -->
+    <div class="d-flex align-items-center">
+      <button class="btn btn-outline-secondary me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <a class="navbar-brand d-flex align-items-center" href="list_books.php">
+        <i class="fa-solid fa-book-open me-2"></i> Books
+      </a>
+    </div>
+
+    <!-- Navbar Toggler -->
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-    
-            <button class="btn btn-outline-secondary mb-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu">
-    <i class="fa-solid fa-bars"></i> Menu
-</button>
+
     <div class="collapse navbar-collapse" id="navbarContent">
-      <form class="d-flex me-auto" method="get" action="<?= htmlspecialchars($action) ?>">
-        <input type="hidden" name="page" value="1">
-        <input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>">
-        <?php if ($authorIdVal): ?>
-          <input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>">
-        <?php endif; ?>
-        <?php if ($seriesIdVal): ?>
-          <input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>">
-        <?php endif; ?>
-        <?php if ($genreIdVal): ?>
-          <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>">
-        <?php endif; ?>
-        <?php if ($shelfNameVal !== ''): ?>
-          <input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>">
-        <?php endif; ?>
-        <?php if ($statusNameVal !== ''): ?>
-          <input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>">
-        <?php endif; ?>
-        <input class="form-control me-2" type="search" name="search" placeholder="Search" value="<?= htmlspecialchars($searchVal) ?>">
-        <select name="source" class="form-select me-2" style="max-width: 12rem;">
-          <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>
-          <option value="openlibrary"<?= $sourceVal === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
-          <option value="google"<?= $sourceVal === 'google' ? ' selected' : '' ?>>Google Books</option>
-          <option value="annas"<?= $sourceVal === 'annas' ? ' selected' : '' ?>>Anna's Archive</option>
-        </select>
-        <button class="btn btn-outline-secondary" type="submit">Search</button>
-      </form>
-      <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
-        <input type="hidden" name="page" value="1">
-        <?php if ($searchVal !== ''): ?>
-          <input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>">
-        <?php endif; ?>
-        <?php if ($authorIdVal): ?>
-          <input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>">
-        <?php endif; ?>
-        <?php if ($seriesIdVal): ?>
-          <input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>">
-        <?php endif; ?>
-        <?php if ($genreIdVal): ?>
-          <input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>">
-        <?php endif; ?>
-        <?php if ($shelfNameVal !== ''): ?>
-          <input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>">
-        <?php endif; ?>
-        <?php if ($statusNameVal !== ''): ?>
-          <input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>">
-        <?php endif; ?>
-        <select class="form-select" name="sort" onchange="this.form.submit()">
-          <option value="title"<?= $sortVal === 'title' ? ' selected' : '' ?>>Title</option>
-          <option value="author"<?= $sortVal === 'author' ? ' selected' : '' ?>>Author</option>
-          <option value="series"<?= $sortVal === 'series' ? ' selected' : '' ?>>Series</option>
-          <option value="author_series"<?= $sortVal === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
-          <option value="recommended"<?= $sortVal === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
-        </select>
-      </form>
-      <ul class="navbar-nav ms-3">
+
+      <!-- Center: Search + Sort -->
+      <div class="d-flex flex-grow-1 justify-content-center align-items-center">
+        <!-- Search Form -->
+        <form class="d-flex me-3" method="get" action="<?= htmlspecialchars($action) ?>">
+          <input type="hidden" name="page" value="1">
+          <input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>">
+          <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
+          <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
+          <?php if ($genreIdVal): ?><input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>"><?php endif; ?>
+          <?php if ($shelfNameVal !== ''): ?><input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>"><?php endif; ?>
+          <?php if ($statusNameVal !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>"><?php endif; ?>
+
+          <div class="input-group">
+            <input class="form-control" type="search" name="search" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search">
+            <select name="source" class="form-select" style="max-width: 12rem;">
+              <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>
+              <option value="openlibrary"<?= $sourceVal === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
+              <option value="google"<?= $sourceVal === 'google' ? ' selected' : '' ?>>Google Books</option>
+              <option value="annas"<?= $sourceVal === 'annas' ? ' selected' : '' ?>>Anna's Archive</option>
+            </select>
+            <button class="btn btn-outline-secondary" type="submit">
+              <i class="fa-solid fa-magnifying-glass"></i> Search
+            </button>
+          </div>
+        </form>
+
+        <!-- Sort Form -->
+        <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
+          <input type="hidden" name="page" value="1">
+          <?php if ($searchVal !== ''): ?><input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>"><?php endif; ?>
+          <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
+          <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
+          <?php if ($genreIdVal): ?><input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>"><?php endif; ?>
+          <?php if ($shelfNameVal !== ''): ?><input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>"><?php endif; ?>
+          <?php if ($statusNameVal !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>"><?php endif; ?>
+
+          <div class="input-group">
+            <span class="input-group-text"><i class="fa-solid fa-arrow-down-a-z"></i></span>
+            <select class="form-select" name="sort" onchange="this.form.submit()">
+              <option value="title"<?= $sortVal === 'title' ? ' selected' : '' ?>>Title</option>
+              <option value="author"<?= $sortVal === 'author' ? ' selected' : '' ?>>Author</option>
+              <option value="series"<?= $sortVal === 'series' ? ' selected' : '' ?>>Series</option>
+              <option value="author_series"<?= $sortVal === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
+              <option value="recommended"<?= $sortVal === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
+            </select>
+          </div>
+        </form>
+      </div>
+
+      <!-- Right: Navigation Links + User -->
+      <ul class="navbar-nav ms-3 align-items-center">
         <li class="nav-item">
-          <a class="nav-link" href="reading_challenges.php">Reading Challenge</a>
+          <a class="nav-link" href="reading_challenges.php">
+            <i class="fa-solid fa-flag-checkered me-1"></i> Reading Challenge
+          </a>
         </li>
-                <li class="nav-item">
-          <a class="nav-link" href="add_physical_book.php">Add Book</a>
+        <li class="nav-item">
+          <a class="nav-link" href="add_physical_book.php">
+            <i class="fa-solid fa-plus me-1"></i> Add Book
+          </a>
         </li>
-                <li class="nav-item">
-          <a class="nav-link" href="preferences.php">Prefs</a>
+        <li class="nav-item">
+          <a class="nav-link" href="preferences.php">
+            <i class="fa-solid fa-gear me-1"></i> Prefs
+          </a>
         </li>
-        
-        
+
         <?php if (currentUser()): ?>
-        <li class="nav-item ms-3">
+        <li class="nav-item ms-3 d-flex align-items-center">
+          <i class="fa-solid fa-user me-1"></i>
           <span class="navbar-text me-2"><?= htmlspecialchars(currentUser()) ?></span>
-          <a class="btn btn-sm btn-outline-light" href="logout.php">Logout</a>
+          <a class="btn btn-sm btn-outline-light" href="logout.php">
+            <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+          </a>
         </li>
         <?php else: ?>
         <li class="nav-item ms-3">
-          <a class="btn btn-sm btn-outline-light" href="login.php">Login</a>
+          <a class="btn btn-sm btn-outline-light" href="login.php">
+            <i class="fa-solid fa-right-to-bracket me-1"></i> Login
+          </a>
         </li>
         <?php endif; ?>
       </ul>
     </div>
   </div>
 </nav>
+
