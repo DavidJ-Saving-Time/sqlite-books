@@ -176,55 +176,101 @@ function getDatabaseConnection(?string $path = null) {
     }
 }
 
+
 function initializeCustomColumns(PDO $pdo): void {
-    // Ensure shelves table and default entries
     try {
+        // 1. Ensure the shelves table (custom app table, not part of Calibre itself)
         $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
-        foreach (['Physical','Ebook Calibre','PDFs'] as $def) {
+        foreach (['Physical', 'Ebook Calibre', 'PDFs'] as $def) {
             $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
         }
 
-        // Shelf assignment column
-        $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-        $pdo->exec("INSERT INTO books_custom_column_11 (book, value)\n                SELECT id, 'Ebook Calibre' FROM books\n                WHERE id NOT IN (SELECT book FROM books_custom_column_11)");
+        // 2. Ensure Shelf column (#shelf) - single-value
+        $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
 
-        // Recommendation storage column
-        $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+        // Populate default shelf values if missing
+        $pdo->exec("
+            INSERT INTO custom_column_{$shelfId} (book, value)
+            SELECT id, 'Ebook Calibre' FROM books
+            WHERE id NOT IN (SELECT book FROM custom_column_{$shelfId})
+        ");
 
-        // Ensure genre and status custom columns exist
-        $genreInfo = ensureMultivalueColumn($pdo, 'genre');
-        $statusInfo = ensureMultivalueColumn($pdo, 'status');
+        // 3. Ensure Recommendation column (#recommendation) - single-value
+        $recommendationId = ensureSingleValueColumn($pdo, '#recommendation', 'Recommendation');
 
-        // Default status value
-        [$statusId, $statusValueTable, $statusLinkTable] = $statusInfo;
-        $pdo->prepare("INSERT OR IGNORE INTO $statusValueTable (value) VALUES ('Want to Read')")->execute();
-        $defaultId = $pdo->query("SELECT id FROM $statusValueTable WHERE value = 'Want to Read'")->fetchColumn();
-        $pdo->exec("INSERT INTO $statusLinkTable (book, value)\n                SELECT id, $defaultId FROM books\n                WHERE id NOT IN (SELECT book FROM $statusLinkTable)");
+        // 4. Ensure Genre column (#genre) - multi-value
+        $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
+
+        // 5. Ensure Status column (#status) - multi-value
+        $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
+
+        // 6. Insert default status ("Want to Read") if missing
+        $statusLinkTable = "books_custom_column_{$statusId}_link";
+        $pdo->exec("
+            INSERT INTO $statusLinkTable (book, value)
+            SELECT id, 'Want to Read' FROM books
+            WHERE id NOT IN (SELECT book FROM $statusLinkTable)
+        ");
+
     } catch (PDOException $e) {
         // Ignore initialization errors to avoid blocking the application
+        error_log("initializeCustomColumns error: " . $e->getMessage());
     }
 }
-
-function getCustomColumnId(PDO $pdo, string $label): ?int {
-    $stmt = $pdo->prepare('SELECT id FROM custom_columns WHERE label = :label');
-    $stmt->execute([':label' => $label]);
+function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): int {
+    if ($name === null) $name = ltrim($label, '#');
+    
+    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = ?");
+    $stmt->execute([$label]);
     $id = $stmt->fetchColumn();
-    return $id !== false ? (int)$id : null;
+
+    if ($id === false) {
+        $pdo->prepare("
+            INSERT INTO custom_columns
+            (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
+            VALUES (?, ?, 'text', 0, 1, '{}', 0, 0)
+        ")->execute([$label, $name]);
+        $id = $pdo->lastInsertId();
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS custom_column_$id (
+                book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+                value TEXT
+            )
+        ");
+    }
+    return (int)$id;
 }
 
-function ensureMultivalueColumn(PDO $pdo, string $label): array {
-    $id = getCustomColumnId($pdo, $label);
-    if ($id === null) {
-        $id = (int)$pdo->query("SELECT COALESCE(MAX(id),0)+1 FROM custom_columns")->fetchColumn();
-        $insert = $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, :label, :label, 'text', 0, 1, 1, 1, '{}')");
-        $insert->execute([':id' => $id, ':label' => $label]);
+function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): int {
+    if ($name === null) $name = ltrim($label, '#');
+    
+    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = ?");
+    $stmt->execute([$label]);
+    $id = $stmt->fetchColumn();
+
+    if ($id === false) {
+        $pdo->prepare("
+            INSERT INTO custom_columns
+            (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
+            VALUES (?, ?, 'text, is_multiple', 0, 1, '{}', 1, 1)
+        ")->execute([$label, $name]);
+        $id = $pdo->lastInsertId();
     }
 
-    $valueTable = 'custom_column_' . (int)$id;
-    $linkTable = 'books_custom_column_' . (int)$id . '_link';
-    $pdo->exec("CREATE TABLE IF NOT EXISTS $valueTable (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '', UNIQUE(value))");
-    $pdo->exec("CREATE TABLE IF NOT EXISTS $linkTable (book INTEGER REFERENCES books(id) ON DELETE CASCADE, value INTEGER REFERENCES $valueTable(id), PRIMARY KEY(book,value))");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS custom_column_$id (
+            book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+            value INTEGER
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS books_custom_column_{$id}_link (
+            book INTEGER REFERENCES books(id) ON DELETE CASCADE,
+            value TEXT NOT NULL,
+            PRIMARY KEY (book, value)
+        )
+    ");
 
-    return [$id, $valueTable, $linkTable];
+    return (int)$id;
 }
-?>
