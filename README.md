@@ -1,10 +1,10 @@
 # SQLite Books
 
-This project is a small PHP application for browsing and editing an eBook database. It now includes a PHP-based function for getting book recommendations from the OpenRouter API. Recommendations returned from the API are saved to the Calibre database in the `books_custom_column_10` table so they can be referenced later. If this table is missing from your database it will be created automatically the first time a recommendation is saved.
+This project is a small PHP application for browsing and editing an eBook database. It now includes a PHP-based function for getting book recommendations from the OpenRouter API. Recommendations returned from the API are saved to the Calibre database in the `custom_column_10` table so they can be referenced later. If this table is missing from your database it will be created automatically the first time a recommendation is saved.
 
 When a different Calibre library is selected, the application ensures that all required custom tables (for genres, reading status, shelves and recommendations) are present in that database. Missing tables are created on the fly so the interface works with a fresh database without manual setup.
 
-Each book also has a "Shelf" value stored in the `books_custom_column_11` table. Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar and click a shelf name to filter the list. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
+Each book also has a "Shelf" value stored in the `custom_column_11` table. Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar and click a shelf name to filter the list. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
 
 Genres are stored in `custom_column_2` and listed in the sidebar. You can add,
 rename or delete genres from that list just like shelves and status values.
