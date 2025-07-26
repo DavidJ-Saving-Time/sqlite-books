@@ -3,8 +3,8 @@ header('Content-Type: application/json');
 require_once 'db.php';
 requireLogin();
 
-$id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-if ($id <= 0) {
+$genre = trim($_POST['genre'] ?? '');
+if ($genre === '') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid genre']);
     exit;
@@ -12,10 +12,9 @@ if ($id <= 0) {
 
 $pdo = getDatabaseConnection();
 try {
-    [, $valueTable, $linkTable] = ensureMultivalueColumn($pdo, 'genre');
-    $pdo->prepare("DELETE FROM $linkTable WHERE value = :id")->execute([':id' => $id]);
-    $stmt = $pdo->prepare("DELETE FROM $valueTable WHERE id = :id");
-    $stmt->execute([':id' => $id]);
+    $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
+    $linkTable = "books_custom_column_{$genreId}_link";
+    $pdo->prepare("DELETE FROM $linkTable WHERE value = :val")->execute([':val' => $genre]);
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);

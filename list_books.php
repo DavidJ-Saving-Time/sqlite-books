@@ -3,7 +3,8 @@ require_once 'db.php';
 requireLogin();
 
 $pdo = getDatabaseConnection();
-[$genreColumnId, $genreValueTable, $genreLinkTable] = ensureMultivalueColumn($pdo, 'genre');
+$genreColumnId = ensureMultiValueColumn($pdo, "#genre", "Genre");
+$genreLinkTable = "books_custom_column_{$genreColumnId}_link";
 
 // Ensure shelf table and custom column exist
 try {
@@ -12,10 +13,11 @@ try {
         $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
     }
 
-    $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-    $pdo->exec("INSERT INTO books_custom_column_11 (book, value)
+    $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
+    $shelfTable = "custom_column_{$shelfId}";
+    $pdo->exec("INSERT INTO $shelfTable (book, value)
             SELECT id, 'Ebook Calibre' FROM books
-            WHERE id NOT IN (SELECT book FROM books_custom_column_11)");
+            WHERE id NOT IN (SELECT book FROM $shelfTable)");
 } catch (PDOException $e) {
     // Ignore errors if the table cannot be created
 }
@@ -72,24 +74,18 @@ try {
     $statusIsLink = false;
 }
 
-// Check if the recommendations table exists
+// Ensure shelf column exists for recommendations block
 try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-    $pdo->exec("INSERT INTO books_custom_column_11 (book, value)\n            SELECT id, 'Ebook Calibre' FROM books\n            WHERE id NOT IN (SELECT book FROM books_custom_column_11)");
+    $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
+    $shelfTable = "custom_column_{$shelfId}";
+    $pdo->exec("INSERT INTO $shelfTable (book, value)\n            SELECT id, 'Ebook Calibre' FROM books\n            WHERE id NOT IN (SELECT book FROM $shelfTable)");
 } catch (PDOException $e) {
     // Ignore errors if the table cannot be created
 }
 
-// Check if the recommendations table exists
-$recColumnExists = false;
-try {
-    $check = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_custom_column_10'");
-    if ($check->fetch()) {
-        $recColumnExists = true;
-    }
-} catch (PDOException $e) {
-    $recColumnExists = false;
-}
+$recId = ensureSingleValueColumn($pdo, '#recommendation', 'Recommendation');
+$recTable = "custom_column_{$recId}";
+$recColumnExists = true;
 
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
@@ -97,7 +93,7 @@ $isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
 $sort = $_GET['sort'] ?? 'author_series';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
-$genreId = isset($_GET['genre_id']) ? (int)$_GET['genre_id'] : null;
+$genreName = isset($_GET['genre']) ? trim((string)$_GET['genre']) : '';
 $statusName = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
 if ($statusName !== '' && !in_array($statusName, $statusOptions, true)) {
     $statusName = '';
@@ -141,12 +137,12 @@ if ($seriesId) {
     $whereClauses[] = 'EXISTS (SELECT 1 FROM books_series_link WHERE book = b.id AND series = :series_id)';
     $params[':series_id'] = $seriesId;
 }
-if ($genreId) {
-    $whereClauses[] = 'b.id IN (SELECT book FROM ' . $genreLinkTable . ' WHERE value = :genre_id)';
-    $params[':genre_id'] = $genreId;
+if ($genreName !== '') {
+    $whereClauses[] = 'b.id IN (SELECT book FROM ' . $genreLinkTable . ' WHERE value = :genre_val)';
+    $params[':genre_val'] = $genreName;
 }
 if ($shelfName !== '') {
-    $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_11 WHERE value = :shelf_name)';
+    $whereClauses[] = 'b.id IN (SELECT book FROM ' . $shelfTable . ' WHERE value = :shelf_name)';
     $params[':shelf_name'] = $shelfName;
 }
 if ($statusName !== '' && $statusTable) {
@@ -166,7 +162,7 @@ if ($statusName !== '' && $statusTable) {
     }
 }
 if ($recommendedOnly) {
-    $whereClauses[] = "EXISTS (SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '')";
+    $whereClauses[] = "EXISTS (SELECT 1 FROM $recTable br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '')";
 }
 if ($search !== '') {
     $whereClauses[] = '(b.title LIKE :search OR EXISTS (
@@ -190,20 +186,18 @@ if ($seriesId) {
     $stmt->execute([$seriesId]);
     $filterSeriesName = $stmt->fetchColumn();
 }
-$filterGenreName = null;
-if ($genreId) {
-    $stmt = $pdo->prepare("SELECT value FROM $genreValueTable WHERE id = ?");
-    $stmt->execute([$genreId]);
-    $filterGenreName = $stmt->fetchColumn();
-}
+$filterGenreName = $genreName !== '' ? $genreName : null;
 $filterStatusName = $statusName !== '' ? $statusName : null;
 $filterShelfName = $shelfName !== '' ? $shelfName : null;
 
 // Fetch full genre list for sidebar
 $genreList = [];
 try {
-    $stmt = $pdo->query("SELECT id, value FROM $genreValueTable ORDER BY value");
-    $genreList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query("SELECT DISTINCT value FROM $genreLinkTable ORDER BY value");
+    $genreList = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $genreList[] = ['value' => $row['value']];
+    }
 } catch (PDOException $e) {
     $genreList = [];
 }
@@ -232,13 +226,11 @@ $books = [];
                             WHERE bal.book = b.id) AS author_data,
                        s.id AS series_id,
                        s.name AS series,
-                       (SELECT GROUP_CONCAT(c.value, ', ')
+                       (SELECT GROUP_CONCAT(bcc.value, ', ')
                             FROM $genreLinkTable bcc
-                            JOIN $genreValueTable c ON bcc.value = c.id
                             WHERE bcc.book = b.id) AS genres,
-                       (SELECT GROUP_CONCAT(c.id || ':' || c.value, '|')
+                       (SELECT GROUP_CONCAT(bcc.value, '|')
                             FROM $genreLinkTable bcc
-                            JOIN $genreValueTable c ON bcc.value = c.id
                             WHERE bcc.book = b.id) AS genre_data,
                        bc11.value AS shelf,
                        com.text AS description";
@@ -250,14 +242,14 @@ $books = [];
             }
         }
         if ($recColumnExists) {
-            $selectFields .= ", EXISTS(SELECT 1 FROM books_custom_column_10 br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '') AS has_recs";
+            $selectFields .= ", EXISTS(SELECT 1 FROM $recTable br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '') AS has_recs";
         }
 
         $sql = "SELECT $selectFields
                 FROM books b
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id
-                LEFT JOIN books_custom_column_11 bc11 ON bc11.book = b.id
+                LEFT JOIN $shelfTable bc11 ON bc11.book = b.id
                 LEFT JOIN comments com ON com.book = b.id";
         if ($statusTable) {
             if ($statusIsLink) {
@@ -305,8 +297,8 @@ if ($authorId) {
 if ($seriesId) {
     $baseUrl .= '&series_id=' . urlencode((string)$seriesId);
 }
-if ($genreId) {
-    $baseUrl .= '&genre_id=' . urlencode((string)$genreId);
+if ($genreName !== '') {
+    $baseUrl .= '&genre=' . urlencode($genreName);
 }
 if ($shelfName !== '') {
     $baseUrl .= '&shelf=' . urlencode($shelfName);
@@ -482,7 +474,7 @@ function buildBaseUrl(array $params, array $exclude = []): string {
         'sort'      => $GLOBALS['sort'] ?? '',
         'author_id' => $GLOBALS['authorId'] ?? '',
         'series_id' => $GLOBALS['seriesId'] ?? '',
-        'genre_id'  => $GLOBALS['genreId'] ?? '',
+        'genre'  => $GLOBALS['genreName'] ?? '',
         'shelf'     => $GLOBALS['shelfName'] ?? '',
         'search'    => $GLOBALS['search'] ?? '',
         'source'    => $GLOBALS['source'] ?? '',
@@ -659,20 +651,20 @@ function linkTextColor(string $current, string $compare): string {
         <!-- Genres -->
         <div class="mb-3">
             <h6 class="fw-semibold mb-2">Genres</h6>
-            <?php $genreBase = buildBaseUrl([], ['genre_id']); ?>
+            <?php $genreBase = buildBaseUrl([], ['genre']); ?>
             <ul class="list-group" id="genreList">
-                <li class="list-group-item<?= $genreId ? '' : ' active' ?>">
-                    <a href="<?= htmlspecialchars($genreBase) ?>" class="stretched-link text-decoration-none<?= $genreId ? '' : ' text-white' ?>">All Genres</a>
+                <li class="list-group-item<?= $genreName !== '' ? '' : ' active' ?>">
+                    <a href="<?= htmlspecialchars($genreBase) ?>" class="stretched-link text-decoration-none<?= $genreName !== '' ? '' : ' text-white' ?>">All Genres</a>
                 </li>
                 <?php foreach ($genreList as $g): ?>
-                    <?php $url = buildBaseUrl(['genre_id' => $g['id']]); ?>
-                    <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreId == $g['id'] ? ' active' : '' ?>">
-                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= $genreId == $g['id'] ? ' text-white' : '' ?>">
+                    <?php $url = buildBaseUrl(['genre' => $g['value']]); ?>
+                    <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreName === $g['value'] ? ' active' : '' ?>">
+                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= $genreName === $g['value'] ? ' text-white' : '' ?>">
                             <?= htmlspecialchars($g['value']) ?>
                         </a>
                         <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary edit-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-pen"></i></button>
-                            <button type="button" class="btn btn-outline-danger delete-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>"><i class="fa-solid fa-trash"></i></button>
+                            <button type="button" class="btn btn-outline-secondary edit-genre" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-pen"></i></button>
+                            <button type="button" class="btn btn-outline-danger delete-genre" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-trash"></i></button>
                         </div>
                     </li>
                 <?php endforeach; ?>

@@ -12,9 +12,9 @@ if ($genre === '') {
 
 $pdo = getDatabaseConnection();
 try {
-    [, $valueTable, ] = ensureMultivalueColumn($pdo, 'genre');
-    $stmt = $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:val)");
-    $stmt->execute([':val' => $genre]);
+    $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
+    // Calibre 8.5 stores multi-value options in the link table only,
+    // so there is no separate values table to insert into.
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);

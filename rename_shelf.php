@@ -16,7 +16,9 @@ try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
     $pdo->beginTransaction();
     $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (:new)')->execute([':new' => $new]);
-    $pdo->prepare('UPDATE books_custom_column_11 SET value = :new WHERE value = :old')->execute([':new' => $new, ':old' => $old]);
+    $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
+    $table = "custom_column_{$shelfId}";
+    $pdo->prepare("UPDATE $table SET value = :new WHERE value = :old")->execute([':new' => $new, ':old' => $old]);
     $pdo->prepare('DELETE FROM shelves WHERE name = :old')->execute([':old' => $old]);
     $pdo->commit();
     echo json_encode(['status' => 'ok']);
