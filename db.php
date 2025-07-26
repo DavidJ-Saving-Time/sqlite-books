@@ -195,21 +195,6 @@ function initializeCustomColumns(PDO $pdo): void {
         $pdo->exec("CREATE TABLE IF NOT EXISTS custom_column_2 (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '', UNIQUE(value))");
         $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_2_link (book INTEGER REFERENCES books(id) ON DELETE CASCADE, value INTEGER REFERENCES custom_column_2(id), PRIMARY KEY(book,value))");
 
-        // Ensure Calibre metadata entry for the Genres custom column (multi-value text)
-        $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#genres'");
-        $stmt->execute();
-        $genreId = $stmt->fetchColumn();
-        if ($genreId === false) {
-            $genreId = 2;
-            $existing = $pdo->prepare('SELECT 1 FROM custom_columns WHERE id = :id');
-            $existing->execute([':id' => $genreId]);
-            if ($existing->fetchColumn() !== false) {
-                $genreId = (int)$pdo->query("SELECT COALESCE(MAX(id),0)+1 FROM custom_columns")->fetchColumn();
-            }
-            $insert = $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, '#genres', 'Genres', 'text', 0, 1, 1, 1, '{}')");
-            $insert->execute([':id' => $genreId]);
-        }
-
         // Reading status column metadata
         $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
         $stmt->execute();
