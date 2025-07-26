@@ -26,23 +26,25 @@ try {
         // Ensure the recommendation column exists before storing the data
         $exists = false;
         try {
-            $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#recommendations'");
-            $stmt->execute();
-            $recId = $stmt->fetchColumn();
-            if ($recId === false) {
-                $recId = (int)$pdo->query("SELECT COALESCE(MAX(id),0)+1 FROM custom_columns")->fetchColumn();
-                $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, '#recommendations', 'recommendations', 'text', 0, 1, 0, 1, '{}')")
-                    ->execute([':id' => $recId]);
+            $check = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_custom_column_10'");
+            if ($check->fetch()) {
+                $exists = true;
             }
-            $recTable = 'custom_column_' . (int)$recId;
-            $pdo->exec("CREATE TABLE IF NOT EXISTS $recTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-            $exists = true;
         } catch (PDOException $e) {
             $exists = false;
         }
+        if (!$exists) {
+            try {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
+                $exists = true;
+            } catch (PDOException $e) {
+                // If creation fails we still continue without saving
+                $exists = false;
+            }
+        }
 
         if ($exists) {
-            $stmt = $pdo->prepare('REPLACE INTO ' . $recTable . ' (book, value) VALUES (:book, :value)');
+            $stmt = $pdo->prepare('REPLACE INTO books_custom_column_10 (book, value) VALUES (:book, :value)');
             $stmt->execute([':book' => $bookId, ':value' => $output]);
         }
     }
