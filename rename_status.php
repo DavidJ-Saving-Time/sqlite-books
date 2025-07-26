@@ -13,7 +13,7 @@ if ($old === '' || $new === '') {
 
 $pdo = getDatabaseConnection();
 try {
-    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
+    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#status'");
     $stmt->execute();
     $statusId = $stmt->fetchColumn();
     if ($statusId === false) {
@@ -21,7 +21,7 @@ try {
         echo json_encode(['error' => 'Status column not found']);
         exit;
     }
-    $base = 'books_custom_column_' . (int)$statusId;
+    $base = 'custom_column_' . (int)$statusId;
     $link = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "_link'")->fetchColumn();
     if ($link) {
         $valueTable = 'custom_column_' . (int)$statusId;

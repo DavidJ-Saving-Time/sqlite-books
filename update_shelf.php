@@ -20,7 +20,11 @@ if ($bookId <= 0 || !in_array($value, $allowed, true)) {
     exit;
 }
 
-$stmt = $pdo->prepare('REPLACE INTO books_custom_column_11 (book, value) VALUES (:book, :value)');
+$stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#shelf'");
+$stmt->execute();
+$shelfId = $stmt->fetchColumn();
+$table = 'custom_column_' . (int)$shelfId;
+$stmt = $pdo->prepare("REPLACE INTO $table (book, value) VALUES (:book, :value)");
 $stmt->execute([':book' => $bookId, ':value' => $value]);
 
 echo json_encode(['status' => 'ok']);
