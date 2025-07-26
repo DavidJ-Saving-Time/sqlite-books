@@ -26,50 +26,31 @@ try {
         // Ensure the recommendation column exists before storing the data
         $exists = false;
         try {
-            $stmt = $pdo->prepare("SELECT id, is_multiple FROM custom_columns WHERE label = '#recommendations'");
+            $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#recommendations'");
             $stmt->execute();
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row === false) {
+            $recId = $stmt->fetchColumn();
+            if ($recId === false) {
                 $recId = (int)$pdo->query("SELECT COALESCE(MAX(id),0)+1 FROM custom_columns")->fetchColumn();
                 $pdo->prepare("INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES (:id, '#recommendations', 'recommendations', 'text', 0, 1, 0, 1, '{}')")
                     ->execute([':id' => $recId]);
-                $isMultiple = 0;
-            } else {
-                $recId = (int)$row['id'];
-                $isMultiple = (int)$row['is_multiple'];
             }
-
-            $base = 'custom_column_' . $recId;
-            $link = 'books_custom_column_' . $recId . '_link';
-
-            if ($isMultiple) {
-                // Enumerated column with link table
-                $pdo->exec("CREATE TABLE IF NOT EXISTS $base (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT)");
-                $pdo->exec("CREATE TABLE IF NOT EXISTS $link (book INTEGER REFERENCES books(id) ON DELETE CASCADE, value INTEGER REFERENCES $base(id), PRIMARY KEY(book,value))");
-
-                // Ensure value entry exists
-                $stmt = $pdo->prepare("SELECT id FROM $base WHERE value = :v");
-                $stmt->execute([':v' => $output]);
-                $valId = $stmt->fetchColumn();
-                if ($valId === false) {
-                    $stmt = $pdo->prepare("INSERT INTO $base (value) VALUES (:v)");
-                    $stmt->execute([':v' => $output]);
-                    $valId = $pdo->lastInsertId();
-                }
-
-                $pdo->prepare("DELETE FROM $link WHERE book = :book")->execute([':book' => $bookId]);
-                $stmt = $pdo->prepare("INSERT INTO $link (book, value) VALUES (:book, :val)");
-                $stmt->execute([':book' => $bookId, ':val' => $valId]);
+            $base = 'custom_column_' . (int)$recId;
+            $link = 'books_custom_column_' . (int)$recId . '_link';
+            $linkCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $link . "'");
+            if ($linkCheck->fetch()) {
+                $recTable = $link;
             } else {
-                // Simple text column
-                $pdo->exec("CREATE TABLE IF NOT EXISTS $base (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-                $stmt = $pdo->prepare("REPLACE INTO $base (book, value) VALUES (:book, :value)");
-                $stmt->execute([':book' => $bookId, ':value' => $output]);
+                $recTable = $base;
+                $pdo->exec("CREATE TABLE IF NOT EXISTS $recTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
             }
-
             $exists = true;
         } catch (PDOException $e) {
             $exists = false;
+        }
+
+        if ($exists) {
+            $stmt = $pdo->prepare('REPLACE INTO ' . $recTable . ' (book, value) VALUES (:book, :value)');
+            $stmt->execute([':book' => $bookId, ':value' => $output]);
         }
     }
 
