@@ -1,51 +1,100 @@
-SQL Template for Adding a Custom Column
-Step 1: Insert the Column Definition
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#notes', 'Notes', 'text', '{}');
-label – Must start with #. It’s the internal lookup name (#notes).
+Calibre Custom Columns – Technical Summary (Latest Versions 7.x–8.x)
+1. Custom Column Definitions
+Custom columns are defined in the custom_columns table of metadata.db.
 
-name – The human-readable column name shown in Calibre (Notes).
+Relevant fields:
 
-datatype – One of:
+id – Unique integer identifier.
 
-text
+label – Internal name (e.g., #mycolumn).
 
-enumeration
+name – Display name in UI.
 
-comments
+datatype – Defines type and storage rules.
 
-bool
+display – JSON string with display settings.
 
-int
+2. Single-Value Columns
+Types: text, comments, int, float, bool, rating, datetime, enumeration (single).
 
-float
+For each column, Calibre creates:
 
-datetime
+custom_column_X
+where X = id of the column.
 
-rating
+Table structure example:
 
-composite
-
-text, is_multiple
-
-display – JSON-like string for UI settings (empty {} is fine for defaults).
-
-Step 2: Get the Column ID
-Run:
-
-SELECT id, label FROM custom_columns ORDER BY id DESC;
-Look at the id of the column you just added (e.g., 1).
-
-Step 3: Create the Storage Table
-Each custom column needs its own table. For a text column:
-
-CREATE TABLE custom_column_1 (
+CREATE TABLE custom_column_X (
     book INTEGER PRIMARY KEY REFERENCES books(id),
     value TEXT
 );
-Replace 1 with the id from Step 2.
+No additional link tables are used.
 
-For other data types:
+3. Multi-Value Columns
+Types: text, is_multiple, enumeration (with multi-selection), or custom series types.
+
+For each multi-value column, Calibre creates:
+
+custom_column_X
+books_custom_column_X_link
+custom_column_X stores an integer key (index).
+
+books_custom_column_X_link is a mapping table for many-to-many relationships:
+
+CREATE TABLE books_custom_column_X_link (
+    book INTEGER REFERENCES books(id),
+    value TEXT,
+    PRIMARY KEY (book, value)
+);
+4. Data Access
+Single-value columns: The value field in custom_column_X directly stores the data.
+
+Multi-value columns: Values are stored as multiple rows in books_custom_column_X_link for each book.
+
+5. Column Management
+Adding a column via UI:
+
+Inserts a row in custom_columns.
+
+Creates corresponding custom_column_X table (and _link table for multi-value).
+
+Deleting a column removes the entry from custom_columns and drops custom_column_X and related link tables.
+
+6. Storage Overview
+Column Type	Tables Created
+Single-value (text, int, bool, etc.)	custom_column_X
+Multi-value (text, is_multiple, etc.)	custom_column_X, books_custom_column_X_link
+
+Calibre Custom Columns – Database Schema Reference (v7.x–v8.x)
+1. Main Tables for Custom Columns
+Calibre uses the following tables to manage custom columns:
+
+custom_columns – Metadata for all custom columns.
+
+custom_column_X – Storage table for column values (X = column ID).
+
+books_custom_column_X_link – (Only for multi-value columns) Links books to multiple values.
+
+2. custom_columns Table Structure
+CREATE TABLE custom_columns (
+    id        INTEGER PRIMARY KEY,
+    label     TEXT UNIQUE NOT NULL,   -- Internal name, must start with '#'
+    name      TEXT NOT NULL,          -- Display name in Calibre UI
+    datatype  TEXT NOT NULL,          -- Data type (e.g., 'text', 'int', 'text, is_multiple')
+    display   TEXT,                   -- JSON string with display options
+    is_csp    INTEGER DEFAULT 0,      -- Composite flag
+    mark_for_delete INTEGER DEFAULT 0 -- Deletion marker
+);
+3. custom_column_X Table Structure
+Created for every custom column (X = column ID from custom_columns).
+
+Single-value column example (text):
+
+CREATE TABLE custom_column_X (
+    book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+    value TEXT
+);
+Other types:
 
 bool → value BOOLEAN
 
@@ -55,197 +104,69 @@ float → value REAL
 
 datetime → value TIMESTAMP
 
-comments → value TEXT
-
 rating → value INTEGER
+
+comments → value TEXT
 
 enumeration → value TEXT
 
-text, is_multiple → value TEXT
+4. books_custom_column_X_link Table (Multi-value Only)
+For text, is_multiple and multi-select enumerations.
 
-
-
-
-Insert the column definition into custom_columns.
-
-Check the new column's id:
-
-SELECT id, label FROM custom_columns ORDER BY id DESC;
-Create a storage table named custom_column_X where X = id.
-
-
-1. Text Column
-Stores simple text values.
-
--- Add column
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#notes', 'Notes', 'text', '{}');
-
--- Create table (replace X with the actual ID)
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value TEXT
+CREATE TABLE books_custom_column_X_link (
+    book INTEGER REFERENCES books(id) ON DELETE CASCADE,
+    value TEXT NOT NULL,
+    PRIMARY KEY (book, value)
 );
-Example usage:
+A book with multiple values generates multiple rows.
 
-INSERT OR REPLACE INTO custom_column_X (book, value)
-VALUES (10, 'This is my note');
-2. Long Text (Comments)
-For larger text or HTML content.
+The custom_column_X table still exists, but it typically stores only a reference index (integer).
 
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#review', 'Review', 'comments', '{}');
+5. Data Flow
+Single-value columns: custom_column_X.value holds the value directly.
 
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value TEXT
-);
-3. Yes/No (Boolean)
-Displays as a checkbox in Calibre.
+Multi-value columns:
 
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#read', 'Read', 'bool', '{}');
+custom_column_X links the book to an index.
 
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value BOOLEAN
-);
-Set value example:
+books_custom_column_X_link holds individual values for that book.
 
-INSERT OR REPLACE INTO custom_column_X (book, value)
-VALUES (10, 1); -- 1 = Yes, 0 = No
-4. Integer
-Stores whole numbers.
+6. Adding/Removing Columns
+Add Column:
 
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#pages', 'Pages', 'int', '{}');
+Insert a row into custom_columns.
 
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value INTEGER
-);
-5. Floating Point (Decimal)
-Stores numeric values with decimals.
+Create custom_column_X (and _link table if multi-value).
 
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#price', 'Price', 'float', '{}');
+Delete Column:
 
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value REAL
-);
-6. Date
-Stores full date/time values.
+Remove from custom_columns.
 
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#read_date', 'Read Date', 'datetime', '{}');
+Drop custom_column_X and _link table.
 
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value TIMESTAMP
-);
+7. Overview Table
+Column Type	Tables Created
+text, int, float, bool, etc.	custom_column_X
+comments	custom_column_X
+datetime	custom_column_X
+rating	custom_column_X
+enumeration (single)	custom_column_X
+text, is_multiple	custom_column_X + books_custom_column_X_link
+enumeration (multi-select)	custom_column_X + books_custom_column_X_link
 
-Example usage:
-INSERT OR REPLACE INTO custom_column_X (book, value)
-VALUES (10, '2025-07-26 14:00:00');
-7. Rating
-Displays as star ratings (0–5 in UI, stored as integers like 0–10).
-
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#mystars', 'My Stars', 'rating', '{}');
-
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value INTEGER
-);
-8. Enumeration (Dropdown with Fixed Options)
-Predefined list of text values.
-
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#status', 'Status', 'enumeration', '{"enum_values":["Unread","Reading","Finished"]}');
-
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value TEXT
-);
-9. Comma-Separated Text (Like Tags)
-Allows multiple values separated by commas.
-
+8. Example: Text, Multi-value
+-- Add metadata entry
 INSERT INTO custom_columns (label, name, datatype, display)
 VALUES ('#keywords', 'Keywords', 'text, is_multiple', '{}');
 
-CREATE TABLE custom_column_X (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value TEXT
-);
-10. Composite Column (Calculated from Other Columns)
-This is trickier. The data is generated dynamically, not stored.
-To define one:
-
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#summary', 'Summary', 'composite', '{"composite_template":"{title} - {authors}"}');
-No storage table is needed since it’s computed from the template.
-
-
--------------------------------
-
-How Calibre Handles Multi-Value Columns
-1. The custom_column_X Table
-For multi-value columns, custom_column_X does not store the actual values directly.
-
-Instead, it acts as a link table ID (a key reference).
-
-Example (for a #keywords column):
-
+-- Create storage tables
 CREATE TABLE custom_column_2 (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
-    value INTEGER  -- Points to books_custom_column_2_link
-);
-2. The books_custom_column_X_link Table
-Stores all unique values for the multi-value column and maps them to books.
-
-Example table structure:
-
-CREATE TABLE books_custom_column_2_link (
-    book INTEGER REFERENCES books(id),
-    value TEXT,
-    PRIMARY KEY (book, value)
-);
-Here:
-
-Each row corresponds to one keyword for one book.
-
-A book with multiple keywords will have multiple rows.
-
-Example: Adding Keywords for a Book
-Suppose custom_column_2 is #keywords. To add keywords Science and Fantasy for book with id=10:
-
-INSERT INTO books_custom_column_2_link (book, value) VALUES (10, 'Science');
-INSERT INTO books_custom_column_2_link (book, value) VALUES (10, 'Fantasy');
-Creating a Multi-Value Column (SQL Template)
-Step 1: Insert Column Definition
-INSERT INTO custom_columns (label, name, datatype, display)
-VALUES ('#keywords', 'Keywords', 'text, is_multiple', '{}');
-Step 2: Find the ID
-SELECT id, label FROM custom_columns ORDER BY id DESC;
-Assume the ID is 2.
-
-Step 3: Create the Storage Tables
-CREATE TABLE custom_column_2 (
-    book INTEGER PRIMARY KEY REFERENCES books(id),
+    book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
     value INTEGER
 );
-
 CREATE TABLE books_custom_column_2_link (
-    book INTEGER REFERENCES books(id),
-    value TEXT,
+    book INTEGER REFERENCES books(id) ON DELETE CASCADE,
+    value TEXT NOT NULL,
     PRIMARY KEY (book, value)
 );
-Special Notes
-If the column type is enumeration with multiple values allowed, the structure is the same: you’ll have a books_custom_column_X_link table.
-
-For text (single value), you do not need the _link table.
-
-Calibre expects these link tables for is_multiple columns. If you don’t create them, the column will appear broken.
-
 
