@@ -191,6 +191,10 @@ function initializeCustomColumns(PDO $pdo): void {
         // Recommendation storage column
         $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
 
+        // Genre tables used by the application
+        $pdo->exec("CREATE TABLE IF NOT EXISTS custom_column_2 (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '', UNIQUE(value))");
+        $pdo->exec("CREATE TABLE IF NOT EXISTS books_custom_column_2_link (book INTEGER REFERENCES books(id) ON DELETE CASCADE, value INTEGER REFERENCES custom_column_2(id), PRIMARY KEY(book,value))");
+
         // Reading status column metadata
         $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
         $stmt->execute();
