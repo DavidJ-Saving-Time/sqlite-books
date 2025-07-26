@@ -12,7 +12,9 @@ if ($id <= 0) {
 
 $pdo = getDatabaseConnection();
 try {
-    $stmt = $pdo->prepare('DELETE FROM custom_column_2 WHERE id = :id');
+    [, $valueTable, $linkTable] = ensureMultivalueColumn($pdo, 'genre');
+    $pdo->prepare("DELETE FROM $linkTable WHERE value = :id")->execute([':id' => $id]);
+    $stmt = $pdo->prepare("DELETE FROM $valueTable WHERE id = :id");
     $stmt->execute([':id' => $id]);
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
