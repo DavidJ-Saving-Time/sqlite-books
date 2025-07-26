@@ -50,7 +50,14 @@ try {
     $stmt->execute();
     $recId = $stmt->fetchColumn();
     if ($recId !== false) {
-        $recTable = 'custom_column_' . (int)$recId;
+        $base = 'custom_column_' . (int)$recId;
+        $link = 'books_custom_column_' . (int)$recId . '_link';
+        $linkCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $link . "'");
+        if ($linkCheck->fetch()) {
+            $recTable = $link;
+        } else {
+            $recTable = $base;
+        }
         $recStmt = $pdo->prepare('SELECT value FROM ' . $recTable . ' WHERE book = ?');
         $recStmt->execute([$id]);
         $savedRecommendations = $recStmt->fetchColumn();
