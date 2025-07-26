@@ -79,17 +79,25 @@ try {
 }
 
 
-// Check if the recommendations table exists
+// Check if the recommendations table exists (direct or link form)
 $recColumnExists = false;
 try {
     $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = '#recommendations'");
     $stmt->execute();
     $recId = $stmt->fetchColumn();
     if ($recId !== false) {
-        $recTable = 'custom_column_' . (int)$recId;
-        $check = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $recTable . "'");
-        if ($check->fetch()) {
+        $base = 'custom_column_' . (int)$recId;
+        $link = 'books_custom_column_' . (int)$recId . '_link';
+        $linkCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $link . "'");
+        if ($linkCheck->fetch()) {
+            $recTable = $link;
             $recColumnExists = true;
+        } else {
+            $baseCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "'");
+            if ($baseCheck->fetch()) {
+                $recTable = $base;
+                $recColumnExists = true;
+            }
         }
     }
 } catch (PDOException $e) {
