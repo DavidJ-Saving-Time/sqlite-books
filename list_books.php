@@ -3,6 +3,7 @@ require_once 'db.php';
 requireLogin();
 
 $pdo = getDatabaseConnection();
+[$genreColumnId, $genreValueTable, $genreLinkTable] = ensureMultivalueColumn($pdo, 'genre');
 
 // Ensure shelf table and custom column exist
 try {
@@ -141,7 +142,7 @@ if ($seriesId) {
     $params[':series_id'] = $seriesId;
 }
 if ($genreId) {
-    $whereClauses[] = 'b.id IN (SELECT book FROM books_custom_column_2_link WHERE value = :genre_id)';
+    $whereClauses[] = 'b.id IN (SELECT book FROM ' . $genreLinkTable . ' WHERE value = :genre_id)';
     $params[':genre_id'] = $genreId;
 }
 if ($shelfName !== '') {
@@ -191,7 +192,7 @@ if ($seriesId) {
 }
 $filterGenreName = null;
 if ($genreId) {
-    $stmt = $pdo->prepare('SELECT value FROM custom_column_2 WHERE id = ?');
+    $stmt = $pdo->prepare("SELECT value FROM $genreValueTable WHERE id = ?");
     $stmt->execute([$genreId]);
     $filterGenreName = $stmt->fetchColumn();
 }
@@ -201,7 +202,7 @@ $filterShelfName = $shelfName !== '' ? $shelfName : null;
 // Fetch full genre list for sidebar
 $genreList = [];
 try {
-    $stmt = $pdo->query('SELECT id, value FROM custom_column_2 ORDER BY value');
+    $stmt = $pdo->query("SELECT id, value FROM $genreValueTable ORDER BY value");
     $genreList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $genreList = [];
@@ -232,12 +233,12 @@ $books = [];
                        s.id AS series_id,
                        s.name AS series,
                        (SELECT GROUP_CONCAT(c.value, ', ')
-                            FROM books_custom_column_2_link bcc
-                            JOIN custom_column_2 c ON bcc.value = c.id
+                            FROM $genreLinkTable bcc
+                            JOIN $genreValueTable c ON bcc.value = c.id
                             WHERE bcc.book = b.id) AS genres,
                        (SELECT GROUP_CONCAT(c.id || ':' || c.value, '|')
-                            FROM books_custom_column_2_link bcc
-                            JOIN custom_column_2 c ON bcc.value = c.id
+                            FROM $genreLinkTable bcc
+                            JOIN $genreValueTable c ON bcc.value = c.id
                             WHERE bcc.book = b.id) AS genre_data,
                        bc11.value AS shelf,
                        com.text AS description";

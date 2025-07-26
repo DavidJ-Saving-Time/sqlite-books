@@ -12,8 +12,8 @@ if ($genre === '') {
 
 $pdo = getDatabaseConnection();
 try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS custom_column_2 (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '', UNIQUE(value))");
-    $stmt = $pdo->prepare('INSERT OR IGNORE INTO custom_column_2 (value) VALUES (:val)');
+    [, $valueTable, ] = ensureMultivalueColumn($pdo, 'genre');
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:val)");
     $stmt->execute([':val' => $genre]);
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
