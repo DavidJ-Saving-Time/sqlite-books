@@ -51,23 +51,7 @@ Single-value columns: The value field in custom_column_X directly stores the dat
 
 Multi-value columns: Values are stored as multiple rows in books_custom_column_X_link for each book.
 
-5. Column Management
-Adding a column via UI:
 
-Inserts a row in custom_columns.
-
-Creates corresponding custom_column_X table (and _link table for multi-value).
-
-Deleting a column removes the entry from custom_columns and drops custom_column_X and related link tables.
-
-6. Storage Overview
-Column Type	Tables Created
-Single-value (text, int, bool, etc.)	custom_column_X
-Multi-value (text, is_multiple, etc.)	custom_column_X, books_custom_column_X_link
-
-Calibre Custom Columns – Database Schema Reference (v7.x–v8.x)
-1. Main Tables for Custom Columns
-Calibre uses the following tables to manage custom columns:
 
 custom_columns – Metadata for all custom columns.
 
