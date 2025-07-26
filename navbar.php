@@ -22,6 +22,10 @@ $statusNameVal = isset($statusName) ? $statusName : '';
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
+    
+            <button class="btn btn-outline-secondary mb-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu">
+    <i class="fa-solid fa-bars"></i> Menu
+</button>
     <div class="collapse navbar-collapse" id="navbarContent">
       <form class="d-flex me-auto" method="get" action="<?= htmlspecialchars($action) ?>">
         <input type="hidden" name="page" value="1">
@@ -82,6 +86,14 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         <li class="nav-item">
           <a class="nav-link" href="reading_challenges.php">Reading Challenge</a>
         </li>
+                <li class="nav-item">
+          <a class="nav-link" href="add_physical_book.php">Add Book</a>
+        </li>
+                <li class="nav-item">
+          <a class="nav-link" href="preferences.php">Prefs</a>
+        </li>
+        
+        
         <li class="nav-item ms-2">
           <select id="themeSelect" class="form-select form-select-sm" style="min-width: 10rem;"></select>
         </li>

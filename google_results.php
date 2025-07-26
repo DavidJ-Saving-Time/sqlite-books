@@ -22,32 +22,48 @@ if ($search !== '') {
 </head>
 <body class="pt-5">
 <?php include "navbar.php"; ?>
-<div class="container my-4">
-    <h1 class="mb-4">Google Books Results</h1>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Cover</th>
-                <th class="title-col">Title</th>
-                <th>Author(s)</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php foreach ($books as $book): ?>
-            <tr>
-                <td>
-                    <?php if (!empty($book['imgUrl'])): ?>
-                        <img src="<?= htmlspecialchars($book['imgUrl']) ?>" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td class="title-col"><?= htmlspecialchars($book['title']) ?></td>
-                <td><?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?></td>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
+<div class="container">
+    <!-- Header Row -->
+    <div class="row fw-bold border-bottom pb-2 mb-3">
+        <div class="col-md-3 col-12">Cover</div>
+        <div class="col-md-5 col-12">Title</div>
+        <div class="col-md-4 col-12">Author(s)</div>
+    </div>
+
+    <?php foreach ($books as $index => $book): ?>
+        <?php $rowClass = $index % 2 === 0 ? 'bg-light' : 'bg-white'; ?>
+        <div class="row mb-4 p-3 border rounded <?= $rowClass ?>">
+            <!-- Cover -->
+            <div class="col-md-3 col-12 text-center">
+                <?php if (!empty($book['imgUrl'])): ?>
+                    <img src="<?= htmlspecialchars($book['imgUrl']) ?>" alt="Cover" class="img-fluid img-thumbnail">
+                <?php else: ?>
+                    <span class="text-muted">&mdash;</span>
+                <?php endif; ?>
+            </div>
+            
+            <!-- Title and Author -->
+            <div class="col-md-9 col-12">
+                <div class="row mb-2">
+                    <div class="col-md-5 col-12">
+                        <h5 class="mb-1"><?= htmlspecialchars($book['title']) ?></h5>
+                    </div>
+                    <div class="col-md-7 col-12">
+                        <p class="mb-0 text-muted">
+                            <?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?>
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="row">
+                    <div class="col-12">
+                        <p class="mb-0"><?= htmlspecialchars($book['description']) ?></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 </body>

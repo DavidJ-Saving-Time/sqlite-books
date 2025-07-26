@@ -320,59 +320,73 @@ $baseUrl .= '&page=';
 
 function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId): void {
     foreach ($books as $book) {
-            ?>
-            <tr>
-                <td>
-                    <?php if (!empty($book['has_cover'])): ?>
-                        <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
-                            <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
-                        </a>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td class="title-col">
-                    <?php $missing = !bookHasFile($book['path']); ?>
+        $missing = !bookHasFile($book['path']);
+        ?>
+        <div class="row g-3 py-3 border-bottom" data-book-block-id="<?= htmlspecialchars($book['id']) ?>">
+            <!-- Left: Thumbnail -->
+            <div class="col-md-2 col-12 text-center cover-wrapper">
+                <?php if (!empty($book['has_cover'])): ?>
+                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
+                        <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg"
+                             alt="Cover"
+                             class="img-thumbnail img-fluid book-cover"
+                             style="width: 100%; max-width:150px; height:auto;">
+                    </a>
+                <?php else: ?>
+                    &mdash;
+                <?php endif; ?>
+            </div>
+
+            <!-- Right: Title, Dropdowns, Description -->
+            <div class="col-md-10 col-12">
+                <!-- Title and Authors -->
+                <div class="mb-2">
                     <?php if ($missing): ?>
                         <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
                     <?php endif; ?>
-                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>" class="book-title" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>" class="fw-bold book-title me-1"
+                       data-book-id="<?= htmlspecialchars($book['id']) ?>">
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
-                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 edit-title" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"><i class="fa-solid fa-pen"></i></button>
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 edit-title"
+                            data-book-id="<?= htmlspecialchars($book['id']) ?>"
+                            data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
                     <?php if (!empty($book['has_recs'])): ?>
                         <span class="text-success ms-1">&#10003;</span>
                     <?php endif; ?>
                     <?php if (!empty($book['series'])): ?>
-                        <br>
-                        <small>
+                        <div class="small mt-1">
                             <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
                                 <?= htmlspecialchars($book['series']) ?>
                             </a>
                             <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
                                 (<?= htmlspecialchars($book['series_index']) ?>)
                             <?php endif; ?>
-                        </small>
+                        </div>
                     <?php endif; ?>
-                </td>
-                <td>
-                    <?php if (!empty($book['author_data'])): ?>
-                        <?php
-                            $pairs = array_filter(explode('|', $book['author_data']), 'strlen');
-                            $links = [];
-                            foreach (array_slice($pairs, 0, 3) as $pair) {
-                                list($aid, $aname) = explode(':', $pair, 2);
-                                $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
-                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
-                            }
-                            echo implode(', ', $links);
-                            if (count($pairs) > 3) echo '...';
-                        ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td>
+                    <div class="text-muted small book-authors">
+                        <?php if (!empty($book['author_data'])): ?>
+                            <?php
+                                $pairs = array_filter(explode('|', $book['author_data']), 'strlen');
+                                $links = [];
+                                foreach (array_slice($pairs, 0, 3) as $pair) {
+                                    list($aid, $aname) = explode(':', $pair, 2);
+                                    $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
+                                    $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
+                                }
+                                echo implode(', ', $links);
+                                if (count($pairs) > 3) echo '...';
+                            ?>
+                        <?php else: ?>
+                            &mdash;
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Dropdowns -->
+                <div class="d-flex flex-wrap gap-2 mb-2">
                     <?php
                         $firstGenreId = '';
                         if (!empty($book['genre_data'])) {
@@ -383,40 +397,60 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                             }
                         }
                     ?>
-                    <select class="form-select form-select-sm genre-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                        <option value=""<?= $firstGenreId === '' ? ' selected' : '' ?>>None</option>
-                        <?php foreach ($genreList as $g): ?>
-                            <option value="<?= htmlspecialchars($g['id']) ?>"<?= (string)$g['id'] === $firstGenreId ? ' selected' : '' ?>><?= htmlspecialchars($g['value']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </td>
-                <td>
-                    <select class="form-select form-select-sm shelf-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                        <?php foreach ($shelfList as $s): ?>
-                            <option value="<?= htmlspecialchars($s) ?>"<?= $book['shelf'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select class="form-select form-select-sm status-select mt-1" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                        <option value="Want to Read"<?= ($book['status'] === null || $book['status'] === '') ? ' selected' : '' ?>>Want to Read</option>
-                        <?php foreach ($statusOptions as $s): ?>
-                            <?php if ($s === 'Want to Read') continue; ?>
-                            <option value="<?= htmlspecialchars($s) ?>"<?= $book['status'] === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
-                        <?php endforeach; ?>
-                        <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
-                            <option value="<?= htmlspecialchars($book['status']) ?>" selected><?= htmlspecialchars($book['status']) ?></option>
-                        <?php endif; ?>
-                    </select>
-                </td>
-                <td>
-                    <a class="btn btn-sm btn-primary" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
-                    <button type="button" class="btn btn-sm btn-secondary google-meta ms-1"
-                            data-book-id="<?= htmlspecialchars($book['id']) ?>"
-                            data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">Metadata Google</button>
-                    <button type="button" class="btn btn-sm btn-danger delete-book ms-1" data-book-id="<?= htmlspecialchars($book['id']) ?>">Delete</button>
-                </td>
-            </tr>
-            <tr>
-                <td colspan="5" class="small">
+                    <div>
+                        <label class="small text-muted mb-1 d-block">Genre</label>
+                        <select class="form-select form-select-sm genre-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                            <option value=""<?= $firstGenreId === '' ? ' selected' : '' ?>>None</option>
+                            <?php foreach ($genreList as $g): ?>
+                                <option value="<?= htmlspecialchars($g['id']) ?>"<?= (string)$g['id'] === $firstGenreId ? ' selected' : '' ?>>
+                                    <?= htmlspecialchars($g['value']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="small text-muted mb-1 d-block">Shelf</label>
+                        <select class="form-select form-select-sm shelf-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                            <?php foreach ($shelfList as $s): ?>
+                                <option value="<?= htmlspecialchars($s) ?>"<?= $book['shelf'] === $s ? ' selected' : '' ?>>
+                                    <?= htmlspecialchars($s) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="small text-muted mb-1 d-block">Status</label>
+                        <select class="form-select form-select-sm status-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                            <option value="Want to Read"<?= ($book['status'] === null || $book['status'] === '') ? ' selected' : '' ?>>Want to Read</option>
+                            <?php foreach ($statusOptions as $s): ?>
+                                <?php if ($s === 'Want to Read') continue; ?>
+                                <option value="<?= htmlspecialchars($s) ?>"<?= $book['status'] === $s ? ' selected' : '' ?>>
+                                    <?= htmlspecialchars($s) ?>
+                                </option>
+                            <?php endforeach; ?>
+                            <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
+                                <option value="<?= htmlspecialchars($book['status']) ?>" selected><?= htmlspecialchars($book['status']) ?></option>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="ms-auto d-flex align-items-end">
+                        <a class="btn btn-sm btn-primary me-1" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
+                        <button type="button" class="btn btn-sm btn-secondary google-meta me-1"
+                                data-book-id="<?= htmlspecialchars($book['id']) ?>"
+                                data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
+                            Metadata Google
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger delete-book"
+                                data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="small text-muted book-description">
                     <?php
                         $desc = trim($book['description'] ?? '');
                         if ($desc !== '') {
@@ -427,16 +461,55 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                             echo '&mdash;';
                         }
                     ?>
-                </td>
-            </tr>
-            <?php
-        }
+                </div>
+            </div>
+        </div>
+        <?php
     }
+}
+
+
+
 
 if ($isAjax) {
     render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId);
     exit;
 }
+
+function buildBaseUrl(array $params, array $exclude = []): string {
+    $defaults = [
+        'sort'      => $GLOBALS['sort'] ?? '',
+        'author_id' => $GLOBALS['authorId'] ?? '',
+        'series_id' => $GLOBALS['seriesId'] ?? '',
+        'genre_id'  => $GLOBALS['genreId'] ?? '',
+        'shelf'     => $GLOBALS['shelfName'] ?? '',
+        'search'    => $GLOBALS['search'] ?? '',
+        'source'    => $GLOBALS['source'] ?? '',
+        'status'    => $GLOBALS['statusName'] ?? '',
+    ];
+
+    // Remove excluded keys
+    foreach ($exclude as $key) {
+        unset($defaults[$key]);
+    }
+
+    // Merge/override with custom params
+    $params = array_merge($defaults, $params);
+
+    // Filter empty values
+    $query = array_filter($params, fn($v) => $v !== '' && $v !== null);
+
+    return 'list_books.php?' . http_build_query($query);
+}
+
+function linkActive(string $current, string $compare): string {
+    return $current === $compare ? ' active' : '';
+}
+
+function linkTextColor(string $current, string $compare): string {
+    return $current === $compare ? ' text-white' : '';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -452,133 +525,173 @@ if ($isAjax) {
     <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" crossorigin="anonymous"></script>
     <style>
         .title-col {
-            max-width: 300px;
+            max-width: 700px;
             word-break: break-word;
         }
+        
+/* Modern full-width book blocks */
+[data-book-block-id] {
+    background: var(--bs-card-bg);
+    border-radius: 6px;
+    border: 1px solid var(--bs-border-color);
+    transition: box-shadow 0.2s ease-in-out, transform 0.1s ease-in-out;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Striped effect (theme aware) */
+[data-book-block-id]:nth-of-type(even) {
+    background-color: var(--bs-gray-200);
+}
+
+/* Hover effect */
+[data-book-block-id]:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+/* Cover image tweaks */
+[data-book-block-id] .book-cover {
+    border-radius: 4px;
+}
+
+/* Labels above dropdowns */
+[data-book-block-id] label {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* Description text */
+[data-book-block-id] .book-description {
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
+/* Make action buttons wrap nicely */
+[data-book-block-id] .ms-auto {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
     </style>
 </head>
 <body class="pt-5">
 <?php include "navbar.php"; ?>
 <div class="container-fluid my-4">
     <div class="row">
-        <nav class="col-md-3 col-lg-2 mb-3">
-            <button class="btn btn-outline-secondary d-md-none mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#genreSidebar" aria-controls="genreSidebar" aria-expanded="false" aria-label="Toggle genres">
-                Genres
-            </button>
-            <div id="genreSidebar" class="collapse d-md-block">
-                <div class="mb-3">
-                    <h6 class="mb-1">Shelves</h6>
-                    <?php
-                        $shelfUrlBase = 'list_books.php?sort=' . urlencode($sort);
-                        if ($authorId) $shelfUrlBase .= '&author_id=' . urlencode((string)$authorId);
-                        if ($seriesId) $shelfUrlBase .= '&series_id=' . urlencode((string)$seriesId);
-                        if ($genreId) $shelfUrlBase .= '&genre_id=' . urlencode((string)$genreId);
-                        if ($search !== '') $shelfUrlBase .= '&search=' . urlencode($search);
-                        if ($source !== '') $shelfUrlBase .= '&source=' . urlencode($source);
-                        if ($statusName !== '') $shelfUrlBase .= '&status=' . urlencode($statusName);
-                    ?>
-                    <ul class="list-group" id="shelfList">
-                        <li class="list-group-item<?= $shelfName === '' ? ' active' : '' ?>">
-                            <a href="<?= htmlspecialchars($shelfUrlBase) ?>" class="text-decoration-none<?= $shelfName === '' ? ' text-white' : '' ?>">All Shelves</a>
-                        </li>
-                        <?php foreach ($shelfList as $s): ?>
-                            <?php $url = $shelfUrlBase . '&shelf=' . urlencode($s); ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center<?= $shelfName === $s ? ' active' : '' ?>">
-                                <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $shelfName === $s ? ' text-white' : '' ?>"><?= htmlspecialchars($s) ?></a>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-secondary edit-shelf" data-shelf="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-pen"></i></button>
-                                    <button type="button" class="btn btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-trash"></i></button>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <form id="addShelfForm" class="mt-2">
-                        <div class="input-group input-group-sm">
-                            <input type="text" class="form-control" name="shelf" placeholder="New shelf">
-                            <button class="btn btn-primary" type="submit">Add</button>
+       
+        
+
+
+<!-- Sidebar -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="sidebarMenu">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">Sidebar</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        
+        
+     <nav>
+    <!-- Mobile Toggle Button -->
+    <button class="btn btn-outline-secondary d-md-none mb-3" 
+        type="button" data-bs-toggle="collapse" data-bs-target="#genreSidebar" 
+        aria-controls="genreSidebar" aria-expanded="false" aria-label="Toggle genres">
+        Genres
+    </button>
+
+    <div id="genreSidebar" class="collapse d-md-block">
+
+        <!-- Shelves -->
+        <div class="mb-3">
+            <h6 class="fw-semibold mb-2">Shelves</h6>
+            <?php $shelfUrlBase = buildBaseUrl([], ['shelf']); ?>
+            <ul class="list-group" id="shelfList">
+                <li class="list-group-item<?= linkActive($shelfName, '') ?>">
+                    <a href="<?= htmlspecialchars($shelfUrlBase) ?>" class="stretched-link text-decoration-none<?= linkTextColor($shelfName, '') ?>">All Shelves</a>
+                </li>
+                <?php foreach ($shelfList as $s): ?>
+                    <?php $url = buildBaseUrl(['shelf' => $s]); ?>
+                    <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($shelfName, $s) ?>">
+                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= linkTextColor($shelfName, $s) ?>"><?= htmlspecialchars($s) ?></a>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary edit-shelf" data-shelf="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-pen"></i></button>
+                            <button type="button" class="btn btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-trash"></i></button>
                         </div>
-                    </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <form id="addShelfForm" class="mt-2">
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" name="shelf" placeholder="New shelf">
+                    <button class="btn btn-primary" type="submit">Add</button>
                 </div>
-                <div class="mb-3">
-                    <h6 class="mb-1">Status</h6>
-                    <?php
-                        $statusUrlBase = 'list_books.php?sort=' . urlencode($sort);
-                        if ($authorId) $statusUrlBase .= '&author_id=' . urlencode((string)$authorId);
-                        if ($seriesId) $statusUrlBase .= '&series_id=' . urlencode((string)$seriesId);
-                        if ($genreId) $statusUrlBase .= '&genre_id=' . urlencode((string)$genreId);
-                        if ($shelfName !== '') $statusUrlBase .= '&shelf=' . urlencode($shelfName);
-                        if ($search !== '') $statusUrlBase .= '&search=' . urlencode($search);
-                        if ($source !== '') $statusUrlBase .= '&source=' . urlencode($source);
-                    ?>
-                    <ul class="list-group" id="statusList">
-                        <li class="list-group-item<?= $statusName === '' ? ' active' : '' ?>">
-                            <a href="<?= htmlspecialchars($statusUrlBase) ?>" class="text-decoration-none<?= $statusName === '' ? ' text-white' : '' ?>">All Status</a>
-                        </li>
-                        <?php foreach ($statusOptions as $s): ?>
-                            <?php $url = $statusUrlBase . '&status=' . urlencode($s); ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center<?= $statusName === $s ? ' active' : '' ?>">
-                                <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $statusName === $s ? ' text-white' : '' ?>"><?= htmlspecialchars($s) ?></a>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-secondary edit-status" data-status="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-pen"></i></button>
-                                    <button type="button" class="btn btn-outline-danger delete-status" data-status="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-trash"></i></button>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <form id="addStatusForm" class="mt-2">
-                        <div class="input-group input-group-sm">
-                            <input type="text" class="form-control" name="status" placeholder="New status">
-                            <button class="btn btn-primary" type="submit">Add</button>
+            </form>
+        </div>
+
+        <!-- Status -->
+        <div class="mb-3">
+            <h6 class="fw-semibold mb-2">Status</h6>
+            <?php $statusUrlBase = buildBaseUrl([], ['status']); ?>
+            <ul class="list-group" id="statusList">
+                <li class="list-group-item<?= linkActive($statusName, '') ?>">
+                    <a href="<?= htmlspecialchars($statusUrlBase) ?>" class="stretched-link text-decoration-none<?= linkTextColor($statusName, '') ?>">All Status</a>
+                </li>
+                <?php foreach ($statusOptions as $s): ?>
+                    <?php $url = buildBaseUrl(['status' => $s]); ?>
+                    <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($statusName, $s) ?>">
+                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= linkTextColor($statusName, $s) ?>"><?= htmlspecialchars($s) ?></a>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary edit-status" data-status="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-pen"></i></button>
+                            <button type="button" class="btn btn-outline-danger delete-status" data-status="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-trash"></i></button>
                         </div>
-                    </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <form id="addStatusForm" class="mt-2">
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" name="status" placeholder="New status">
+                    <button class="btn btn-primary" type="submit">Add</button>
                 </div>
-                <div class="mb-3">
-                    <h6 class="mb-1">Genres</h6>
-                    <?php
-                        $genreBase = 'list_books.php?sort=' . urlencode($sort);
-                        if ($authorId) $genreBase .= '&author_id=' . urlencode((string)$authorId);
-                        if ($seriesId) $genreBase .= '&series_id=' . urlencode((string)$seriesId);
-                        if ($shelfName !== '') $genreBase .= '&shelf=' . urlencode($shelfName);
-                        if ($search !== '') $genreBase .= '&search=' . urlencode($search);
-                        if ($source !== '') $genreBase .= '&source=' . urlencode($source);
-                        if ($statusName !== '') $genreBase .= '&status=' . urlencode($statusName);
-                    ?>
-                    <ul class="list-group" id="genreList">
-                        <li class="list-group-item<?= $genreId ? '' : ' active' ?>">
-                            <a href="<?= htmlspecialchars($genreBase) ?>" class="text-decoration-none<?= $genreId ? '' : ' text-white' ?>">All Genres</a>
-                        </li>
-                        <?php foreach ($genreList as $g): ?>
-                            <?php
-                                $url = 'list_books.php?sort=' . urlencode($sort);
-                                if ($authorId) $url .= '&author_id=' . urlencode((string)$authorId);
-                                if ($seriesId) $url .= '&series_id=' . urlencode((string)$seriesId);
-                                $url .= '&genre_id=' . urlencode((string)$g['id']);
-                                if ($shelfName !== '') $url .= '&shelf=' . urlencode($shelfName);
-                                if ($search !== '') $url .= '&search=' . urlencode($search);
-                                if ($source !== '') $url .= '&source=' . urlencode($source);
-                                if ($statusName !== '') $url .= '&status=' . urlencode($statusName);
-                            ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreId == $g['id'] ? ' active' : '' ?>">
-                                <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 me-2 text-decoration-none<?= $genreId == $g['id'] ? ' text-white' : '' ?>">
-                                    <?= htmlspecialchars($g['value']) ?>
-                                </a>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-secondary edit-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-pen"></i></button>
-                                    <button type="button" class="btn btn-outline-danger delete-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>"><i class="fa-solid fa-trash"></i></button>
-                                </div>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <form id="addGenreForm" class="mt-2">
-                        <div class="input-group input-group-sm">
-                            <input type="text" class="form-control" name="genre" placeholder="New genre">
-                            <button class="btn btn-primary" type="submit">Add</button>
+            </form>
+        </div>
+
+        <!-- Genres -->
+        <div class="mb-3">
+            <h6 class="fw-semibold mb-2">Genres</h6>
+            <?php $genreBase = buildBaseUrl([], ['genre_id']); ?>
+            <ul class="list-group" id="genreList">
+                <li class="list-group-item<?= $genreId ? '' : ' active' ?>">
+                    <a href="<?= htmlspecialchars($genreBase) ?>" class="stretched-link text-decoration-none<?= $genreId ? '' : ' text-white' ?>">All Genres</a>
+                </li>
+                <?php foreach ($genreList as $g): ?>
+                    <?php $url = buildBaseUrl(['genre_id' => $g['id']]); ?>
+                    <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreId == $g['id'] ? ' active' : '' ?>">
+                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= $genreId == $g['id'] ? ' text-white' : '' ?>">
+                            <?= htmlspecialchars($g['value']) ?>
+                        </a>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary edit-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-pen"></i></button>
+                            <button type="button" class="btn btn-outline-danger delete-genre" data-genre-id="<?= htmlspecialchars($g['id']) ?>"><i class="fa-solid fa-trash"></i></button>
                         </div>
-                    </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <form id="addGenreForm" class="mt-2">
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" name="genre" placeholder="New genre">
+                    <button class="btn btn-primary" type="submit">Add</button>
                 </div>
-            </div>
-        </nav>
-        <div class="col-md-9 col-lg-10">
+            </form>
+        </div>
+    </div>
+</nav>
+        
+         </div>
+</div>   
+
+
+<div class="container-fluid">      
+        <div class="col-md-12">
             <h1 class="mb-4">Books</h1>
         <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $search !== ''): ?>
         <div class="alert alert-info mb-3">
@@ -621,27 +734,16 @@ if ($isAjax) {
             <a class="btn btn-sm btn-secondary ms-2" href="list_books.php?sort=<?= urlencode($sort) ?>">Clear</a>
         </div>
     <?php endif; ?>
-        <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Cover</th>
-                <th class="title-col">Title</th>
-                <th>Author(s)</th>
-                <?php if ($source === 'annas'): ?>
-                    <th>Genre</th>
-                    <th>Year</th>
-                    <th>Size</th>
-                <?php else: ?>
-                    <th>Genre</th>
-                    <th>Shelf</th>
-                <?php endif; ?>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId); ?>
-        </tbody>
-    </table>
+
+            
+            <!-- Main Content -->
+<div class="col-md-12">
+     <div id="book-list">
+    <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId); ?>
+     </div>
+</div>
+        </div>
+
     <!-- Google Books Metadata Modal -->
     <div class="modal fade" id="googleModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg">
@@ -659,6 +761,9 @@ if ($isAjax) {
         </div>
     </div>
 </div>
+    
+    
+    
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
 function escapeHTML(str) {
@@ -684,7 +789,6 @@ $(function() {
     var totalPages = <?= $totalPages ?>;
     var loading = false;
     var fetchUrlBase = <?= json_encode($baseUrl) ?>;
-    var $tbody = $('table tbody');
     var googleModalEl = document.getElementById('googleModal');
     var googleModal = new bootstrap.Modal(googleModalEl);
 
@@ -708,16 +812,16 @@ $(function() {
         sessionStorage.removeItem('listBooksPage');
         sessionStorage.removeItem('listBooksScroll');
     }
+function loadMore() {
+    if (loading || currentPage >= totalPages) return;
+    loading = true;
 
-    function loadMore() {
-        if (loading || currentPage >= totalPages) return;
-        loading = true;
-        $.get(fetchUrlBase + (currentPage + 1) + '&ajax=1', function(html) {
-            $tbody.append(html);
-            currentPage++;
-            loading = false;
-        });
-    }
+    $.get(fetchUrlBase + (currentPage + 1) + '&ajax=1', function(html) {
+        $('#book-list').append(html);
+        currentPage++;
+        loading = false;
+    });
+}
 
     $(document).on('change', '.shelf-select', function() {
         var bookId = $(this).data('book-id');
@@ -880,102 +984,133 @@ $(function() {
         }.bind(this));
     });
 
-    $(document).on('click', '.annas-download', function() {
-        var md5 = $(this).data('md5');
-        if (!md5) return;
-        fetch('annas_download.php?md5=' + encodeURIComponent(md5))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                var url = data.url || (data.mirrors && data.mirrors[0]) || (Array.isArray(data) ? data[0] : null);
-                if (url) {
-                    window.open(url, '_blank');
-                } else {
-                    alert('Download link unavailable');
-                }
-            })
-            .catch(function() { alert('Download failed'); });
-    });
 
-    $(document).on('click', '.annas-add', function() {
-        var title = $(this).data('title');
-        var authors = $(this).data('authors');
-        var $result = $(this).siblings('.annas-add-result');
-        $result.text('Adding...');
-        fetch('add_book.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ title: title, authors: authors })
-        }).then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.status === 'ok') {
-                $result.text('Book added');
-            } else {
-                $result.text(data.error || 'Error adding');
-            }
-        }).catch(function() {
-            $result.text('Error adding');
-        });
-    });
 
-    $(document).on('click', '.google-meta', function() {
-        var bookId = $(this).data('book-id');
-        var query = $(this).data('search');
-        $('#googleResults').text('Loading...');
-        fetch('google_search.php?q=' + encodeURIComponent(query))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (!data.books || data.books.length === 0) {
-                    $('#googleResults').text('No results');
-                    return;
-                }
-                var html = '';
-                data.books.forEach(function(b) {
-                    html += '<div class="mb-2">';
-                    if (b.imgUrl) html += '<img src="' + escapeHTML(b.imgUrl) + '" style="height:100px" class="me-2">';
-                    html += '<strong>' + escapeHTML(b.title) + '</strong>';
-                    if (b.author) html += ' by ' + escapeHTML(b.author);
-                    if (b.year) html += ' (' + escapeHTML(b.year) + ')';
-                    if (b.description) html += '<br><em>' + escapeHTML(b.description) + '</em>';
-                    html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 google-use" '
-                         + 'data-book-id="' + bookId + '" '
-                         + 'data-title="' + b.title.replace(/"/g,'&quot;') + '" '
-                         + 'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" '
-                         + 'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" '
-                         + 'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '" '
-                         + 'data-description="' + (b.description || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
-                    html += '</div>';
-                });
-                $('#googleResults').html(html);
-            })
-            .catch(function() { $('#googleResults').text('Error fetching results'); });
-        googleModal.show();
-    });
 
-    $(document).on('click', '.google-use', function() {
-        var bookId = $(this).data('book-id');
-        var t = $(this).data('title');
-        var a = $(this).data('authors');
-        var y = $(this).data('year');
-        var img = $(this).data('imgurl');
-        var desc = $(this).data('description');
-        fetch('update_metadata.php', {
+
+   // Helper to escape HTML
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Fetch Google metadata
+$(document).on('click', '.google-meta', async function () {
+    const bookId = $(this).data('book-id');
+    const query = $(this).data('search');
+
+    $('#googleResults').text('Loading...');
+    googleModal.show();
+
+    try {
+        const response = await fetch(`google_search.php?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        if (!data.books || data.books.length === 0) {
+            $('#googleResults').text('No results');
+            return;
+        }
+
+        const resultsHTML = data.books.map(b => {
+            const title = escapeHTML(b.title || '');
+            const author = escapeHTML(b.author || '');
+            const year = escapeHTML(b.year || '');
+            const imgUrl = escapeHTML(b.imgUrl || '');
+            const description = escapeHTML(b.description || '');
+
+            return `
+                <div class="mb-3 p-2 border rounded bg-light">
+                    ${imgUrl ? `<img src="${imgUrl}" style="height:100px" class="me-2 mb-2">` : ''}
+                    <strong>${title}</strong>
+                    ${author ? ` by ${author}` : ''}
+                    ${year ? ` (${year})` : ''}
+                    ${description ? `<br><em>${description}</em>` : ''}
+                    <div>
+                        <button type="button" class="btn btn-sm btn-primary mt-2 google-use"
+                            data-book-id="${bookId}"
+                            data-title="${title.replace(/"/g, '&quot;')}"
+                            data-authors="${author.replace(/"/g, '&quot;')}"
+                            data-year="${year.replace(/"/g, '&quot;')}"
+                            data-imgurl="${imgUrl.replace(/"/g, '&quot;')}"
+                            data-description="${description.replace(/"/g, '&quot;')}">
+                            Use This
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        $('#googleResults').html(resultsHTML);
+    } catch (error) {
+        console.error(error);
+        $('#googleResults').text('Error fetching results');
+    }
+});
+
+// Apply selected metadata
+$(document).on('click', '.google-use', async function () {
+    const bookId = $(this).data('book-id');
+    const t = $(this).data('title');
+    const a = $(this).data('authors');
+    const y = $(this).data('year');
+    const img = $(this).data('imgurl');
+    const desc = $(this).data('description');
+
+    try {
+        const response = await fetch('update_metadata.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({ book_id: bookId, title: t, authors: a, year: y, imgurl: img, description: desc })
-        }).then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.status === 'ok') {
-                googleModal.hide();
-                sessionStorage.setItem('listBooksPage', currentPage);
-                sessionStorage.setItem('listBooksScroll', $(window).scrollTop());
-                location.reload();
-            } else {
-                alert(data.error || 'Error updating metadata');
-            }
-        }).catch(function() {
-            alert('Error updating metadata');
         });
-    });
+
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+            googleModal.hide();
+
+            // Update DOM directly
+            const bookBlock = $(`[data-book-block-id="${bookId}"]`);
+            if (bookBlock.length) {
+                // Title
+                bookBlock.find('.book-title').text(t);
+
+                // Authors (can handle multiple authors if needed)
+                if (a) {
+                    bookBlock.find('.book-authors').text(a);
+                } else {
+                    bookBlock.find('.book-authors').html('&mdash;');
+                }
+
+                // Description
+                if (desc) {
+                    bookBlock.find('.book-description').text(desc);
+                } else {
+                    bookBlock.find('.book-description').html('&mdash;');
+                }
+
+                // Thumbnail
+                if (img) {
+                    const imgElem = bookBlock.find('.book-cover');
+                    if (imgElem.length) {
+                        imgElem.attr('src', img);
+                    } else {
+                        bookBlock.find('.cover-wrapper').html(`<img src="${img}" class="img-thumbnail img-fluid book-cover" alt="Cover">`);
+                    }
+                }
+            }
+        } else {
+            alert(data.error || 'Error updating metadata');
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Error updating metadata');
+    }
+});
+
 
     $(window).on('scroll', function() {
         if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
