@@ -185,3 +185,67 @@ To define one:
 INSERT INTO custom_columns (label, name, datatype, display)
 VALUES ('#summary', 'Summary', 'composite', '{"composite_template":"{title} - {authors}"}');
 No storage table is needed since it’s computed from the template.
+
+
+-------------------------------
+
+How Calibre Handles Multi-Value Columns
+1. The custom_column_X Table
+For multi-value columns, custom_column_X does not store the actual values directly.
+
+Instead, it acts as a link table ID (a key reference).
+
+Example (for a #keywords column):
+
+CREATE TABLE custom_column_2 (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value INTEGER  -- Points to books_custom_column_2_link
+);
+2. The books_custom_column_X_link Table
+Stores all unique values for the multi-value column and maps them to books.
+
+Example table structure:
+
+CREATE TABLE books_custom_column_2_link (
+    book INTEGER REFERENCES books(id),
+    value TEXT,
+    PRIMARY KEY (book, value)
+);
+Here:
+
+Each row corresponds to one keyword for one book.
+
+A book with multiple keywords will have multiple rows.
+
+Example: Adding Keywords for a Book
+Suppose custom_column_2 is #keywords. To add keywords Science and Fantasy for book with id=10:
+
+INSERT INTO books_custom_column_2_link (book, value) VALUES (10, 'Science');
+INSERT INTO books_custom_column_2_link (book, value) VALUES (10, 'Fantasy');
+Creating a Multi-Value Column (SQL Template)
+Step 1: Insert Column Definition
+INSERT INTO custom_columns (label, name, datatype, display)
+VALUES ('#keywords', 'Keywords', 'text, is_multiple', '{}');
+Step 2: Find the ID
+SELECT id, label FROM custom_columns ORDER BY id DESC;
+Assume the ID is 2.
+
+Step 3: Create the Storage Tables
+CREATE TABLE custom_column_2 (
+    book INTEGER PRIMARY KEY REFERENCES books(id),
+    value INTEGER
+);
+
+CREATE TABLE books_custom_column_2_link (
+    book INTEGER REFERENCES books(id),
+    value TEXT,
+    PRIMARY KEY (book, value)
+);
+Special Notes
+If the column type is enumeration with multiple values allowed, the structure is the same: you’ll have a books_custom_column_X_link table.
+
+For text (single value), you do not need the _link table.
+
+Calibre expects these link tables for is_multiple columns. If you don’t create them, the column will appear broken.
+
+
