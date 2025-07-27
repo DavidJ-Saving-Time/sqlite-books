@@ -16,14 +16,14 @@ function fetch_openlibrary_json(string $url): ?array {
     return is_array($data) ? $data : null;
 }
 
-function search_openlibrary(string $query): array {
-    $url = 'https://openlibrary.org/search.json?q=' . urlencode($query);
+function search_openlibrary(string $query, int $limit = 5): array {
+    $url = 'https://openlibrary.org/search.json?q=' . urlencode($query) . '&limit=' . $limit;
     $data = fetch_openlibrary_json($url);
     if ($data === null || !isset($data['docs'])) {
         return [];
     }
     $results = [];
-    foreach ($data['docs'] as $doc) {
+    foreach (array_slice($data['docs'], 0, $limit) as $doc) {
         $results[] = [
             'title' => $doc['title'] ?? '',
             'authors' => isset($doc['author_name']) ? implode(', ', (array)$doc['author_name']) : '',
