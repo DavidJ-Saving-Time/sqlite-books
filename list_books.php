@@ -174,11 +174,8 @@ $filterShelfName = $shelfName !== '' ? $shelfName : null;
 // Fetch full genre list for sidebar
 $genreList = [];
 try {
-    $stmt = $pdo->query("SELECT DISTINCT value FROM $genreLinkTable ORDER BY value");
-    $genreList = [];
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $genreList[] = ['value' => $row['value']];
-    }
+    $stmt = $pdo->query("SELECT id, value FROM custom_column_{$genreColumnId} ORDER BY value COLLATE NOCASE");
+    $genreList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $genreList = [];
 }
@@ -897,11 +894,11 @@ function loadMore() {
 
     $(document).on('click', '.delete-genre', function() {
         if (!confirm('Are you sure you want to remove this genre?')) return;
-        var id = $(this).data('genre-id');
+        var genre = $(this).data('genre');
         fetch('delete_genre.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ id: id })
+            body: new URLSearchParams({ genre: genre })
         }).then(function() { location.reload(); });
     });
 
@@ -929,16 +926,15 @@ function loadMore() {
     });
 
     $(document).on('click', '.edit-genre', function() {
-        var id = $(this).data('genre-id');
-        var current = $(this).data('genre');
-        var name = prompt('Rename genre:', current);
+        var genre = $(this).data('genre');
+        var name = prompt('Rename genre:', genre);
         if (name === null) return;
         name = name.trim();
-        if (!name || name === current) return;
+        if (!name || name === genre) return;
         fetch('rename_genre.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ id: id, new: name })
+            body: new URLSearchParams({ id: genre, new: name })
         }).then(function() { location.reload(); });
     });
 
