@@ -52,9 +52,7 @@ if (!$coverId && !empty($covers)) {
             <?php endif; ?>
             <button id="addBtn" type="button" class="btn btn-primary mt-3"
                     data-title="<?= htmlspecialchars($workTitle, ENT_QUOTES) ?>"
-                    data-authors="<?= htmlspecialchars($authors, ENT_QUOTES) ?>"
-                    data-imgurl="<?= htmlspecialchars($coverId ? 'https://covers.openlibrary.org/b/id/' . $coverId . '-L.jpg' : '', ENT_QUOTES) ?>"
-                    data-description="<?= htmlspecialchars($description, ENT_QUOTES) ?>">
+                    data-authors="<?= htmlspecialchars($authors, ENT_QUOTES) ?>">
                 Add to Library
             </button>
             <div id="addResult" class="mt-2"></div>
@@ -66,9 +64,7 @@ if (!$coverId && !empty($covers)) {
 document.getElementById('addBtn').addEventListener('click', function () {
     const title = this.dataset.title;
     const authors = this.dataset.authors;
-    const imgurl = this.dataset.imgurl || '';
-    const description = this.dataset.description || '';
-    const params = new URLSearchParams({title: title, authors: authors, imgurl: imgurl, description: description});
+    const params = new URLSearchParams({title: title, authors: authors});
     const resultEl = document.getElementById('addResult');
     resultEl.textContent = 'Adding...';
     fetch('add_metadata_book.php', {
