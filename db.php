@@ -206,38 +206,29 @@ function initializeCustomColumns(PDO $pdo): void {
 
 
 function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): int {
-    // Remove # if present because Calibre does not store it in the DB
     $label = ltrim($label, '#');
     if ($name === null) $name = $label;
 
-    // Check if the column already exists
     $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = ?");
     $stmt->execute([$label]);
     $id = $stmt->fetchColumn();
 
     if ($id === false) {
-        // Add column definition
-        $pdo->prepare("
-            INSERT INTO custom_columns
+        $pdo->prepare(
+            "INSERT INTO custom_columns
             (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
-            VALUES (?, ?, 'text', 0, 1, '{}', 0, 0)
-        ")->execute([$label, $name]);
+            VALUES (?, ?, 'text', 0, 1, '{}', 0, 0)"
+        )->execute([$label, $name]);
         $id = $pdo->lastInsertId();
-
-        // Create the single-value table matching Calibre's expected schema
-        $pdo->exec("
-            CREATE TABLE custom_column_{$id} (
-                book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
-                value TEXT
-            )
-        ");
     }
+
+    $table = "custom_column_$id";
+    ensureSingleValueTable($pdo, $table);
 
     return (int)$id;
 }
 
 function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): int {
-    // Remove # if present because Calibre does not store it in the DB
     $label = ltrim($label, '#');
     if ($name === null) $name = $label;
 
@@ -246,33 +237,17 @@ function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): i
     $id = $stmt->fetchColumn();
 
     if ($id === false) {
-        $pdo->prepare("
-            INSERT INTO custom_columns
+        $pdo->prepare(
+            "INSERT INTO custom_columns
             (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
-            VALUES (?, ?, 'text', 0, 1, '{}', 1, 1)
-        ")->execute([$label, $name]);
+            VALUES (?, ?, 'text', 0, 1, '{}', 1, 1)"
+        )->execute([$label, $name]);
         $id = $pdo->lastInsertId();
-
-        // Create the value table
-        $pdo->exec("
-            CREATE TABLE custom_column_$id (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                value TEXT NOT NULL COLLATE NOCASE,
-                link TEXT NOT NULL DEFAULT '',
-                UNIQUE(value)
-            )
-        ");
-
-        // Create the link table
-        $pdo->exec("
-            CREATE TABLE books_custom_column_{$id}_link (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                book INTEGER NOT NULL,
-                value INTEGER NOT NULL,
-                UNIQUE(book, value)
-            )
-        ");
     }
+
+    $valueTable = "custom_column_$id";
+    $linkTable  = "books_custom_column_{$id}_link";
+    ensureMultiValueTables($pdo, $valueTable, $linkTable);
 
     return (int)$id;
 }
@@ -299,9 +274,142 @@ function insertDefaultMultiValue(PDO $pdo, int $columnId, string $defaultValue):
     $valueId = $stmt->fetchColumn();
 
     // Assign default value to books without any entry
-    $pdo->exec("
+    $pdo->exec(
+        "
         INSERT INTO $linkTable (book, value)
         SELECT id, $valueId FROM books
         WHERE id NOT IN (SELECT book FROM $linkTable)
-    ");
+    "
+    );
+}
+
+function tableExists(PDO $pdo, string $table): bool {
+    $stmt = $pdo->prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?");
+    $stmt->execute([$table]);
+    return $stmt->fetchColumn() !== false;
+}
+
+function tableColumns(PDO $pdo, string $table): array {
+    $cols = [];
+    foreach ($pdo->query("PRAGMA table_info('$table')") as $row) {
+        $cols[] = $row['name'];
+    }
+    return $cols;
+}
+
+function ensureSingleValueTable(PDO $pdo, string $table): void {
+    $expected = ['book', 'value'];
+
+    if (tableExists($pdo, $table)) {
+        $cols = tableColumns($pdo, $table);
+        $sorted = $cols;
+        sort($sorted);
+        $exp = $expected;
+        sort($exp);
+        if ($sorted === $exp) {
+            return;
+        }
+
+        $backup = $table . '_backup_' . time();
+        $pdo->exec("ALTER TABLE $table RENAME TO $backup");
+    } else {
+        $backup = null;
+    }
+
+    $pdo->exec(
+        "CREATE TABLE $table (
+            book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+            value TEXT
+        )"
+    );
+
+    if ($backup) {
+        $cols = tableColumns($pdo, $backup);
+        $common = array_intersect($cols, $expected);
+        if ($common) {
+            $colList = implode(',', $common);
+            $pdo->exec("INSERT INTO $table ($colList) SELECT $colList FROM $backup");
+        }
+    }
+}
+
+function ensureMultiValueValueTable(PDO $pdo, string $table): void {
+    $expected = ['id', 'value', 'link'];
+
+    if (tableExists($pdo, $table)) {
+        $cols = tableColumns($pdo, $table);
+        $sorted = $cols;
+        sort($sorted);
+        $exp = $expected;
+        sort($exp);
+        if ($sorted === $exp) {
+            return;
+        }
+
+        $backup = $table . '_backup_' . time();
+        $pdo->exec("ALTER TABLE $table RENAME TO $backup");
+    } else {
+        $backup = null;
+    }
+
+    $pdo->exec(
+        "CREATE TABLE $table (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            value TEXT NOT NULL COLLATE NOCASE,
+            link TEXT NOT NULL DEFAULT '',
+            UNIQUE(value)
+        )"
+    );
+
+    if ($backup) {
+        $cols = tableColumns($pdo, $backup);
+        $common = array_intersect($cols, $expected);
+        if ($common) {
+            $colList = implode(',', $common);
+            $pdo->exec("INSERT INTO $table ($colList) SELECT $colList FROM $backup");
+        }
+    }
+}
+
+function ensureMultiValueLinkTable(PDO $pdo, string $table): void {
+    $expected = ['id', 'book', 'value'];
+
+    if (tableExists($pdo, $table)) {
+        $cols = tableColumns($pdo, $table);
+        $sorted = $cols;
+        sort($sorted);
+        $exp = $expected;
+        sort($exp);
+        if ($sorted === $exp) {
+            return;
+        }
+
+        $backup = $table . '_backup_' . time();
+        $pdo->exec("ALTER TABLE $table RENAME TO $backup");
+    } else {
+        $backup = null;
+    }
+
+    $pdo->exec(
+        "CREATE TABLE $table (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            book INTEGER NOT NULL,
+            value INTEGER NOT NULL,
+            UNIQUE(book, value)
+        )"
+    );
+
+    if ($backup) {
+        $cols = tableColumns($pdo, $backup);
+        $common = array_intersect($cols, $expected);
+        if ($common) {
+            $colList = implode(',', $common);
+            $pdo->exec("INSERT INTO $table ($colList) SELECT $colList FROM $backup");
+        }
+    }
+}
+
+function ensureMultiValueTables(PDO $pdo, string $valueTable, string $linkTable): void {
+    ensureMultiValueValueTable($pdo, $valueTable);
+    ensureMultiValueLinkTable($pdo, $linkTable);
 }
