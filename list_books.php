@@ -300,7 +300,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
             <div class="col-md-2 col-12 text-center cover-wrapper">
                 <?php if (!empty($book['has_cover'])): ?>
                     <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
-                        <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg"
+                        <img src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
                              alt="Cover"
                              class="img-thumbnail img-fluid book-cover"
                              style="width: 100%; max-width:150px; height:auto;">

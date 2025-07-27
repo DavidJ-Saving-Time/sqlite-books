@@ -5,27 +5,42 @@ requireLogin();
 $message = '';
 $alertClass = 'success';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $newPath = trim($_POST['db_path'] ?? '');
-    if ($newPath !== '') {
-        setUserPreference(currentUser(), 'db_path', $newPath);
+    $dbPath = trim($_POST['db_path'] ?? '');
+    $libPath = trim($_POST['library_path'] ?? '');
+
+    if ($dbPath !== '') {
+        setUserPreference(currentUser(), 'db_path', $dbPath);
         if (isset($_POST['save_global'])) {
-            setPreference('db_path', $newPath);
+            setPreference('db_path', $dbPath);
         }
+    }
 
-        $writable = file_exists($newPath)
-            ? is_writable($newPath)
-            : (is_dir(dirname($newPath)) && is_writable(dirname($newPath)));
+    if ($libPath !== '') {
+        setUserPreference(currentUser(), 'library_path', $libPath);
+        if (isset($_POST['save_global'])) {
+            setPreference('library_path', $libPath);
+        }
+    }
 
-        if ($writable) {
-            $message = 'Preferences saved.';
-        } else {
+    $dbWritable = $dbPath === '' ? true : (file_exists($dbPath)
+        ? is_writable($dbPath)
+        : (is_dir(dirname($dbPath)) && is_writable(dirname($dbPath))));
+    $libWritable = $libPath === '' ? true : (is_dir($libPath) && is_writable($libPath));
+
+    if ($dbWritable && $libWritable) {
+        $message = 'Preferences saved.';
+    } else {
+        $alertClass = 'danger';
+        if (!$dbWritable) {
             $message = 'Database path is not writable.';
-            $alertClass = 'danger';
+        } elseif (!$libWritable) {
+            $message = 'Library path is not writable.';
         }
     }
 }
 
 $currentPath = currentDatabasePath();
+$currentLibrary = getLibraryPath();
 ?>
 <!doctype html>
 <html lang="en">
@@ -44,6 +59,10 @@ $currentPath = currentDatabasePath();
   <div class="mb-3">
     <label for="db_path" class="form-label">Calibre database path</label>
     <input type="text" id="db_path" name="db_path" class="form-control" value="<?php echo htmlspecialchars($currentPath); ?>">
+  </div>
+  <div class="mb-3">
+    <label for="library_path" class="form-label">Calibre library path</label>
+    <input type="text" id="library_path" name="library_path" class="form-control" value="<?php echo htmlspecialchars($currentLibrary); ?>">
   </div>
   <div class="mb-3">
     <label for="themeSelect" class="form-label">Theme</label>

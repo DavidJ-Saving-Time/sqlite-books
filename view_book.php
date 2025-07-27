@@ -114,7 +114,7 @@ $missingFile = !bookHasFile($book['path']);
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
-                <img src="ebooks/<?= htmlspecialchars($book['path']) ?>/cover.jpg" alt="Cover" class="img-fluid">
+                <img src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="img-fluid">
             <?php else: ?>
                 <div class="text-muted">No cover</div>
             <?php endif; ?>

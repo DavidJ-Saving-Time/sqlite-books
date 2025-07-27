@@ -1,3 +1,4 @@
 {
-    "db_path": "metadata.old.db"
+    "db_path": "metadata.old.db",
+    "library_path": "ebooks"
 }
