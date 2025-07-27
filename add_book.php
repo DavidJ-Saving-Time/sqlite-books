@@ -38,41 +38,21 @@ try {
     $balStmt = $pdo->prepare('INSERT INTO books_authors_link (book, author) VALUES (:book, :author)');
     $balStmt->execute([':book' => $bookId, ':author' => $authorId]);
 
-    $tableStmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'books_custom_column_%'");
-    $tables = $tableStmt->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($tables as $table) {
-        if (!preg_match('/^books_custom_column_(\d+)(?:_link)?$/', $table, $m)) {
-            continue;
-        }
-        $colId = (int)$m[1];
-        $isLink = str_ends_with($table, '_link');
+    // Assign default shelf
+    $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
+    $shelfValTable = "custom_column_{$shelfId}";
+    $shelfLinkTable = "books_custom_column_{$shelfId}_link";
+    $pdo->prepare("INSERT OR IGNORE INTO $shelfValTable (value) VALUES ('Ebook Calibre')")->execute();
+    $shelfValId = $pdo->query("SELECT id FROM $shelfValTable WHERE value = 'Ebook Calibre'")->fetchColumn();
+    $pdo->prepare("INSERT INTO $shelfLinkTable (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $shelfValId]);
 
-        if ($isLink) {
-            $infoStmt = $pdo->prepare('SELECT label, is_multiple FROM custom_columns WHERE id = :id');
-            $infoStmt->execute([':id' => $colId]);
-            $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
-            if (!$info || (int)$info['is_multiple'] === 1) {
-                continue;
-            }
-            $valTable = 'custom_column_' . $colId;
-            $defaultId = null;
-            if ($info['label'] === 'status') {
-                $pdo->prepare("INSERT OR IGNORE INTO $valTable (value) VALUES ('Want to Read')")->execute();
-                $defaultId = $pdo->query("SELECT id FROM $valTable WHERE value = 'Want to Read'")->fetchColumn();
-            } else {
-                $defaultId = $pdo->query("SELECT id FROM $valTable ORDER BY id LIMIT 1")->fetchColumn();
-            }
-            if ($defaultId !== false && $defaultId !== null) {
-                $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $defaultId]);
-            }
-        } else {
-            $value = null;
-            if ($colId === 11) {
-                $value = 'Physical';
-            }
-            $pdo->prepare("INSERT INTO $table (book, value) VALUES (:book, :value)")->execute([':book' => $bookId, ':value' => $value]);
-        }
-    }
+    // Assign default status
+    $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
+    $statusValTable = "custom_column_{$statusId}";
+    $statusLinkTable = "books_custom_column_{$statusId}_link";
+    $pdo->prepare("INSERT OR IGNORE INTO $statusValTable (value) VALUES ('Want to Read')")->execute();
+    $statusValId = $pdo->query("SELECT id FROM $statusValTable WHERE value = 'Want to Read'")->fetchColumn();
+    $pdo->prepare("INSERT INTO $statusLinkTable (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $statusValId]);
 
     $pdo->commit();
     echo json_encode(['status' => 'ok', 'book_id' => $bookId]);

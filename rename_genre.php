@@ -14,8 +14,8 @@ if ($old === '' || $new === '') {
 $pdo = getDatabaseConnection();
 try {
     $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
-    $linkTable = "books_custom_column_{$genreId}_link";
-    $pdo->prepare("UPDATE $linkTable SET value = :new WHERE value = :old")->execute([':new' => $new, ':old' => $old]);
+    $valueTable = "custom_column_{$genreId}";
+    $pdo->prepare("UPDATE $valueTable SET value = :new WHERE value = :old")->execute([':new' => $new, ':old' => $old]);
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);

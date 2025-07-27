@@ -13,8 +13,16 @@ if ($genre === '') {
 $pdo = getDatabaseConnection();
 try {
     $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
+    $valueTable = "custom_column_{$genreId}";
     $linkTable = "books_custom_column_{$genreId}_link";
-    $pdo->prepare("DELETE FROM $linkTable WHERE value = :val")->execute([':val' => $genre]);
+
+    $valStmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :val");
+    $valStmt->execute([':val' => $genre]);
+    $gid = $valStmt->fetchColumn();
+    if ($gid !== false) {
+        $pdo->prepare("DELETE FROM $linkTable WHERE value = :id")->execute([':id' => $gid]);
+        $pdo->prepare("DELETE FROM $valueTable WHERE id = :id")->execute([':id' => $gid]);
+    }
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);

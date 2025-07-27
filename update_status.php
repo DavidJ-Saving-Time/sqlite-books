@@ -14,6 +14,7 @@ try {
         $pdo->exec("ALTER TABLE reading_log ADD COLUMN read_date TEXT");
     }
     $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
+    $valueTable = "custom_column_{$statusId}";
     $link = "books_custom_column_{$statusId}_link";
 
     if ($bookId <= 0) {
@@ -25,8 +26,13 @@ try {
     $stmt = $pdo->prepare("DELETE FROM $link WHERE book = :book");
     $stmt->execute([':book' => $bookId]);
     if ($value !== '') {
+        $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:val)")
+            ->execute([':val' => $value]);
+        $valStmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :val");
+        $valStmt->execute([':val' => $value]);
+        $valId = $valStmt->fetchColumn();
         $stmt = $pdo->prepare("INSERT INTO $link (book, value) VALUES (:book, :val)");
-        $stmt->execute([':book' => $bookId, ':val' => $value]);
+        $stmt->execute([':book' => $bookId, ':val' => $valId]);
     }
 
     $currentYear = (int)date('Y');

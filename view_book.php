@@ -44,9 +44,12 @@ $tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
 $tagsStmt->execute([$id]);
 $tags = $tagsStmt->fetchColumn();
 
-// Fetch saved recommendations from custom column 10, if present
+// Fetch saved recommendations from custom column, if present
 try {
-    $recStmt = $pdo->prepare('SELECT value FROM books_custom_column_10 WHERE book = ?');
+    $recId = ensureSingleValueColumn($pdo, '#recommendation', 'Recommendation');
+    $valueTable = "custom_column_{$recId}";
+    $linkTable  = "books_custom_column_{$recId}_link";
+    $recStmt = $pdo->prepare("SELECT v.value FROM $linkTable l JOIN $valueTable v ON l.value = v.id WHERE l.book = ?");
     $recStmt->execute([$id]);
     $savedRecommendations = $recStmt->fetchColumn();
 } catch (PDOException $e) {
