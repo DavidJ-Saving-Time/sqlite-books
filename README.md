@@ -25,7 +25,7 @@ inserts the metadata into the database, similar to Calibre's "Add Book" feature.
 
 ## Searching
 
-Use the search bar at the top of `list_books.php` to search for books by title or author name. A dropdown next to the search field lets you choose between searching the **local** Calibre database, querying the **Open Library** API, searching **Google Books**, or searching **Anna's Archive**. Results from external sources are shown in the same table layout but without local-only actions.
+Use the search bar at the top of `list_books.php` to search for books by title or author name. A dropdown next to the search field lets you choose between searching the **local** Calibre database, querying the **Open Library** API, searching **Google Books**, or searching **Anna's Archive**. Results from external sources are shown in the same table layout but without local-only actions. Open Library searches return only the first five matches to avoid excessive API requests.
 
 When viewing a book you can click **Get Book Recommendations**. The returned text is parsed to identify
 the recommended title and author. Each title links back to `list_books.php` with an Open Library search
