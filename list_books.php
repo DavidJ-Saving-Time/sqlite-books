@@ -423,13 +423,18 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 </div>
 
                 <!-- Description -->
-                <div class="small text-muted book-description">
+                <div class="small text-muted book-description" data-full="<?php
+                        $desc = strip_tags(trim($book['description'] ?? ''));
+                        echo htmlspecialchars($desc, ENT_QUOTES);
+                    ?>">
                     <?php
-                        $desc = trim($book['description'] ?? '');
                         if ($desc !== '') {
                             $lines = preg_split('/\r?\n/', $desc);
                             $preview = implode("\n", array_slice($lines, 0, 2));
                             echo nl2br(htmlspecialchars($preview));
+                            if (count($lines) > 2) {
+                                echo '... <a href="#" class="show-more">Show more</a>';
+                            }
                         } else {
                             echo '&mdash;';
                         }
@@ -537,6 +542,10 @@ function linkTextColor(string $current, string $compare): string {
 [data-book-block-id] .book-description {
     margin-top: 0.5rem;
     line-height: 1.4;
+}
+
+[data-book-block-id] .show-more {
+    cursor: pointer;
 }
 
 /* Make action buttons wrap nicely */
@@ -744,6 +753,23 @@ function escapeHTML(str) {
               .replace(/>/g, '&gt;')
               .replace(/"/g, '&quot;')
               .replace(/'/g, '&#39;');
+}
+
+function setDescription(el, text) {
+    if (!el) return;
+    text = text.trim();
+    el.dataset.full = text;
+    if (!text) {
+        el.textContent = '—';
+        return;
+    }
+    const lines = text.split(/\r?\n/);
+    const preview = lines.slice(0, 2).join('\n');
+    let html = escapeHTML(preview).replace(/\n/g, '<br>');
+    if (lines.length > 2) {
+        html += '... <a href="#" class="show-more">Show more</a>';
+    }
+    el.innerHTML = html;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1092,7 +1118,7 @@ function escapeHTML(str) {
 
 // Fetch Google metadata
     const resultsEl = document.getElementById('googleResults');
-    document.addEventListener('click', async (ev) => {
+document.addEventListener('click', async (ev) => {
         const metaBtn = ev.target.closest('.google-meta');
         if (metaBtn) {
             const bookId = metaBtn.dataset.bookId;
@@ -1174,7 +1200,7 @@ function escapeHTML(str) {
                 if (authorsEl) authorsEl.textContent = a || '—';
 
                 const descEl = bookBlock.querySelector('.book-description');
-                if (descEl) descEl.textContent = desc || '—';
+                if (descEl) setDescription(descEl, desc);
 
                 if (img) {
                     const imgElem = bookBlock.querySelector('.book-cover');
@@ -1194,6 +1220,18 @@ function escapeHTML(str) {
         alert('Error updating metadata');
     }
 });
+
+    document.addEventListener('click', (e) => {
+        const more = e.target.closest('.show-more');
+        if (more) {
+            e.preventDefault();
+            const box = more.closest('.book-description');
+            if (box) {
+                box.innerHTML = escapeHTML(box.dataset.full || '').replace(/\n/g, '<br>');
+            }
+            return;
+        }
+    });
 
 
     window.addEventListener('scroll', () => {
