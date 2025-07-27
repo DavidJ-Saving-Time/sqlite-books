@@ -26,17 +26,16 @@
     });
   }
 
-  function init(){
+  async function init(){
     const select = document.getElementById('themeSelect');
-    fetch(API_URL)
-      .then(r => r.json())
-      .then(data => {
-        const themes = data.themes.map(t => ({name: t.name, css: t.cssCdn}));
-        populate(select, [defaultTheme, ...themes]);
-      })
-      .catch(() => {
-        populate(select, [defaultTheme]);
-      });
+    try {
+      const r = await fetch(API_URL);
+      const data = await r.json();
+      const themes = data.themes.map(t => ({name: t.name, css: t.cssCdn}));
+      populate(select, [defaultTheme, ...themes]);
+    } catch {
+      populate(select, [defaultTheme]);
+    }
   }
 
   if(document.readyState === 'loading'){
