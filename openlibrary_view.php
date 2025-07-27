@@ -50,9 +50,12 @@ if (!$coverId && !empty($covers)) {
             <?php if (!empty($subjects)): ?>
                 <p><strong>Subjects:</strong> <?= htmlspecialchars(implode(', ', $subjects)) ?></p>
             <?php endif; ?>
+            <?php $coverUrl = $coverId ? 'https://covers.openlibrary.org/b/id/' . urlencode($coverId) . '-L.jpg' : ''; ?>
             <button id="addBtn" type="button" class="btn btn-primary mt-3"
                     data-title="<?= htmlspecialchars($workTitle, ENT_QUOTES) ?>"
-                    data-authors="<?= htmlspecialchars($authors, ENT_QUOTES) ?>">
+                    data-authors="<?= htmlspecialchars($authors, ENT_QUOTES) ?>"
+                    data-thumbnail="<?= htmlspecialchars($coverUrl, ENT_QUOTES) ?>"
+                    data-description="<?= htmlspecialchars($description, ENT_QUOTES) ?>">
                 Add to Library
             </button>
             <div id="addResult" class="mt-2"></div>
@@ -64,7 +67,9 @@ if (!$coverId && !empty($covers)) {
 document.getElementById('addBtn').addEventListener('click', function () {
     const title = this.dataset.title;
     const authors = this.dataset.authors;
-    const params = new URLSearchParams({title: title, authors: authors});
+    const thumbnail = this.dataset.thumbnail || '';
+    const description = this.dataset.description || '';
+    const params = new URLSearchParams({title: title, authors: authors, thumbnail: thumbnail, description: description});
     const resultEl = document.getElementById('addResult');
     resultEl.textContent = 'Adding...';
     fetch('add_metadata_book.php', {
