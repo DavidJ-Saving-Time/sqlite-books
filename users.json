@@ -2,7 +2,8 @@
     "nilla": {
         "password": "nilla",
         "prefs": {
-            "db_path": "ebooks\/metadata.db"
+            "db_path": "ebooks\/metadata.db",
+            "library_path": "ebooks"
         }
     }
 }

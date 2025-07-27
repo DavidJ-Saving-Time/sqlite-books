@@ -13,10 +13,7 @@ function safe_filename(string $name, int $max_length = 150): string {
 }
 
 $pdo = getDatabaseConnection();
-$libraryPath = realpath(__DIR__ . '/ebooks');
-if ($libraryPath === false) {
-    $libraryPath = __DIR__ . '/ebooks';
-}
+$libraryPath = getLibraryPath();
 
 $bookId = isset($_GET['id']) ? (int)$_GET['id'] : (int)($_POST['id'] ?? 0);
 if ($bookId <= 0) {

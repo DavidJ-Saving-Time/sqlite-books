@@ -97,7 +97,14 @@ function currentDatabasePath(): string {
 }
 
 function getLibraryPath(): string {
-    return dirname(currentDatabasePath());
+    $user = currentUser();
+    if ($user) {
+        $path = getUserPreference($user, 'library_path');
+        if ($path) {
+            return rtrim($path, '/');
+        }
+    }
+    return rtrim(getPreference('library_path', 'ebooks'), '/');
 }
 
 function bookHasFile(string $relativePath): bool {
