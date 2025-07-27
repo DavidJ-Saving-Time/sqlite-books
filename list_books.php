@@ -14,10 +14,13 @@ try {
     }
 
     $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-    $shelfTable = "custom_column_{$shelfId}";
-    $pdo->exec("INSERT INTO $shelfTable (book, value)
-            SELECT id, 'Ebook Calibre' FROM books
-            WHERE id NOT IN (SELECT book FROM $shelfTable)");
+    $shelfValueTable = "custom_column_{$shelfId}";
+    $shelfLinkTable  = "books_custom_column_{$shelfId}_link";
+    $pdo->prepare("INSERT OR IGNORE INTO $shelfValueTable (value) VALUES ('Ebook Calibre')")->execute();
+    $defId = $pdo->query("SELECT id FROM $shelfValueTable WHERE value = 'Ebook Calibre'")->fetchColumn();
+    $pdo->exec("INSERT INTO $shelfLinkTable (book, value)
+            SELECT id, $defId FROM books
+            WHERE id NOT IN (SELECT book FROM $shelfLinkTable)");
 } catch (PDOException $e) {
     // Ignore errors if the table cannot be created
 }
@@ -35,39 +38,20 @@ if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
 }
 
 // Locate custom column for reading status
-$statusTable = null;
 $statusOptions = [];
-$statusIsLink = false;
 $statusId = null;
+$statusIsLink = true;
+$statusTable = null;
 try {
-    $stmt = $pdo->prepare("SELECT id FROM custom_columns WHERE label = 'status'");
-    $stmt->execute();
-    $statusId = $stmt->fetchColumn();
-    if ($statusId !== false) {
-        $base = 'books_custom_column_' . (int)$statusId;
-        $direct = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "'")->fetchColumn();
-        $link = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='" . $base . "_link'")->fetchColumn();
-        if ($link) {
-            // Enumerated column stored via link table
-            $statusTable = $base . '_link';
-            $statusIsLink = true;
-            $valueTable = 'custom_column_' . (int)$statusId;
-            $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Want to Read')")->execute();
-            $defaultId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Want to Read'")->fetchColumn();
-            $pdo->exec("INSERT INTO $statusTable (book, value)
-                        SELECT id, $defaultId FROM books
-                        WHERE id NOT IN (SELECT book FROM $statusTable)");
-            $statusOptions = $pdo->query("SELECT value FROM $valueTable ORDER BY value COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
-        } else {
-            // Text column stored directly
-            $statusTable = $base;
-            $pdo->exec("CREATE TABLE IF NOT EXISTS $statusTable (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT)");
-            $pdo->exec("INSERT INTO $statusTable (book, value)
-                        SELECT id, 'Want to Read' FROM books
-                        WHERE id NOT IN (SELECT book FROM $statusTable)");
-            $statusOptions = $pdo->query("SELECT DISTINCT value FROM $statusTable WHERE TRIM(COALESCE(value,'')) <> '' ORDER BY value")->fetchAll(PDO::FETCH_COLUMN);
-        }
-    }
+    $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
+    $statusTable = 'books_custom_column_' . (int)$statusId . '_link';
+    $valueTable = 'custom_column_' . (int)$statusId;
+    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Want to Read')")->execute();
+    $defaultId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Want to Read'")->fetchColumn();
+    $pdo->exec("INSERT INTO $statusTable (book, value)
+                SELECT id, $defaultId FROM books
+                WHERE id NOT IN (SELECT book FROM $statusTable)");
+    $statusOptions = $pdo->query("SELECT value FROM $valueTable ORDER BY value COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
     $statusTable = null;
     $statusOptions = [];
@@ -77,14 +61,18 @@ try {
 // Ensure shelf column exists for recommendations block
 try {
     $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-    $shelfTable = "custom_column_{$shelfId}";
-    $pdo->exec("INSERT INTO $shelfTable (book, value)\n            SELECT id, 'Ebook Calibre' FROM books\n            WHERE id NOT IN (SELECT book FROM $shelfTable)");
+    $shelfValueTable = "custom_column_{$shelfId}";
+    $shelfLinkTable  = "books_custom_column_{$shelfId}_link";
+    $pdo->prepare("INSERT OR IGNORE INTO $shelfValueTable (value) VALUES ('Ebook Calibre')")->execute();
+    $defId = $pdo->query("SELECT id FROM $shelfValueTable WHERE value = 'Ebook Calibre'")->fetchColumn();
+    $pdo->exec("INSERT INTO $shelfLinkTable (book, value)\n            SELECT id, $defId FROM books\n            WHERE id NOT IN (SELECT book FROM $shelfLinkTable)");
 } catch (PDOException $e) {
     // Ignore errors if the table cannot be created
 }
 
 $recId = ensureSingleValueColumn($pdo, '#recommendation', 'Recommendation');
-$recTable = "custom_column_{$recId}";
+$recValueTable = "custom_column_{$recId}";
+$recLinkTable  = "books_custom_column_{$recId}_link";
 $recColumnExists = true;
 
 $perPage = 20;
@@ -138,11 +126,11 @@ if ($seriesId) {
     $params[':series_id'] = $seriesId;
 }
 if ($genreName !== '') {
-    $whereClauses[] = 'b.id IN (SELECT book FROM ' . $genreLinkTable . ' WHERE value = :genre_val)';
+    $whereClauses[] = 'EXISTS (SELECT 1 FROM ' . $genreLinkTable . ' gl JOIN custom_column_' . (int)$genreColumnId . ' gv ON gl.value = gv.id WHERE gl.book = b.id AND gv.value = :genre_val)';
     $params[':genre_val'] = $genreName;
 }
 if ($shelfName !== '') {
-    $whereClauses[] = 'b.id IN (SELECT book FROM ' . $shelfTable . ' WHERE value = :shelf_name)';
+    $whereClauses[] = 'EXISTS (SELECT 1 FROM ' . $shelfLinkTable . ' sl JOIN ' . $shelfValueTable . ' sv ON sl.value = sv.id WHERE sl.book = b.id AND sv.value = :shelf_name)';
     $params[':shelf_name'] = $shelfName;
 }
 if ($statusName !== '' && $statusTable) {
@@ -162,7 +150,7 @@ if ($statusName !== '' && $statusTable) {
     }
 }
 if ($recommendedOnly) {
-    $whereClauses[] = "EXISTS (SELECT 1 FROM $recTable br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '')";
+    $whereClauses[] = "EXISTS (SELECT 1 FROM $recLinkTable rl JOIN $recValueTable rv ON rl.value = rv.id WHERE rl.book = b.id AND TRIM(COALESCE(rv.value, '')) <> '')";
 }
 if ($search !== '') {
     $whereClauses[] = '(b.title LIKE :search OR EXISTS (
@@ -226,13 +214,15 @@ $books = [];
                             WHERE bal.book = b.id) AS author_data,
                        s.id AS series_id,
                        s.name AS series,
-                       (SELECT GROUP_CONCAT(bcc.value, ', ')
+                       (SELECT GROUP_CONCAT(gv.value, ', ')
                             FROM $genreLinkTable bcc
+                            JOIN custom_column_{$genreColumnId} gv ON bcc.value = gv.id
                             WHERE bcc.book = b.id) AS genres,
-                       (SELECT GROUP_CONCAT(bcc.value, '|')
+                       (SELECT GROUP_CONCAT(gv.id || ':' || gv.value, '|')
                             FROM $genreLinkTable bcc
+                            JOIN custom_column_{$genreColumnId} gv ON bcc.value = gv.id
                             WHERE bcc.book = b.id) AS genre_data,
-                       bc11.value AS shelf,
+                       bc11v.value AS shelf,
                        com.text AS description";
         if ($statusTable) {
             if ($statusIsLink) {
@@ -242,14 +232,15 @@ $books = [];
             }
         }
         if ($recColumnExists) {
-            $selectFields .= ", EXISTS(SELECT 1 FROM $recTable br WHERE br.book = b.id AND TRIM(COALESCE(br.value, '')) <> '') AS has_recs";
+            $selectFields .= ", EXISTS(SELECT 1 FROM $recLinkTable rl JOIN $recValueTable rv ON rl.value = rv.id WHERE rl.book = b.id AND TRIM(COALESCE(rv.value, '')) <> '') AS has_recs";
         }
 
         $sql = "SELECT $selectFields
                 FROM books b
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id
-                LEFT JOIN $shelfTable bc11 ON bc11.book = b.id
+                LEFT JOIN $shelfLinkTable bc11 ON bc11.book = b.id
+                LEFT JOIN $shelfValueTable bc11v ON bc11.value = bc11v.id
                 LEFT JOIN comments com ON com.book = b.id";
         if ($statusTable) {
             if ($statusIsLink) {

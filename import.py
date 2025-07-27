@@ -138,8 +138,13 @@ with open(CSV_FILE, newline='', encoding='utf-8') as csvfile:
                 SELECT ?, id FROM {custom_value_table} WHERE value=?;
             """, (book_id, CUSTOM_COLUMN_VALUE))
         else:
-            custom_table = f"books_custom_column_{CUSTOM_COLUMN_ID}"
-            cur.execute(f"INSERT OR REPLACE INTO {custom_table} (book, value) VALUES (?, ?);", (book_id, CUSTOM_COLUMN_VALUE))
+            custom_value_table = f"custom_column_{CUSTOM_COLUMN_ID}"
+            custom_link_table = f"books_custom_column_{CUSTOM_COLUMN_ID}_link"
+            cur.execute(f"INSERT OR IGNORE INTO {custom_value_table} (value) VALUES (?);", (CUSTOM_COLUMN_VALUE,))
+            cur.execute(f"""
+                INSERT OR REPLACE INTO {custom_link_table} (book, value)
+                SELECT ?, id FROM {custom_value_table} WHERE value=?;
+            """, (book_id, CUSTOM_COLUMN_VALUE))
         conn.commit()
 
         # 7. Create folder structure

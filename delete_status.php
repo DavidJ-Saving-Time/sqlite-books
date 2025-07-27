@@ -13,8 +13,16 @@ if ($status === '') {
 $pdo = getDatabaseConnection();
 try {
     $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
+    $valueTable = "custom_column_{$statusId}";
     $linkTable = "books_custom_column_{$statusId}_link";
-    $pdo->prepare("DELETE FROM $linkTable WHERE value = :val")->execute([':val' => $status]);
+
+    $valStmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :val");
+    $valStmt->execute([':val' => $status]);
+    $sid = $valStmt->fetchColumn();
+    if ($sid !== false) {
+        $pdo->prepare("DELETE FROM $linkTable WHERE value = :id")->execute([':id' => $sid]);
+        $pdo->prepare("DELETE FROM $valueTable WHERE id = :id")->execute([':id' => $sid]);
+    }
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);
