@@ -40,11 +40,9 @@ try {
 
     // Assign default shelf
     $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-    $shelfValTable = "custom_column_{$shelfId}";
-    $shelfLinkTable = "books_custom_column_{$shelfId}_link";
-    $pdo->prepare("INSERT OR IGNORE INTO $shelfValTable (value) VALUES ('Ebook Calibre')")->execute();
-    $shelfValId = $pdo->query("SELECT id FROM $shelfValTable WHERE value = 'Ebook Calibre'")->fetchColumn();
-    $pdo->prepare("INSERT INTO $shelfLinkTable (book, value) VALUES (:book, :val)")->execute([':book' => $bookId, ':val' => $shelfValId]);
+    $shelfTable = "custom_column_{$shelfId}";
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO $shelfTable (book, value) VALUES (:book, :val)");
+    $stmt->execute([':book' => $bookId, ':val' => 'Ebook Calibre']);
 
     // Assign default status
     $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
