@@ -65,7 +65,9 @@ if ($search !== '') {
                 <td>
                     <button type="button" class="btn btn-sm btn-primary ol-add"
                             data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"
-                            data-authors="<?= htmlspecialchars($book['authors'], ENT_QUOTES) ?>">
+                            data-authors="<?= htmlspecialchars($book['authors'], ENT_QUOTES) ?>"
+                            data-imgurl="<?= htmlspecialchars(!empty($book['cover_id']) ? 'https://covers.openlibrary.org/b/id/' . $book['cover_id'] . '-L.jpg' : '', ENT_QUOTES) ?>"
+                            data-description="">
                         Add to Library
                     </button>
                     <span class="ol-add-result ms-1"></span>
@@ -82,13 +84,15 @@ document.addEventListener('click', async (e) => {
     if (addBtn) {
         const title = addBtn.dataset.title;
         const authors = addBtn.dataset.authors;
+        const imgurl = addBtn.dataset.imgurl || '';
+        const description = addBtn.dataset.description || '';
         const resultEl = addBtn.parentElement.querySelector('.ol-add-result');
         if (resultEl) resultEl.textContent = 'Adding...';
         try {
             const r = await fetch('add_metadata_book.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ title, authors })
+                body: new URLSearchParams({ title, authors, imgurl, description })
             });
             const data = await r.json();
             if (resultEl) {
