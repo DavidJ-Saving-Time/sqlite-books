@@ -19,7 +19,6 @@ if ($search !== '') {
     <title>Anna's Archive Results</title>
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <script src="theme.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="pt-5">
 <?php include "navbar.php"; ?>
@@ -82,40 +81,50 @@ if ($search !== '') {
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
-$(document).on('click', '.annas-download', function() {
-    var md5 = $(this).data('md5');
-    if (!md5) return;
-    fetch('annas_download.php?md5=' + encodeURIComponent(md5))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var url = data.url || (data.mirrors && data.mirrors[0]) || (Array.isArray(data) ? data[0] : null);
+document.addEventListener('click', async (e) => {
+    const dl = e.target.closest('.annas-download');
+    if (dl) {
+        const md5 = dl.dataset.md5;
+        if (!md5) return;
+        try {
+            const r = await fetch('annas_download.php?md5=' + encodeURIComponent(md5));
+            const data = await r.json();
+            const url = data.url || (data.mirrors && data.mirrors[0]) || (Array.isArray(data) ? data[0] : null);
             if (url) {
                 window.open(url, '_blank');
             } else {
                 alert('Download link unavailable');
             }
-        })
-        .catch(function() { alert('Download failed'); });
-});
-$(document).on('click', '.annas-add', function() {
-    var title = $(this).data('title');
-    var authors = $(this).data('authors');
-    var $result = $(this).siblings('.annas-add-result');
-    $result.text('Adding...');
-    fetch('add_book.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ title: title, authors: authors })
-    }).then(function(r) { return r.json(); })
-    .then(function(data) {
-        if (data.status === 'ok') {
-            $result.text('Book added');
-        } else {
-            $result.text(data.error || 'Error adding');
+        } catch (err) {
+            alert('Download failed');
         }
-    }).catch(function() {
-        $result.text('Error adding');
-    });
+        return;
+    }
+
+    const addBtn = e.target.closest('.annas-add');
+    if (addBtn) {
+        const title = addBtn.dataset.title;
+        const authors = addBtn.dataset.authors;
+        const resultEl = addBtn.parentElement.querySelector('.annas-add-result');
+        if (resultEl) resultEl.textContent = 'Adding...';
+        try {
+            const r = await fetch('add_book.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ title, authors })
+            });
+            const data = await r.json();
+            if (resultEl) {
+                if (data.status === 'ok') {
+                    resultEl.textContent = 'Book added';
+                } else {
+                    resultEl.textContent = data.error || 'Error adding';
+                }
+            }
+        } catch (err) {
+            if (resultEl) resultEl.textContent = 'Error adding';
+        }
+    }
 });
 </script>
 </body>

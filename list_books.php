@@ -493,9 +493,7 @@ function linkTextColor(string $current, string $compare): string {
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="theme.js"></script>
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" crossorigin="anonymous">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
-    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js" crossorigin="anonymous"></script>
+    <!-- Removed jQuery and jQuery UI -->
     <style>
         .title-col {
             max-width: 700px;
@@ -747,16 +745,28 @@ function escapeHTML(str) {
               .replace(/'/g, '&#39;');
 }
 
-$(function() {
-    var $searchInput = $('input[name="search"]');
-    $searchInput.autocomplete({
-        source: function(request, response) {
-            $.getJSON('author_autocomplete.php', { term: request.term }, function(data) {
-                response(data);
-            });
-        },
-        minLength: 2
-    });
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.querySelector('input[name="search"]');
+    const suggestionList = document.getElementById('authorSuggestions');
+    if (searchInput && suggestionList) {
+        searchInput.addEventListener('input', async () => {
+            const term = searchInput.value.trim();
+            suggestionList.innerHTML = '';
+            if (term.length < 2) return;
+            try {
+                const res = await fetch(`author_autocomplete.php?term=${encodeURIComponent(term)}`);
+                const data = await res.json();
+                suggestionList.innerHTML = '';
+                data.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    suggestionList.appendChild(opt);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    }
 
     var currentPage = <?= $page ?>;
     var totalPages = <?= $totalPages ?>;
@@ -774,186 +784,316 @@ $(function() {
             } else {
                 clearInterval(restoreInterval);
                 if (!isNaN(restoreScroll)) {
-                    $(window).scrollTop(restoreScroll);
+                    window.scrollTo({top: restoreScroll});
                 }
                 sessionStorage.removeItem('listBooksPage');
                 sessionStorage.removeItem('listBooksScroll');
             }
         }, 300);
     } else if (!isNaN(restoreScroll) && restoreScroll > 0) {
-        $(window).scrollTop(restoreScroll);
+        window.scrollTo({top: restoreScroll});
         sessionStorage.removeItem('listBooksPage');
         sessionStorage.removeItem('listBooksScroll');
     }
-function loadMore() {
+async function loadMore() {
     if (loading || currentPage >= totalPages) return;
     loading = true;
-
-    $.get(fetchUrlBase + (currentPage + 1) + '&ajax=1', function(html) {
-        $('#book-list').append(html);
+    try {
+        const res = await fetch(fetchUrlBase + (currentPage + 1) + '&ajax=1');
+        const html = await res.text();
+        document.getElementById('book-list').insertAdjacentHTML('beforeend', html);
         currentPage++;
+    } catch (err) {
+        console.error(err);
+    } finally {
         loading = false;
-    });
+    }
 }
 
-    $(document).on('change', '.shelf-select', function() {
-        var bookId = $(this).data('book-id');
-        var value = $(this).val();
-        fetch('update_shelf.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: bookId, value: value })
+    document.addEventListener('change', async (e) => {
+        if (e.target.classList.contains('shelf-select')) {
+            const bookId = e.target.dataset.bookId;
+            const value = e.target.value;
+            await fetch('update_shelf.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ book_id: bookId, value })
+            });
+        } else if (e.target.classList.contains('genre-select')) {
+            const bookId = e.target.dataset.bookId;
+            const value = e.target.value;
+            await fetch('update_genre.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ book_id: bookId, value })
+            });
+        } else if (e.target.classList.contains('status-select')) {
+            const bookId = e.target.dataset.bookId;
+            const value = e.target.value;
+            await fetch('update_status.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ book_id: bookId, value })
+            });
+        }
+    });
+
+    const addShelfForm = document.getElementById('addShelfForm');
+    if (addShelfForm) {
+        addShelfForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const shelf = addShelfForm.querySelector('input[name="shelf"]').value.trim();
+            if (!shelf) return;
+            try {
+                const res = await fetch('add_shelf.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ shelf })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `<span class="flex-grow-1 text-truncate">${shelf}</span>` +
+                        `<div class="btn-group btn-group-sm">` +
+                        `<button type="button" class="btn btn-outline-secondary edit-shelf" data-shelf="${shelf}"><i class="fa-solid fa-pen"></i></button>` +
+                        `<button type="button" class="btn btn-outline-danger delete-shelf" data-shelf="${shelf}"><i class="fa-solid fa-trash"></i></button>` +
+                        `</div>`;
+                    document.getElementById('shelfList').appendChild(li);
+                    addShelfForm.reset();
+                }
+            } catch (err) {
+                console.error(err);
+            }
         });
-    });
+    }
 
-    $(document).on('change', '.genre-select', function() {
-        var bookId = $(this).data('book-id');
-        var value = $(this).val();
-        fetch('update_genre.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: bookId, value: value })
+    const addStatusForm = document.getElementById('addStatusForm');
+    if (addStatusForm) {
+        addStatusForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const status = addStatusForm.querySelector('input[name="status"]').value.trim();
+            if (!status) return;
+            try {
+                const res = await fetch('add_status.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ status })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `<span class="flex-grow-1 text-truncate">${status}</span>` +
+                        `<div class="btn-group btn-group-sm">` +
+                        `<button type="button" class="btn btn-outline-secondary edit-status" data-status="${status}"><i class="fa-solid fa-pen"></i></button>` +
+                        `<button type="button" class="btn btn-outline-danger delete-status" data-status="${status}"><i class="fa-solid fa-trash"></i></button>` +
+                        `</div>`;
+                    document.getElementById('statusList').appendChild(li);
+                    addStatusForm.reset();
+                }
+            } catch (err) {
+                console.error(err);
+            }
         });
-    });
+    }
 
-    $(document).on('change', '.status-select', function() {
-        var bookId = $(this).data('book-id');
-        var value = $(this).val();
-        fetch('update_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: bookId, value: value })
+    const addGenreForm = document.getElementById('addGenreForm');
+    if (addGenreForm) {
+        addGenreForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const genre = addGenreForm.querySelector('input[name="genre"]').value.trim();
+            if (!genre) return;
+            try {
+                const res = await fetch('add_genre.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ genre })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `<span class="flex-grow-1 text-truncate">${genre}</span>` +
+                        `<div class="btn-group btn-group-sm">` +
+                        `<button type="button" class="btn btn-outline-secondary edit-genre" data-genre="${genre}"><i class="fa-solid fa-pen"></i></button>` +
+                        `<button type="button" class="btn btn-outline-danger delete-genre" data-genre="${genre}"><i class="fa-solid fa-trash"></i></button>` +
+                        `</div>`;
+                    document.getElementById('genreList').appendChild(li);
+                    addGenreForm.reset();
+                }
+            } catch (err) {
+                console.error(err);
+            }
         });
-    });
+    }
 
-    $('#addShelfForm').on('submit', function(e) {
-        e.preventDefault();
-        var shelf = $(this).find('input[name="shelf"]').val().trim();
-        if (!shelf) return;
-        fetch('add_shelf.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ shelf: shelf })
-        }).then(function() { location.reload(); });
-    });
+    document.addEventListener('click', async (e) => {
+        const delShelfBtn = e.target.closest('.delete-shelf');
+        if (delShelfBtn) {
+            if (!confirm('Are you sure you want to remove this shelf?')) return;
+            const shelf = delShelfBtn.dataset.shelf;
+            try {
+                const res = await fetch('delete_shelf.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ shelf })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    delShelfBtn.closest('li').remove();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            return;
+        }
 
-    $('#addStatusForm').on('submit', function(e) {
-        e.preventDefault();
-        var status = $(this).find('input[name="status"]').val().trim();
-        if (!status) return;
-        fetch('add_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ status: status })
-        }).then(function() { location.reload(); });
-    });
+        const editShelfBtn = e.target.closest('.edit-shelf');
+        if (editShelfBtn) {
+            const shelf = editShelfBtn.dataset.shelf;
+            let name = prompt('Rename shelf:', shelf);
+            if (name === null) return;
+            name = name.trim();
+            if (!name || name === shelf) return;
+            try {
+                const res = await fetch('rename_shelf.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ shelf, new: name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    editShelfBtn.closest('li').querySelector('span, a').textContent = name;
+                    editShelfBtn.dataset.shelf = name;
+                    editShelfBtn.parentElement.querySelector('.delete-shelf').dataset.shelf = name;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+            return;
+        }
 
-    $('#addGenreForm').on('submit', function(e) {
-        e.preventDefault();
-        var genre = $(this).find('input[name="genre"]').val().trim();
-        if (!genre) return;
-        fetch('add_genre.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ genre: genre })
-        }).then(function() { location.reload(); });
-    });
+        const delStatusBtn = e.target.closest('.delete-status');
+        if (delStatusBtn) {
+            if (!confirm('Are you sure you want to remove this status?')) return;
+            const status = delStatusBtn.dataset.status;
+            try {
+                const res = await fetch('delete_status.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ status })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    delStatusBtn.closest('li').remove();
+                }
+            } catch (err) { console.error(err); }
+            return;
+        }
 
-    $(document).on('click', '.delete-shelf', function() {
-        if (!confirm('Are you sure you want to remove this shelf?')) return;
-        var shelf = $(this).data('shelf');
-        fetch('delete_shelf.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ shelf: shelf })
-        }).then(function() { location.reload(); });
-    });
+        const delGenreBtn = e.target.closest('.delete-genre');
+        if (delGenreBtn) {
+            if (!confirm('Are you sure you want to remove this genre?')) return;
+            const genre = delGenreBtn.dataset.genre;
+            try {
+                const res = await fetch('delete_genre.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ genre })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    delGenreBtn.closest('li').remove();
+                }
+            } catch (err) { console.error(err); }
+            return;
+        }
 
-    $(document).on('click', '.edit-shelf', function() {
-        var shelf = $(this).data('shelf');
-        var name = prompt('Rename shelf:', shelf);
-        if (name === null) return;
-        name = name.trim();
-        if (!name || name === shelf) return;
-        fetch('rename_shelf.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ shelf: shelf, new: name })
-        }).then(function() { location.reload(); });
-    });
+        const delBookBtn = e.target.closest('.delete-book');
+        if (delBookBtn) {
+            if (!confirm('Are you sure you want to permanently delete this book?')) return;
+            const bookId = delBookBtn.dataset.bookId;
+            try {
+                const res = await fetch('delete_book.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ book_id: bookId })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    delBookBtn.closest('[data-book-block-id]').remove();
+                }
+            } catch (err) { console.error(err); }
+            return;
+        }
 
-    $(document).on('click', '.delete-status', function() {
-        if (!confirm('Are you sure you want to remove this status?')) return;
-        var status = $(this).data('status');
-        fetch('delete_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ status: status })
-        }).then(function() { location.reload(); });
-    });
+        const editStatusBtn = e.target.closest('.edit-status');
+        if (editStatusBtn) {
+            const status = editStatusBtn.dataset.status;
+            let name = prompt('Rename status:', status);
+            if (name === null) return;
+            name = name.trim();
+            if (!name || name === status) return;
+            try {
+                const res = await fetch('rename_status.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ status, new: name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    editStatusBtn.closest('li').querySelector('span, a').textContent = name;
+                    editStatusBtn.dataset.status = name;
+                    editStatusBtn.parentElement.querySelector('.delete-status').dataset.status = name;
+                }
+            } catch (err) { console.error(err); }
+            return;
+        }
 
-    $(document).on('click', '.delete-genre', function() {
-        if (!confirm('Are you sure you want to remove this genre?')) return;
-        var genre = $(this).data('genre');
-        fetch('delete_genre.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ genre: genre })
-        }).then(function() { location.reload(); });
-    });
+        const editGenreBtn = e.target.closest('.edit-genre');
+        if (editGenreBtn) {
+            const genre = editGenreBtn.dataset.genre;
+            let name = prompt('Rename genre:', genre);
+            if (name === null) return;
+            name = name.trim();
+            if (!name || name === genre) return;
+            try {
+                const res = await fetch('rename_genre.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ id: genre, new: name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    editGenreBtn.closest('li').querySelector('span, a').textContent = name;
+                    editGenreBtn.dataset.genre = name;
+                    editGenreBtn.parentElement.querySelector('.delete-genre').dataset.genre = name;
+                }
+            } catch (err) { console.error(err); }
+            return;
+        }
 
-    $(document).on('click', '.delete-book', function() {
-        if (!confirm('Are you sure you want to permanently delete this book?')) return;
-        var bookId = $(this).data('book-id');
-        fetch('delete_book.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: bookId })
-        }).then(function() { location.reload(); });
-    });
-
-    $(document).on('click', '.edit-status', function() {
-        var status = $(this).data('status');
-        var name = prompt('Rename status:', status);
-        if (name === null) return;
-        name = name.trim();
-        if (!name || name === status) return;
-        fetch('rename_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ status: status, new: name })
-        }).then(function() { location.reload(); });
-    });
-
-    $(document).on('click', '.edit-genre', function() {
-        var genre = $(this).data('genre');
-        var name = prompt('Rename genre:', genre);
-        if (name === null) return;
-        name = name.trim();
-        if (!name || name === genre) return;
-        fetch('rename_genre.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ id: genre, new: name })
-        }).then(function() { location.reload(); });
-    });
-
-    $(document).on('click', '.edit-title', function() {
-        var bookId = $(this).data('book-id');
-        var current = $(this).data('title');
-        var name = prompt('Rename title:', current);
-        if (name === null) return;
-        name = name.trim();
-        if (!name || name === current) return;
-        var $link = $(this).siblings('a.book-title');
-        fetch('update_title.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: bookId, title: name })
-        }).then(function() {
-            $link.text(name);
-            $(this).data('title', name);
-        }.bind(this));
+        const editTitleBtn = e.target.closest('.edit-title');
+        if (editTitleBtn) {
+            const bookId = editTitleBtn.dataset.bookId;
+            const current = editTitleBtn.dataset.title;
+            let name = prompt('Rename title:', current);
+            if (name === null) return;
+            name = name.trim();
+            if (!name || name === current) return;
+            const link = editTitleBtn.closest('div').querySelector('a.book-title');
+            try {
+                await fetch('update_title.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ book_id: bookId, title: name })
+                });
+                if (link) link.textContent = name;
+                editTitleBtn.dataset.title = name;
+            } catch (err) { console.error(err); }
+            return;
+        }
     });
 
 
@@ -971,66 +1111,66 @@ function escapeHTML(str) {
 }
 
 // Fetch Google metadata
-$(document).on('click', '.google-meta', async function () {
-    const bookId = $(this).data('book-id');
-    const query = $(this).data('search');
+    const resultsEl = document.getElementById('googleResults');
+    document.addEventListener('click', async (ev) => {
+        const metaBtn = ev.target.closest('.google-meta');
+        if (metaBtn) {
+            const bookId = metaBtn.dataset.bookId;
+            const query = metaBtn.dataset.search;
+            if (resultsEl) resultsEl.textContent = 'Loading...';
+            googleModal.show();
+            try {
+                const response = await fetch(`google_search.php?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if (!data.books || data.books.length === 0) {
+                    if (resultsEl) resultsEl.textContent = 'No results';
+                    return;
+                }
+                const resultsHTML = data.books.map(b => {
+                    const title = escapeHTML(b.title || '');
+                    const author = escapeHTML(b.author || '');
+                    const year = escapeHTML(b.year || '');
+                    const imgUrl = escapeHTML(b.imgUrl || '');
+                    const description = escapeHTML(b.description || '');
 
-    $('#googleResults').text('Loading...');
-    googleModal.show();
-
-    try {
-        const response = await fetch(`google_search.php?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-
-        if (!data.books || data.books.length === 0) {
-            $('#googleResults').text('No results');
+                    return `
+                        <div class="mb-3 p-2 border rounded bg-light">
+                            ${imgUrl ? `<img src="${imgUrl}" style="height:100px" class="me-2 mb-2">` : ''}
+                            <strong>${title}</strong>
+                            ${author ? ` by ${author}` : ''}
+                            ${year ? ` (${year})` : ''}
+                            ${description ? `<br><em>${description}</em>` : ''}
+                            <div>
+                                <button type="button" class="btn btn-sm btn-primary mt-2 google-use"
+                                    data-book-id="${bookId}"
+                                    data-title="${title.replace(/"/g, '&quot;')}"
+                                    data-authors="${author.replace(/"/g, '&quot;')}"
+                                    data-year="${year.replace(/"/g, '&quot;')}"
+                                    data-imgurl="${imgUrl.replace(/"/g, '&quot;')}"
+                                    data-description="${description.replace(/"/g, '&quot;')}">
+                                    Use This
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                if (resultsEl) resultsEl.innerHTML = resultsHTML;
+            } catch (error) {
+                console.error(error);
+                if (resultsEl) resultsEl.textContent = 'Error fetching results';
+            }
             return;
         }
 
-        const resultsHTML = data.books.map(b => {
-            const title = escapeHTML(b.title || '');
-            const author = escapeHTML(b.author || '');
-            const year = escapeHTML(b.year || '');
-            const imgUrl = escapeHTML(b.imgUrl || '');
-            const description = escapeHTML(b.description || '');
+        const useBtn = ev.target.closest('.google-use');
+        if (!useBtn) return;
 
-            return `
-                <div class="mb-3 p-2 border rounded bg-light">
-                    ${imgUrl ? `<img src="${imgUrl}" style="height:100px" class="me-2 mb-2">` : ''}
-                    <strong>${title}</strong>
-                    ${author ? ` by ${author}` : ''}
-                    ${year ? ` (${year})` : ''}
-                    ${description ? `<br><em>${description}</em>` : ''}
-                    <div>
-                        <button type="button" class="btn btn-sm btn-primary mt-2 google-use"
-                            data-book-id="${bookId}"
-                            data-title="${title.replace(/"/g, '&quot;')}"
-                            data-authors="${author.replace(/"/g, '&quot;')}"
-                            data-year="${year.replace(/"/g, '&quot;')}"
-                            data-imgurl="${imgUrl.replace(/"/g, '&quot;')}"
-                            data-description="${description.replace(/"/g, '&quot;')}">
-                            Use This
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        $('#googleResults').html(resultsHTML);
-    } catch (error) {
-        console.error(error);
-        $('#googleResults').text('Error fetching results');
-    }
-});
-
-// Apply selected metadata
-$(document).on('click', '.google-use', async function () {
-    const bookId = $(this).data('book-id');
-    const t = $(this).data('title');
-    const a = $(this).data('authors');
-    const y = $(this).data('year');
-    const img = $(this).data('imgurl');
-    const desc = $(this).data('description');
+        const bookId = useBtn.dataset.bookId;
+        const t = useBtn.dataset.title;
+        const a = useBtn.dataset.authors;
+        const y = useBtn.dataset.year;
+        const img = useBtn.dataset.imgurl;
+        const desc = useBtn.dataset.description;
 
     try {
         const response = await fetch('update_metadata.php', {
@@ -1045,32 +1185,24 @@ $(document).on('click', '.google-use', async function () {
             googleModal.hide();
 
             // Update DOM directly
-            const bookBlock = $(`[data-book-block-id="${bookId}"]`);
-            if (bookBlock.length) {
-                // Title
-                bookBlock.find('.book-title').text(t);
+            const bookBlock = document.querySelector(`[data-book-block-id="${bookId}"]`);
+            if (bookBlock) {
+                const titleEl = bookBlock.querySelector('.book-title');
+                if (titleEl) titleEl.textContent = t;
 
-                // Authors (can handle multiple authors if needed)
-                if (a) {
-                    bookBlock.find('.book-authors').text(a);
-                } else {
-                    bookBlock.find('.book-authors').html('&mdash;');
-                }
+                const authorsEl = bookBlock.querySelector('.book-authors');
+                if (authorsEl) authorsEl.textContent = a || '—';
 
-                // Description
-                if (desc) {
-                    bookBlock.find('.book-description').text(desc);
-                } else {
-                    bookBlock.find('.book-description').html('&mdash;');
-                }
+                const descEl = bookBlock.querySelector('.book-description');
+                if (descEl) descEl.textContent = desc || '—';
 
-                // Thumbnail
                 if (img) {
-                    const imgElem = bookBlock.find('.book-cover');
-                    if (imgElem.length) {
-                        imgElem.attr('src', img);
+                    const imgElem = bookBlock.querySelector('.book-cover');
+                    if (imgElem) {
+                        imgElem.src = img;
                     } else {
-                        bookBlock.find('.cover-wrapper').html(`<img src="${img}" class="img-thumbnail img-fluid book-cover" alt="Cover">`);
+                        const wrapper = bookBlock.querySelector('.cover-wrapper');
+                        if (wrapper) wrapper.innerHTML = `<img src="${img}" class="img-thumbnail img-fluid book-cover" alt="Cover">`;
                     }
                 }
             }
@@ -1084,8 +1216,8 @@ $(document).on('click', '.google-use', async function () {
 });
 
 
-    $(window).on('scroll', function() {
-        if ($(window).scrollTop() + $(window).height() >= $(document).height() - 100) {
+    window.addEventListener('scroll', () => {
+        if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 100) {
             loadMore();
         }
     });
