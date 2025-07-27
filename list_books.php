@@ -425,16 +425,11 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <!-- Description -->
                 <div class="small text-muted book-description">
                     <?php
-                        $desc = trim(strip_tags($book['description'] ?? ''));
+                        $desc = trim($book['description'] ?? '');
                         if ($desc !== '') {
                             $lines = preg_split('/\r?\n/', $desc);
                             $preview = implode("\n", array_slice($lines, 0, 2));
-                            $rest = implode("\n", array_slice($lines, 2));
-                            echo '<span class="desc-preview">' . nl2br(htmlspecialchars($preview)) . '</span>';
-                            if ($rest !== '') {
-                                echo ' <span class="desc-more d-none">' . nl2br(htmlspecialchars($rest)) . '</span>';
-                                echo ' <a href="#" class="show-more">Show more</a>';
-                            }
+                            echo nl2br(htmlspecialchars($preview));
                         } else {
                             echo '&mdash;';
                         }
@@ -542,11 +537,6 @@ function linkTextColor(string $current, string $compare): string {
 [data-book-block-id] .book-description {
     margin-top: 0.5rem;
     line-height: 1.4;
-}
-
-.book-description .show-more {
-    cursor: pointer;
-    margin-left: 0.25rem;
 }
 
 /* Make action buttons wrap nicely */
@@ -765,26 +755,6 @@ document.addEventListener('DOMContentLoaded', () => {
     var googleModalEl = document.getElementById('googleModal');
     var googleModal = new bootstrap.Modal(googleModalEl);
 
-    function setDescriptionContent(el, text) {
-        text = text.trim();
-        if (!el) return;
-        if (!text) {
-            el.textContent = '\u2014';
-            return;
-        }
-        const lines = text.split(/\r?\n/);
-        const preview = lines.slice(0, 2).join('\n');
-        const rest = lines.slice(2).join('\n');
-        el.innerHTML = '<span class="desc-preview">' +
-            escapeHTML(preview).replace(/\n/g, '<br>') +
-            '</span>';
-        if (rest) {
-            el.innerHTML += ' <span class="desc-more d-none">' +
-                escapeHTML(rest).replace(/\n/g, '<br>') +
-                '</span> <a href="#" class="show-more">Show more</a>';
-        }
-    }
-
     var restorePage = parseInt(sessionStorage.getItem('listBooksPage') || '0', 10);
     var restoreScroll = parseInt(sessionStorage.getItem('listBooksScroll') || '0', 10);
     if (!isNaN(restorePage) && restorePage > currentPage) {
@@ -939,24 +909,6 @@ async function loadMore() {
     }
 
     document.addEventListener('click', async (e) => {
-        const showMoreLink = e.target.closest('.show-more');
-        if (showMoreLink) {
-            e.preventDefault();
-            const descEl = showMoreLink.closest('.book-description');
-            if (descEl) {
-                const more = descEl.querySelector('.desc-more');
-                if (more) {
-                    if (more.classList.contains('d-none')) {
-                        more.classList.remove('d-none');
-                        showMoreLink.textContent = 'Show less';
-                    } else {
-                        more.classList.add('d-none');
-                        showMoreLink.textContent = 'Show more';
-                    }
-                }
-            }
-            return;
-        }
         const delShelfBtn = e.target.closest('.delete-shelf');
         if (delShelfBtn) {
             if (!confirm('Are you sure you want to remove this shelf?')) return;
@@ -1125,6 +1077,19 @@ async function loadMore() {
     });
 
 
+
+
+
+   // Helper to escape HTML
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // Fetch Google metadata
     const resultsEl = document.getElementById('googleResults');
     document.addEventListener('click', async (ev) => {
@@ -1209,7 +1174,7 @@ async function loadMore() {
                 if (authorsEl) authorsEl.textContent = a || '—';
 
                 const descEl = bookBlock.querySelector('.book-description');
-                if (descEl) setDescriptionContent(descEl, desc || '');
+                if (descEl) descEl.textContent = desc || '—';
 
                 if (img) {
                     const imgElem = bookBlock.querySelector('.book-cover');
