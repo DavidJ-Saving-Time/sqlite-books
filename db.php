@@ -224,23 +224,11 @@ function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): 
         ")->execute([$label, $name]);
         $id = $pdo->lastInsertId();
 
-        // Create the value table
+        // Create the single-value table matching Calibre's expected schema
         $pdo->exec("
-            CREATE TABLE custom_column_$id (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                value TEXT NOT NULL COLLATE NOCASE,
-                link TEXT NOT NULL DEFAULT '',
-                UNIQUE(value)
-            )
-        ");
-
-        // Create the link table
-        $pdo->exec("
-            CREATE TABLE books_custom_column_{$id}_link (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                book INTEGER NOT NULL,
-                value INTEGER NOT NULL,
-                UNIQUE(book, value)
+            CREATE TABLE custom_column_{$id} (
+                book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+                value TEXT
             )
         ");
     }
@@ -291,23 +279,10 @@ function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): i
 
 function insertDefaultSingleValue(PDO $pdo, int $columnId, string $defaultValue): void {
     $valueTable = "custom_column_$columnId";
-    $linkTable  = "books_custom_column_{$columnId}_link";
 
-    // Ensure default value exists
-    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (?)")
-        ->execute([$defaultValue]);
-
-    // Get the ID of the default value
-    $stmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = ?");
+    // Assign default value to books that do not yet have an entry
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO $valueTable (book, value) SELECT id, ? FROM books WHERE id NOT IN (SELECT book FROM $valueTable)");
     $stmt->execute([$defaultValue]);
-    $valueId = $stmt->fetchColumn();
-
-    // Assign default value to books without a value
-    $pdo->exec("
-        INSERT INTO $linkTable (book, value)
-        SELECT id, $valueId FROM books
-        WHERE id NOT IN (SELECT book FROM $linkTable)
-    ");
 }
 
 function insertDefaultMultiValue(PDO $pdo, int $columnId, string $defaultValue): void {
