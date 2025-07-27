@@ -9,6 +9,17 @@ $source = 'openlibrary';
 $books = [];
 if ($search !== '') {
     $books = search_openlibrary($search);
+    // Fetch additional details like description for each work
+    foreach ($books as &$b) {
+        $b['description'] = '';
+        if (!empty($b['key'])) {
+            $work = get_openlibrary_work($b['key']);
+            if (!empty($work['description'])) {
+                $b['description'] = $work['description'];
+            }
+        }
+    }
+    unset($b);
 }
 ?>
 <!DOCTYPE html>
@@ -48,6 +59,15 @@ if ($search !== '') {
                     <a href="openlibrary_view.php?key=<?= urlencode($book['key']) ?>&title=<?= urlencode($book['title']) ?>&authors=<?= urlencode($book['authors']) ?>&cover_id=<?= urlencode((string)$book['cover_id']) ?>">
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
+                    <?php if (!empty($book['description'])): ?>
+                        <?php
+                            $desc = $book['description'];
+                            if (mb_strlen($desc) > 200) {
+                                $desc = mb_substr($desc, 0, 200) . '...';
+                            }
+                        ?>
+                        <div class="text-muted small mt-1"><?= nl2br(htmlspecialchars($desc)) ?></div>
+                    <?php endif; ?>
                 </td>
                 <td>
                     <?php if ($book['authors'] !== ''): ?>
@@ -69,7 +89,7 @@ if ($search !== '') {
                             data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"
                             data-authors="<?= htmlspecialchars($book['authors'], ENT_QUOTES) ?>"
                             data-thumbnail="<?= htmlspecialchars($coverUrl, ENT_QUOTES) ?>"
-                            data-description="">
+                            data-description="<?= htmlspecialchars($book['description'], ENT_QUOTES) ?>">
                         Add to Library
                     </button>
                     <span class="ol-add-result ms-1"></span>
