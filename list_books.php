@@ -493,7 +493,6 @@ function linkTextColor(string $current, string $compare): string {
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="theme.js"></script>
-    <script src="navbar_search.js"></script>
     <!-- Removed jQuery and jQuery UI -->
     <style>
         .title-col {
@@ -747,7 +746,27 @@ function escapeHTML(str) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-
+    const searchInput = document.querySelector('input[name="search"]');
+    const suggestionList = document.getElementById('authorSuggestions');
+    if (searchInput && suggestionList) {
+        searchInput.addEventListener('input', async () => {
+            const term = searchInput.value.trim();
+            suggestionList.innerHTML = '';
+            if (term.length < 2) return;
+            try {
+                const res = await fetch(`author_autocomplete.php?term=${encodeURIComponent(term)}`);
+                const data = await res.json();
+                suggestionList.innerHTML = '';
+                data.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    suggestionList.appendChild(opt);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    }
 
     var currentPage = <?= $page ?>;
     var totalPages = <?= $totalPages ?>;
