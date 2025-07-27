@@ -361,21 +361,21 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <!-- Dropdowns -->
                 <div class="d-flex flex-wrap gap-2 mb-2">
                     <?php
-                        $firstGenreId = '';
+                        $firstGenreVal = '';
                         if (!empty($book['genre_data'])) {
                             $first = explode('|', $book['genre_data'])[0];
                             if ($first !== '') {
-                                list($gid,) = explode(':', $first, 2);
-                                $firstGenreId = (string)$gid;
+                                [, $gval] = explode(':', $first, 2);
+                                $firstGenreVal = $gval;
                             }
                         }
                     ?>
                     <div>
                         <label class="small text-muted mb-1 d-block">Genre</label>
                         <select class="form-select form-select-sm genre-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                            <option value=""<?= $firstGenreId === '' ? ' selected' : '' ?>>None</option>
+                            <option value=""<?= $firstGenreVal === '' ? ' selected' : '' ?>>None</option>
                             <?php foreach ($genreList as $g): ?>
-                                <option value="<?= htmlspecialchars($g['id']) ?>"<?= (string)$g['id'] === $firstGenreId ? ' selected' : '' ?>>
+                                <option value="<?= htmlspecialchars($g['value']) ?>"<?= $g['value'] === $firstGenreVal ? ' selected' : '' ?>>
                                     <?= htmlspecialchars($g['value']) ?>
                                 </option>
                             <?php endforeach; ?>
