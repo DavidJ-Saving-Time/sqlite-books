@@ -431,8 +431,15 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         if ($desc !== '') {
                             $lines = preg_split('/\r?\n/', $desc);
                             $preview = implode("\n", array_slice($lines, 0, 2));
+                            $truncated = count($lines) > 2;
+                            $maxChars = 300;
+                            if (mb_strlen($preview) > $maxChars) {
+                                $preview = mb_substr($preview, 0, $maxChars);
+                                $preview = preg_replace('/\s+\S*$/u', '', $preview);
+                                $truncated = true;
+                            }
                             echo nl2br(htmlspecialchars($preview));
-                            if (count($lines) > 2) {
+                            if ($truncated) {
                                 echo '... <a href="#" class="show-more">Show more</a>';
                             }
                         } else {
@@ -763,10 +770,18 @@ function setDescription(el, text) {
         el.textContent = '—';
         return;
     }
+    const MAX_CHARS = 300;
     const lines = text.split(/\r?\n/);
-    const preview = lines.slice(0, 2).join('\n');
+    let preview = lines.slice(0, 2).join('\n');
+    let truncated = lines.length > 2;
+
+    if (preview.length > MAX_CHARS) {
+        preview = preview.slice(0, MAX_CHARS).replace(/\s+\S*$/, '');
+        truncated = true;
+    }
+
     let html = escapeHTML(preview).replace(/\n/g, '<br>');
-    if (lines.length > 2) {
+    if (truncated) {
         html += '... <a href="#" class="show-more">Show more</a>';
     }
     el.innerHTML = html;
