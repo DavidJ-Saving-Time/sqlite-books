@@ -69,7 +69,9 @@ if ($search !== '') {
                     <?php endif; ?>
                     <button type="button" class="btn btn-sm btn-primary ms-1 annas-add"
                             data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"
-                            data-authors="<?= htmlspecialchars($book['author'], ENT_QUOTES) ?>">
+                            data-authors="<?= htmlspecialchars($book['author'], ENT_QUOTES) ?>"
+                            data-thumbnail="<?= htmlspecialchars($book['imgUrl'], ENT_QUOTES) ?>"
+                            data-description="">
                         Add to Library
                     </button>
                     <span class="annas-add-result ms-1"></span>
@@ -105,13 +107,15 @@ document.addEventListener('click', async (e) => {
     if (addBtn) {
         const title = addBtn.dataset.title;
         const authors = addBtn.dataset.authors;
+        const thumbnail = addBtn.dataset.thumbnail || '';
+        const description = addBtn.dataset.description || '';
         const resultEl = addBtn.parentElement.querySelector('.annas-add-result');
         if (resultEl) resultEl.textContent = 'Adding...';
         try {
             const r = await fetch('add_metadata_book.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ title, authors })
+                body: new URLSearchParams({ title, authors, thumbnail, description })
             });
             const data = await r.json();
             if (resultEl) {
