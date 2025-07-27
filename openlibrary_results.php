@@ -117,12 +117,15 @@ document.addEventListener('click', async (e) => {
                 body: new URLSearchParams({ title, authors, thumbnail, description })
             });
             const data = await r.json();
+            if (data.status === 'ok') {
+                window.location.href =
+                    'list_books.php?search=' +
+                    encodeURIComponent(title) +
+                    '&source=local';
+                return;
+            }
             if (resultEl) {
-                if (data.status === 'ok') {
-                    resultEl.textContent = 'Book added';
-                } else {
-                    resultEl.textContent = data.error || 'Error adding';
-                }
+                resultEl.textContent = data.error || 'Error adding';
             }
         } catch (err) {
             if (resultEl) resultEl.textContent = 'Error adding';

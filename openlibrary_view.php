@@ -80,10 +80,13 @@ document.getElementById('addBtn').addEventListener('click', function () {
     .then(resp => resp.json())
     .then(data => {
         if (data.status === 'ok') {
-            resultEl.textContent = 'Book added to library';
-        } else {
-            resultEl.textContent = data.error || 'Error adding book';
+            window.location.href =
+                'list_books.php?search=' +
+                encodeURIComponent(title) +
+                '&source=local';
+            return;
         }
+        resultEl.textContent = data.error || 'Error adding book';
     })
     .catch(() => {
         resultEl.textContent = 'Error adding book';
