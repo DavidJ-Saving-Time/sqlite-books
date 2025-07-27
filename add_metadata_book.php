@@ -13,8 +13,6 @@ $libraryPath = getLibraryPath();
 $title = trim($_POST['title'] ?? '');
 $authors_str = trim($_POST['authors'] ?? '');
 $tags_str = trim($_POST['tags'] ?? '');
-$imgUrl = trim($_POST['imgurl'] ?? '');
-$description = trim($_POST['description'] ?? '');
 
 if ($title === '' || $authors_str === '') {
     http_response_code(400);
@@ -76,8 +74,8 @@ try {
         $tagsXml .= "    <dc:subject>" . htmlspecialchars($tag) . "</dc:subject>\n";
     }
 
-   $timestamp = date('Y-m-d\TH:i:s');
-   $opf = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package version=\"2.0\" xmlns=\"http://www.idpf.org/2007/opf\">\n  <metadata>\n" .
+    $timestamp = date('Y-m-d\TH:i:s');
+    $opf = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package version=\"2.0\" xmlns=\"http://www.idpf.org/2007/opf\">\n  <metadata>\n" .
            "    <dc:title>" . htmlspecialchars($title) . "</dc:title>\n" .
            "    <dc:creator opf:role=\"aut\">" . htmlspecialchars($firstAuthor) . "</dc:creator>\n" .
            $tagsXml .
@@ -85,21 +83,7 @@ try {
            "    <dc:identifier opf:scheme=\"uuid\">$uuid</dc:identifier>\n" .
            "    <meta name=\"calibre:timestamp\" content=\"$timestamp+00:00\"/>\n" .
            "  </metadata>\n</package>";
-   file_put_contents($fullBookFolder . '/metadata.opf', $opf);
-
-    if ($imgUrl !== '') {
-        $data = @file_get_contents($imgUrl);
-        if ($data !== false) {
-            file_put_contents($fullBookFolder . '/cover.jpg', $data);
-            $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = ?')->execute([$bookId]);
-        }
-    }
-
-    if ($description !== '') {
-        $stmt = $pdo->prepare('INSERT INTO comments (book, text) VALUES (:book, :text) '
-            . 'ON CONFLICT(book) DO UPDATE SET text=excluded.text');
-        $stmt->execute([':book' => $bookId, ':text' => $description]);
-    }
+    file_put_contents($fullBookFolder . '/metadata.opf', $opf);
 
     $pdo->commit();
 
