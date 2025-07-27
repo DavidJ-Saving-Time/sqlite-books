@@ -67,7 +67,7 @@ document.getElementById('addBtn').addEventListener('click', function () {
     const params = new URLSearchParams({title: title, authors: authors});
     const resultEl = document.getElementById('addResult');
     resultEl.textContent = 'Adding...';
-    fetch('add_book.php', {
+    fetch('add_metadata_book.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: params

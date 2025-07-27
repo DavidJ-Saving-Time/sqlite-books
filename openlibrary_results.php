@@ -62,12 +62,47 @@ if ($search !== '') {
                         &mdash;
                     <?php endif; ?>
                 </td>
-                <td>&mdash;</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-primary ol-add"
+                            data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"
+                            data-authors="<?= htmlspecialchars($book['authors'], ENT_QUOTES) ?>">
+                        Add to Library
+                    </button>
+                    <span class="ol-add-result ms-1"></span>
+                </td>
             </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+document.addEventListener('click', async (e) => {
+    const addBtn = e.target.closest('.ol-add');
+    if (addBtn) {
+        const title = addBtn.dataset.title;
+        const authors = addBtn.dataset.authors;
+        const resultEl = addBtn.parentElement.querySelector('.ol-add-result');
+        if (resultEl) resultEl.textContent = 'Adding...';
+        try {
+            const r = await fetch('add_metadata_book.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ title, authors })
+            });
+            const data = await r.json();
+            if (resultEl) {
+                if (data.status === 'ok') {
+                    resultEl.textContent = 'Book added';
+                } else {
+                    resultEl.textContent = data.error || 'Error adding';
+                }
+            }
+        } catch (err) {
+            if (resultEl) resultEl.textContent = 'Error adding';
+        }
+    }
+});
+</script>
 </body>
 </html>
