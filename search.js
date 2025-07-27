@@ -1,6 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.querySelector('input[name="search"]');
   const suggestionList = document.getElementById('authorSuggestions');
+  if (searchInput) {
+    const defaultWidth = searchInput.offsetWidth + 'px';
+    searchInput.style.transition = 'width 0.3s';
+    searchInput.addEventListener('focus', () => {
+      searchInput.style.width = '20rem';
+    });
+    searchInput.addEventListener('blur', () => {
+      searchInput.style.width = defaultWidth;
+    });
+  }
   if (searchInput && suggestionList) {
     searchInput.addEventListener('input', async () => {
       const term = searchInput.value.trim();
