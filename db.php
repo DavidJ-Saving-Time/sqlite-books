@@ -229,9 +229,8 @@ function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): 
         $id = $pdo->lastInsertId();
     }
 
-    $valueTable = "custom_column_$id";
-    $linkTable  = "books_custom_column_{$id}_link";
-    ensureSingleValueTable($pdo, $valueTable, $linkTable);
+    $table = "custom_column_$id";
+    ensureSingleValueTable($pdo, $table);
 
     return (int)$id;
 }
@@ -262,23 +261,10 @@ function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): i
 
 function insertDefaultSingleValue(PDO $pdo, int $columnId, string $defaultValue): void {
     $valueTable = "custom_column_$columnId";
-    $linkTable  = "books_custom_column_{$columnId}_link";
 
-    // Ensure default value exists
-    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (?)")
-        ->execute([$defaultValue]);
-
-    // Get the ID of the default value
-    $stmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = ?");
+    // Assign default value to books that do not yet have an entry
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO $valueTable (book, value) SELECT id, ? FROM books WHERE id NOT IN (SELECT book FROM $valueTable)");
     $stmt->execute([$defaultValue]);
-    $valueId = $stmt->fetchColumn();
-
-    // Assign default value to books without any entry
-    $pdo->exec(
-        "INSERT INTO $linkTable (book, value)
-         SELECT id, $valueId FROM books
-         WHERE id NOT IN (SELECT book FROM $linkTable)"
-    );
 }
 
 function insertDefaultMultiValue(PDO $pdo, int $columnId, string $defaultValue): void {
@@ -318,43 +304,39 @@ function tableColumns(PDO $pdo, string $table): array {
     return $cols;
 }
 
-function ensureSingleValueTable(PDO $pdo, string $valueTable, string $linkTable): void {
-    $expectedOld = ['book', 'value'];
-    $expectedNew = ['id', 'value', 'link'];
+function ensureSingleValueTable(PDO $pdo, string $table): void {
+    $expected = ['book', 'value'];
 
-    $needsMigration = false;
-    if (tableExists($pdo, $valueTable)) {
-        $cols = tableColumns($pdo, $valueTable);
+    if (tableExists($pdo, $table)) {
+        $cols = tableColumns($pdo, $table);
         $sorted = $cols;
         sort($sorted);
-        $expOld = $expectedOld;
-        sort($expOld);
-        $expNew = $expectedNew;
-        sort($expNew);
-        if ($sorted === $expOld) {
-            $backup = $valueTable . '_backup_' . time();
-            $pdo->exec("ALTER TABLE $valueTable RENAME TO $backup");
-            $needsMigration = $backup;
-        } elseif ($sorted === $expNew) {
-            // Already in new format
-            $backup = null;
-        } else {
-            $backup = $valueTable . '_backup_' . time();
-            $pdo->exec("ALTER TABLE $valueTable RENAME TO $backup");
-            $needsMigration = $backup;
+        $exp = $expected;
+        sort($exp);
+        if ($sorted === $exp) {
+            return;
         }
+
+        $backup = $table . '_backup_' . time();
+        $pdo->exec("ALTER TABLE $table RENAME TO $backup");
     } else {
         $backup = null;
     }
 
-    ensureMultiValueTables($pdo, $valueTable, $linkTable);
+    $pdo->exec(
+        "CREATE TABLE $table (
+            book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+            value TEXT
+        )"
+    );
 
-    if ($needsMigration) {
-        $pdo->exec("INSERT OR IGNORE INTO $valueTable (value) SELECT DISTINCT value FROM $needsMigration");
-        $pdo->exec(
-            "INSERT INTO $linkTable (book, value) " .
-            "SELECT b.book, v.id FROM $needsMigration b JOIN $valueTable v ON v.value = b.value"
-        );
+    if ($backup) {
+        $cols = tableColumns($pdo, $backup);
+        $common = array_intersect($cols, $expected);
+        if ($common) {
+            $colList = implode(',', $common);
+            $pdo->exec("INSERT INTO $table ($colList) SELECT $colList FROM $backup");
+        }
     }
 }
 

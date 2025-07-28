@@ -24,16 +24,9 @@ try {
         $pdo = getDatabaseConnection();
 
         $recId = ensureSingleValueColumn($pdo, '#recommendation', 'Recommendation');
-        $valueTable = "custom_column_{$recId}";
-        $linkTable  = "books_custom_column_{$recId}_link";
-        $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:val)")
-            ->execute([':val' => $output]);
-        $valStmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :val");
-        $valStmt->execute([':val' => $output]);
-        $valId = $valStmt->fetchColumn();
-        $pdo->prepare("DELETE FROM $linkTable WHERE book = :book")->execute([':book' => $bookId]);
-        $stmt = $pdo->prepare("INSERT INTO $linkTable (book, value) VALUES (:book, :val)");
-        $stmt->execute([':book' => $bookId, ':val' => $valId]);
+        $table = "custom_column_{$recId}";
+        $stmt = $pdo->prepare("REPLACE INTO $table (book, value) VALUES (:book, :val)");
+        $stmt->execute([':book' => $bookId, ':val' => $output]);
     }
 
     echo json_encode(['output' => $output]);
