@@ -299,7 +299,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
             <!-- Left: Thumbnail -->
             <div class="col-md-2 col-12 text-center cover-wrapper">
                 <?php if (!empty($book['has_cover'])): ?>
-                    <a href="book.php?id=<?= urlencode($book['id']) ?>">
+                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>">
                         <img src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
                              alt="Cover"
                              class="img-thumbnail img-fluid book-cover"
@@ -317,7 +317,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php if ($missing): ?>
                         <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
                     <?php endif; ?>
-                    <a href="book.php?id=<?= urlencode($book['id']) ?>" class="fw-bold book-title me-1"
+                    <a href="view_book.php?id=<?= urlencode($book['id']) ?>" class="fw-bold book-title me-1"
                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
@@ -409,7 +409,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
 
                     <!-- Actions -->
                     <div class="ms-auto d-flex align-items-end">
-                        <a class="btn btn-sm btn-primary me-1" href="book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
+                        <a class="btn btn-sm btn-primary me-1" href="edit_book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
                         <button type="button" class="btn btn-sm btn-secondary google-meta me-1"
                                 data-book-id="<?= htmlspecialchars($book['id']) ?>"
                                 data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
