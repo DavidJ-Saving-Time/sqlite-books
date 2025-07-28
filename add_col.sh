@@ -8,7 +8,7 @@ DB=$(php -r "require 'db.php'; echo currentDatabasePath();")
 NEXT_ID=$(sqlite3 "$DB" "SELECT COALESCE(MAX(id), 0) + 1 FROM custom_columns;")
 
 # Insert into custom_columns (no search_terms column)
-sqlite3 "$DB" "INSERT INTO custom_columns (id, label, name, datatype, is_multiple, editable, display, normalized) VALUES ($NEXT_ID, 'shelfs', 'myshelf', 'text', 0, 1, '{}', 1);"
+sqlite3 "$DB" "INSERT INTO custom_columns (id, label, name, datatype, mark_for_delete, editable, is_multiple, normalized, display) VALUES ($NEXT_ID, 'shelfs', 'myshelf', 'text', 0, 1, 0, 1, '{}');"
 
 # Create the value and link tables for the new column
 sqlite3 "$DB" "CREATE TABLE custom_column_${NEXT_ID} (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '', UNIQUE(value));"
