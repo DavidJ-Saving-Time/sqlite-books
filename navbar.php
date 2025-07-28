@@ -98,6 +98,26 @@ $statusNameVal = isset($statusName) ? $statusName : '';
             <i class="fa-solid fa-plus me-1"></i> Add Book
           </a>
         </li>
+
+        <?php if (isset($shelfList) && function_exists('buildBaseUrl')): ?>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Shelves
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <a class="dropdown-item<?= $shelfNameVal === '' ? ' active' : '' ?>" href="<?= htmlspecialchars(buildBaseUrl([], ['shelf'])) ?>">All Shelves</a>
+            </li>
+            <?php foreach ($shelfList as $s): ?>
+            <li>
+              <a class="dropdown-item<?= $shelfNameVal === $s ? ' active' : '' ?>" href="<?= htmlspecialchars(buildBaseUrl(['shelf' => $s])) ?>">
+                <?= htmlspecialchars($s) ?>
+              </a>
+            </li>
+            <?php endforeach; ?>
+          </ul>
+        </li>
+        <?php endif; ?>
         <li class="nav-item">
           <a class="nav-link" href="preferences.php">
             <i class="fa-solid fa-gear me-1"></i> Prefs
