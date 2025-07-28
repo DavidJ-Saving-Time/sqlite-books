@@ -27,6 +27,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'] ?? '';
     $authorsInput = trim($_POST['authors'] ?? '');
     $descriptionInput = trim($_POST['description'] ?? '');
+    $seriesIdInput = $_POST['series_id'] ?? '';
+    $newSeriesName = trim($_POST['new_series'] ?? '');
+    $seriesIndexInput = trim($_POST['series_index'] ?? '');
 
     $pdo->beginTransaction();
     $stmt = $pdo->prepare('UPDATE books SET title = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?');
@@ -61,6 +64,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->prepare('DELETE FROM comments WHERE book = ?')->execute([$id]);
     }
+
+    // Handle series update
+    $seriesIndex = $seriesIndexInput !== '' ? (float)$seriesIndexInput : (float)$book['series_index'];
+    if ($seriesIdInput === '' && $newSeriesName === '') {
+        $pdo->prepare('DELETE FROM books_series_link WHERE book = :book')
+            ->execute([':book' => $id]);
+    } else {
+        if ($seriesIdInput === 'new' || ($seriesIdInput === '' && $newSeriesName !== '')) {
+            $stmt = $pdo->prepare('INSERT OR IGNORE INTO series (name, sort) VALUES (:name, :sort)');
+            $stmt->execute([':name' => $newSeriesName, ':sort' => $newSeriesName]);
+            $stmt = $pdo->prepare('SELECT id FROM series WHERE name = :name');
+            $stmt->execute([':name' => $newSeriesName]);
+            $seriesId = (int)$stmt->fetchColumn();
+        } else {
+            $seriesId = (int)$seriesIdInput;
+        }
+        $pdo->prepare('DELETE FROM books_series_link WHERE book = :book')
+            ->execute([':book' => $id]);
+        $pdo->prepare('INSERT OR REPLACE INTO books_series_link (book, series) VALUES (:book, :series)')
+            ->execute([':book' => $id, ':series' => $seriesId]);
+    }
+    $pdo->prepare('UPDATE books SET series_index = :idx WHERE id = :id')
+        ->execute([':idx' => $seriesIndex, ':id' => $id]);
 
     if (!empty($_FILES['cover']) && $_FILES['cover']['error'] === UPLOAD_ERR_OK) {
         $libraryPath = getLibraryPath();
@@ -117,6 +143,15 @@ $tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
     WHERE btl.book = ?");
 $tagsStmt->execute([$id]);
 $tags = $tagsStmt->fetchColumn();
+
+// Fetch list of all series for dropdown
+$seriesList = [];
+try {
+    $stmt = $pdo->query('SELECT id, name FROM series ORDER BY name COLLATE NOCASE');
+    $seriesList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $seriesList = [];
+}
 
 // Fetch saved recommendations if present
 try {
@@ -255,6 +290,25 @@ $missingFile = !bookHasFile($book['path']);
                     </label>
                     <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
                     <datalist id="authorSuggestionsEdit"></datalist>
+                </div>
+                <div class="mb-3">
+                    <label for="series" class="form-label">
+                        <i class="fa-solid fa-layer-group me-1 text-primary"></i> Series
+                    </label>
+                    <select id="series" name="series_id" class="form-select">
+                        <option value=""<?= empty($book['series_id']) ? ' selected' : '' ?>>None</option>
+                        <?php foreach ($seriesList as $s): ?>
+                            <option value="<?= htmlspecialchars($s['id']) ?>"<?= (int)$book['series_id'] === (int)$s['id'] ? ' selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
+                        <?php endforeach; ?>
+                        <option value="new">Add new series...</option>
+                    </select>
+                    <input type="text" id="newSeriesInput" name="new_series" class="form-control mt-2" placeholder="New series name" style="display:none">
+                </div>
+                <div class="mb-3">
+                    <label for="seriesIndex" class="form-label">
+                        <i class="fa-solid fa-hashtag me-1 text-primary"></i> Number in Series
+                    </label>
+                    <input type="number" step="0.1" id="seriesIndex" name="series_index" value="<?= htmlspecialchars($book['series_index']) ?>" class="form-control">
                 </div>
                 <div class="mb-3">
                     <label for="description" class="form-label">
@@ -625,6 +679,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error(err);
             }
         });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const seriesSelect = document.getElementById('series');
+    const newSeriesInput = document.getElementById('newSeriesInput');
+    function toggleSeriesInput() {
+        if (!seriesSelect) return;
+        if (seriesSelect.value === 'new') {
+            newSeriesInput.style.display = '';
+        } else {
+            newSeriesInput.style.display = 'none';
+            if (seriesSelect.value !== 'new') newSeriesInput.value = '';
+        }
+    }
+    if (seriesSelect && newSeriesInput) {
+        seriesSelect.addEventListener('change', toggleSeriesInput);
+        toggleSeriesInput();
     }
 });
 </script>
