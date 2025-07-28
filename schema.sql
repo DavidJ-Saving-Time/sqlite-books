@@ -1,7 +1,7 @@
 CREATE TABLE authors ( id   INTEGER PRIMARY KEY,
                               name TEXT NOT NULL COLLATE NOCASE,
                               sort TEXT COLLATE NOCASE,
-                              link TEXT NOT NULL DEFAULT "",
+                              link TEXT NOT NULL DEFAULT '',
                               UNIQUE(name)
                              );
 CREATE TABLE books ( id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -11,13 +11,13 @@ CREATE TABLE books ( id      INTEGER PRIMARY KEY AUTOINCREMENT,
                              pubdate   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                              series_index REAL NOT NULL DEFAULT 1.0,
                              author_sort TEXT COLLATE NOCASE,
-                             isbn TEXT DEFAULT "" COLLATE NOCASE,
-                             lccn TEXT DEFAULT "" COLLATE NOCASE,
-                             path TEXT NOT NULL DEFAULT "",
+                             isbn TEXT DEFAULT '' COLLATE NOCASE,
+                             lccn TEXT DEFAULT '' COLLATE NOCASE,
+                             path TEXT NOT NULL DEFAULT '',
                              flags INTEGER NOT NULL DEFAULT 1,
                              uuid TEXT,
                              has_cover BOOL DEFAULT 0,
-                             last_modified TIMESTAMP NOT NULL DEFAULT "2000-01-01 00:00:00+00:00");
+                             last_modified TIMESTAMP NOT NULL DEFAULT '2000-01-01 00:00:00+00:00');
 CREATE TABLE sqlite_sequence(name,seq);
 CREATE TABLE books_authors_link ( id INTEGER PRIMARY KEY,
                                           book INTEGER NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE custom_columns (
                     datatype TEXT NOT NULL,
                     mark_for_delete   BOOL DEFAULT 0 NOT NULL,
                     editable BOOL DEFAULT 1 NOT NULL,
-                    display  TEXT DEFAULT "{}" NOT NULL,
+                    display  TEXT DEFAULT '{}' NOT NULL,
                     is_multiple BOOL DEFAULT 0 NOT NULL,
                     normalized BOOL NOT NULL,
                     UNIQUE(label)
@@ -92,12 +92,13 @@ CREATE TABLE feeds ( id   INTEGER PRIMARY KEY,
                              );
 CREATE TABLE identifiers  ( id     INTEGER PRIMARY KEY,
                                     book   INTEGER NOT NULL,
-                                    type   TEXT NOT NULL DEFAULT "isbn" COLLATE NOCASE,
+                                    type   TEXT NOT NULL DEFAULT 'isbn' COLLATE NOCASE,
                                     val    TEXT NOT NULL COLLATE NOCASE,
                                     UNIQUE(book, type)
         );
 CREATE TABLE languages    ( id        INTEGER PRIMARY KEY,
-                                    lang_code TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
+                                    lang_code TEXT NOT NULL COLLATE NOCASE,
+							        link TEXT NOT NULL DEFAULT '',
                                     UNIQUE(lang_code)
         );
 CREATE TABLE library_id ( id   INTEGER PRIMARY KEY,
@@ -107,26 +108,33 @@ CREATE TABLE library_id ( id   INTEGER PRIMARY KEY,
 CREATE TABLE metadata_dirtied(id INTEGER PRIMARY KEY,
                              book INTEGER NOT NULL,
                              UNIQUE(book));
+CREATE TABLE annotations_dirtied(id INTEGER PRIMARY KEY,
+                             book INTEGER NOT NULL,
+                             UNIQUE(book));
 CREATE TABLE preferences(id INTEGER PRIMARY KEY,
                                  key TEXT NOT NULL,
                                  val TEXT NOT NULL,
                                  UNIQUE(key));
 CREATE TABLE publishers ( id   INTEGER PRIMARY KEY,
                                   name TEXT NOT NULL COLLATE NOCASE,
-                                  sort TEXT COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
+                                  sort TEXT COLLATE NOCASE,
+								  link TEXT NOT NULL DEFAULT '',
                                   UNIQUE(name)
                              );
 CREATE TABLE ratings ( id   INTEGER PRIMARY KEY,
-                               rating INTEGER CHECK(rating > -1 AND rating < 11), link TEXT NOT NULL DEFAULT '',
+                               rating INTEGER CHECK(rating > -1 AND rating < 11),
+							   link TEXT NOT NULL DEFAULT '',
                                UNIQUE (rating)
                              );
 CREATE TABLE series ( id   INTEGER PRIMARY KEY,
                               name TEXT NOT NULL COLLATE NOCASE,
-                              sort TEXT COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
+                              sort TEXT COLLATE NOCASE,
+							  link TEXT NOT NULL DEFAULT '',
                               UNIQUE (name)
                              );
 CREATE TABLE tags ( id   INTEGER PRIMARY KEY,
-                            name TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
+                            name TEXT NOT NULL COLLATE NOCASE,
+							link TEXT NOT NULL DEFAULT '',
                             UNIQUE (name)
                              );
 CREATE TABLE last_read_positions ( id INTEGER PRIMARY KEY,
@@ -139,137 +147,47 @@ CREATE TABLE last_read_positions ( id INTEGER PRIMARY KEY,
 	pos_frac REAL NOT NULL DEFAULT 0,
 	UNIQUE(user, device, book, format)
 );
-CREATE TABLE custom_column_1(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book  INTEGER,
-                    value TEXT NOT NULL COLLATE NOCASE,
-                    UNIQUE(book));
-CREATE TABLE custom_column_2(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
-                    UNIQUE(value));
-CREATE TABLE books_custom_column_2_link(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book INTEGER NOT NULL,
-                    value INTEGER NOT NULL,
-                    
-                    UNIQUE(book, value)
-                    );
-CREATE TABLE annotations_dirtied(id INTEGER PRIMARY KEY,
-                             book INTEGER NOT NULL,
-                             UNIQUE(book));
 CREATE TABLE annotations ( id INTEGER PRIMARY KEY,
-    book INTEGER NOT NULL,
-    format TEXT NOT NULL COLLATE NOCASE,
-    user_type TEXT NOT NULL,
-    user TEXT NOT NULL,
-    timestamp REAL NOT NULL,
-    annot_id TEXT NOT NULL,
-    annot_type TEXT NOT NULL,
-    annot_data TEXT NOT NULL,
-    searchable_text TEXT NOT NULL DEFAULT "",
+	book INTEGER NOT NULL,
+	format TEXT NOT NULL COLLATE NOCASE,
+	user_type TEXT NOT NULL,
+	user TEXT NOT NULL,
+	timestamp REAL NOT NULL,
+	annot_id TEXT NOT NULL,
+	annot_type TEXT NOT NULL,
+	annot_data TEXT NOT NULL,
+    searchable_text TEXT NOT NULL DEFAULT '',
     UNIQUE(book, user_type, user, format, annot_type, annot_id)
 );
+CREATE VIRTUAL TABLE annotations_fts USING fts5(searchable_text, content = 'annotations', content_rowid = 'id', tokenize = 'unicode61 remove_diacritics 2')
+/* annotations_fts(searchable_text) */;
 CREATE TABLE IF NOT EXISTS 'annotations_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
 CREATE TABLE IF NOT EXISTS 'annotations_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS 'annotations_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
 CREATE TABLE IF NOT EXISTS 'annotations_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID;
+CREATE VIRTUAL TABLE annotations_fts_stemmed USING fts5(searchable_text, content = 'annotations', content_rowid = 'id', tokenize = 'porter unicode61 remove_diacritics 2')
+/* annotations_fts_stemmed(searchable_text) */;
 CREATE TABLE IF NOT EXISTS 'annotations_fts_stemmed_data'(id INTEGER PRIMARY KEY, block BLOB);
 CREATE TABLE IF NOT EXISTS 'annotations_fts_stemmed_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS 'annotations_fts_stemmed_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
 CREATE TABLE IF NOT EXISTS 'annotations_fts_stemmed_config'(k PRIMARY KEY, v) WITHOUT ROWID;
-CREATE TABLE custom_column_3(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
-                    UNIQUE(value));
-CREATE TABLE books_custom_column_3_link(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book INTEGER NOT NULL,
-                    value INTEGER NOT NULL,
-                    extra REAL,
-                    UNIQUE(book, value)
-                    );
-CREATE TABLE custom_column_4(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book  INTEGER,
-                    value TEXT NOT NULL COLLATE NOCASE,
-                    UNIQUE(book));
-CREATE TABLE custom_column_6(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
-                    UNIQUE(value));
-CREATE TABLE books_custom_column_6_link(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book INTEGER NOT NULL,
-                    value INTEGER NOT NULL,
-                    
-                    UNIQUE(book, value)
-                    );
-CREATE TABLE custom_column_7(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
-                    UNIQUE(value));
-CREATE TABLE books_custom_column_7_link(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book INTEGER NOT NULL,
-                    value INTEGER NOT NULL,
-                    
-                    UNIQUE(book, value)
-                    );
-CREATE TABLE custom_column_8(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    value TEXT NOT NULL COLLATE NOCASE, link TEXT NOT NULL DEFAULT '',
-                    UNIQUE(value));
-CREATE TABLE books_custom_column_8_link(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book INTEGER NOT NULL,
-                    value INTEGER NOT NULL,
-                    
-                    UNIQUE(book, value)
-                    );
-CREATE INDEX authors_idx ON books (author_sort COLLATE NOCASE);
-CREATE INDEX books_authors_link_aidx ON books_authors_link (author);
-CREATE INDEX books_authors_link_bidx ON books_authors_link (book);
-CREATE INDEX books_idx ON books (sort COLLATE NOCASE);
-CREATE INDEX books_languages_link_aidx ON books_languages_link (lang_code);
-CREATE INDEX books_languages_link_bidx ON books_languages_link (book);
-CREATE INDEX books_publishers_link_aidx ON books_publishers_link (publisher);
-CREATE INDEX books_publishers_link_bidx ON books_publishers_link (book);
-CREATE INDEX books_ratings_link_aidx ON books_ratings_link (rating);
-CREATE INDEX books_ratings_link_bidx ON books_ratings_link (book);
-CREATE INDEX books_series_link_aidx ON books_series_link (series);
-CREATE INDEX books_series_link_bidx ON books_series_link (book);
-CREATE INDEX books_tags_link_aidx ON books_tags_link (tag);
-CREATE INDEX books_tags_link_bidx ON books_tags_link (book);
-CREATE INDEX comments_idx ON comments (book);
-CREATE INDEX conversion_options_idx_a ON conversion_options (format COLLATE NOCASE);
-CREATE INDEX conversion_options_idx_b ON conversion_options (book);
-CREATE INDEX custom_columns_idx ON custom_columns (label);
-CREATE INDEX data_idx ON data (book);
-CREATE INDEX lrp_idx ON last_read_positions (book);
-CREATE INDEX formats_idx ON data (format);
-CREATE INDEX languages_idx ON languages (lang_code COLLATE NOCASE);
-CREATE INDEX publishers_idx ON publishers (name COLLATE NOCASE);
-CREATE INDEX series_idx ON series (name COLLATE NOCASE);
-CREATE INDEX tags_idx ON tags (name COLLATE NOCASE);
-CREATE INDEX custom_column_1_idx ON custom_column_1 (book);
-CREATE INDEX custom_column_2_idx ON custom_column_2 (value COLLATE NOCASE);
-CREATE INDEX books_custom_column_2_link_aidx ON books_custom_column_2_link (value);
-CREATE INDEX books_custom_column_2_link_bidx ON books_custom_column_2_link (book);
-CREATE INDEX annot_idx ON annotations (book);
-CREATE INDEX custom_column_3_idx ON custom_column_3 (value COLLATE NOCASE);
-CREATE INDEX books_custom_column_3_link_aidx ON books_custom_column_3_link (value);
-CREATE INDEX books_custom_column_3_link_bidx ON books_custom_column_3_link (book);
-CREATE INDEX custom_column_4_idx ON custom_column_4 (book);
-CREATE INDEX custom_column_6_idx ON custom_column_6 (value COLLATE NOCASE);
-CREATE INDEX books_custom_column_6_link_aidx ON books_custom_column_6_link (value);
-CREATE INDEX books_custom_column_6_link_bidx ON books_custom_column_6_link (book);
-CREATE INDEX custom_column_7_idx ON custom_column_7 (value COLLATE NOCASE);
-CREATE INDEX books_custom_column_7_link_aidx ON books_custom_column_7_link (value);
-CREATE INDEX books_custom_column_7_link_bidx ON books_custom_column_7_link (book);
-CREATE INDEX custom_column_8_idx ON custom_column_8 (value COLLATE NOCASE);
-CREATE INDEX books_custom_column_8_link_aidx ON books_custom_column_8_link (value);
-CREATE INDEX books_custom_column_8_link_bidx ON books_custom_column_8_link (book);
+CREATE TRIGGER annotations_fts_insert_trg AFTER INSERT ON annotations 
+BEGIN
+    INSERT INTO annotations_fts(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
+    INSERT INTO annotations_fts_stemmed(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
+END;
+CREATE TRIGGER annotations_fts_delete_trg AFTER DELETE ON annotations 
+BEGIN
+    INSERT INTO annotations_fts(annotations_fts, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
+    INSERT INTO annotations_fts_stemmed(annotations_fts_stemmed, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
+END;
+CREATE TRIGGER annotations_fts_update_trg AFTER UPDATE ON annotations 
+BEGIN
+    INSERT INTO annotations_fts(annotations_fts, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
+    INSERT INTO annotations_fts(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
+    INSERT INTO annotations_fts_stemmed(annotations_fts_stemmed, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
+    INSERT INTO annotations_fts_stemmed(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
+END;
 CREATE VIEW meta AS
         SELECT id, title,
                (SELECT sortconcat(bal.id, name) FROM books_authors_link AS bal JOIN authors ON(author = authors.id) WHERE book = books.id) authors,
@@ -405,6 +323,49 @@ CREATE VIEW tag_browser_tags AS SELECT
                      name AS sort
                 FROM tags
 /* tag_browser_tags(id,name,count,avg_rating,sort) */;
+CREATE INDEX authors_idx ON books (author_sort COLLATE NOCASE);
+CREATE INDEX books_authors_link_aidx ON books_authors_link (author);
+CREATE INDEX books_authors_link_bidx ON books_authors_link (book);
+CREATE INDEX books_idx ON books (sort COLLATE NOCASE);
+CREATE INDEX books_languages_link_aidx ON books_languages_link (lang_code);
+CREATE INDEX books_languages_link_bidx ON books_languages_link (book);
+CREATE INDEX books_publishers_link_aidx ON books_publishers_link (publisher);
+CREATE INDEX books_publishers_link_bidx ON books_publishers_link (book);
+CREATE INDEX books_ratings_link_aidx ON books_ratings_link (rating);
+CREATE INDEX books_ratings_link_bidx ON books_ratings_link (book);
+CREATE INDEX books_series_link_aidx ON books_series_link (series);
+CREATE INDEX books_series_link_bidx ON books_series_link (book);
+CREATE INDEX books_tags_link_aidx ON books_tags_link (tag);
+CREATE INDEX books_tags_link_bidx ON books_tags_link (book);
+CREATE INDEX comments_idx ON comments (book);
+CREATE INDEX conversion_options_idx_a ON conversion_options (format COLLATE NOCASE);
+CREATE INDEX conversion_options_idx_b ON conversion_options (book);
+CREATE INDEX custom_columns_idx ON custom_columns (label);
+CREATE INDEX data_idx ON data (book);
+CREATE INDEX lrp_idx ON last_read_positions (book);
+CREATE INDEX annot_idx ON annotations (book);
+CREATE INDEX formats_idx ON data (format);
+CREATE INDEX languages_idx ON languages (lang_code COLLATE NOCASE);
+CREATE INDEX publishers_idx ON publishers (name COLLATE NOCASE);
+CREATE INDEX series_idx ON series (name COLLATE NOCASE);
+CREATE INDEX tags_idx ON tags (name COLLATE NOCASE);
+CREATE TRIGGER books_delete_trg
+            AFTER DELETE ON books
+            BEGIN
+                DELETE FROM books_authors_link WHERE book=OLD.id;
+                DELETE FROM books_publishers_link WHERE book=OLD.id;
+                DELETE FROM books_ratings_link WHERE book=OLD.id;
+                DELETE FROM books_series_link WHERE book=OLD.id;
+                DELETE FROM books_tags_link WHERE book=OLD.id;
+                DELETE FROM books_languages_link WHERE book=OLD.id;
+                DELETE FROM data WHERE book=OLD.id;
+                DELETE FROM last_read_positions WHERE book=OLD.id;
+                DELETE FROM annotations WHERE book=OLD.id;
+                DELETE FROM comments WHERE book=OLD.id;
+                DELETE FROM conversion_options WHERE book=OLD.id;
+                DELETE FROM books_plugin_data WHERE book=OLD.id;
+                DELETE FROM identifiers WHERE book=OLD.id;
+        END;
 CREATE TRIGGER books_insert_trg AFTER INSERT ON books
         BEGIN
             UPDATE books SET sort=title_sort(NEW.title),uuid=uuid4() WHERE id=NEW.id;
@@ -457,6 +418,22 @@ CREATE TRIGGER fkc_lrp_insert
         END;
 CREATE TRIGGER fkc_lrp_update
         BEFORE UPDATE OF book ON last_read_positions
+        BEGIN
+            SELECT CASE
+                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
+                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
+            END;
+        END;
+CREATE TRIGGER fkc_annot_insert
+        BEFORE INSERT ON annotations
+        BEGIN
+            SELECT CASE
+                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
+                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
+            END;
+        END;
+CREATE TRIGGER fkc_annot_update
+        BEFORE UPDATE OF book ON annotations
         BEGIN
             SELECT CASE
                 WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
@@ -669,22 +646,94 @@ CREATE TRIGGER series_update_trg
         BEGIN
           UPDATE series SET sort=title_sort(NEW.name) WHERE id=NEW.id;
         END;
-CREATE TRIGGER fkc_insert_custom_column_1
-                        BEFORE INSERT ON custom_column_1
+CREATE TABLE custom_column_1(
+                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                    value TEXT NOT NULL COLLATE NOCASE,
+                    link TEXT NOT NULL DEFAULT "",
+                    UNIQUE(value));
+CREATE INDEX custom_column_1_idx ON custom_column_1 (value COLLATE NOCASE);
+CREATE TABLE books_custom_column_1_link(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book INTEGER NOT NULL,
+                    value INTEGER NOT NULL,
+                    
+                    UNIQUE(book, value)
+                    );
+CREATE INDEX books_custom_column_1_link_aidx ON books_custom_column_1_link (value);
+CREATE INDEX books_custom_column_1_link_bidx ON books_custom_column_1_link (book);
+CREATE TRIGGER fkc_update_books_custom_column_1_link_a
+                        BEFORE UPDATE OF book ON books_custom_column_1_link
                         BEGIN
                             SELECT CASE
                                 WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
                                 THEN RAISE(ABORT, 'Foreign key violation: book not in books')
                             END;
                         END;
-CREATE TRIGGER fkc_update_custom_column_1
-                        BEFORE UPDATE OF book ON custom_column_1
+CREATE TRIGGER fkc_update_books_custom_column_1_link_b
+                        BEFORE UPDATE OF author ON books_custom_column_1_link
+                        BEGIN
+                            SELECT CASE
+                                WHEN (SELECT id from custom_column_1 WHERE id=NEW.value) IS NULL
+                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_1')
+                            END;
+                        END;
+CREATE TRIGGER fkc_insert_books_custom_column_1_link
+                        BEFORE INSERT ON books_custom_column_1_link
                         BEGIN
                             SELECT CASE
                                 WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
                                 THEN RAISE(ABORT, 'Foreign key violation: book not in books')
+                                WHEN (SELECT id from custom_column_1 WHERE id=NEW.value) IS NULL
+                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_1')
                             END;
                         END;
+CREATE TRIGGER fkc_delete_books_custom_column_1_link
+                        AFTER DELETE ON custom_column_1
+                        BEGIN
+                            DELETE FROM books_custom_column_1_link WHERE value=OLD.id;
+                        END;
+CREATE VIEW tag_browser_custom_column_1 AS SELECT
+                    id,
+                    value,
+                    (SELECT COUNT(id) FROM books_custom_column_1_link WHERE value=custom_column_1.id) count,
+                    (SELECT AVG(r.rating)
+                     FROM books_custom_column_1_link,
+                          books_ratings_link as bl,
+                          ratings as r
+                     WHERE books_custom_column_1_link.value=custom_column_1.id and bl.book=books_custom_column_1_link.book and
+                           r.id = bl.rating and r.rating <> 0) avg_rating,
+                    value AS sort
+                FROM custom_column_1
+/* tag_browser_custom_column_1(id,value,count,avg_rating,sort) */;
+CREATE VIEW tag_browser_filtered_custom_column_1 AS SELECT
+                    id,
+                    value,
+                    (SELECT COUNT(books_custom_column_1_link.id) FROM books_custom_column_1_link WHERE value=custom_column_1.id AND
+                    books_list_filter(book)) count,
+                    (SELECT AVG(r.rating)
+                     FROM books_custom_column_1_link,
+                          books_ratings_link as bl,
+                          ratings as r
+                     WHERE books_custom_column_1_link.value=custom_column_1.id AND bl.book=books_custom_column_1_link.book AND
+                           r.id = bl.rating AND r.rating <> 0 AND
+                           books_list_filter(bl.book)) avg_rating,
+                    value AS sort
+                FROM custom_column_1;
+CREATE TABLE custom_column_2(
+                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                    value TEXT NOT NULL COLLATE NOCASE,
+                    link TEXT NOT NULL DEFAULT "",
+                    UNIQUE(value));
+CREATE INDEX custom_column_2_idx ON custom_column_2 (value COLLATE NOCASE);
+CREATE TABLE books_custom_column_2_link(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book INTEGER NOT NULL,
+                    value INTEGER NOT NULL,
+                    
+                    UNIQUE(book, value)
+                    );
+CREATE INDEX books_custom_column_2_link_aidx ON books_custom_column_2_link (value);
+CREATE INDEX books_custom_column_2_link_bidx ON books_custom_column_2_link (book);
 CREATE TRIGGER fkc_update_books_custom_column_2_link_a
                         BEFORE UPDATE OF book ON books_custom_column_2_link
                         BEGIN
@@ -743,382 +792,3 @@ CREATE VIEW tag_browser_filtered_custom_column_2 AS SELECT
                            books_list_filter(bl.book)) avg_rating,
                     value AS sort
                 FROM custom_column_2;
-CREATE VIRTUAL TABLE annotations_fts USING fts5(searchable_text,
-    content = 'annotations', content_rowid = 'id', tokenize = 'unicode61 remove_diacritics 2')
-/* annotations_fts(searchable_text) */;
-CREATE VIRTUAL TABLE annotations_fts_stemmed USING fts5(searchable_text,
-    content = 'annotations', content_rowid = 'id', tokenize = 'porter unicode61 remove_diacritics 2')
-/* annotations_fts_stemmed(searchable_text) */;
-CREATE TRIGGER annotations_fts_insert_trg AFTER INSERT ON annotations
-BEGIN
-    INSERT INTO annotations_fts(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
-    INSERT INTO annotations_fts_stemmed(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
-END;
-CREATE TRIGGER annotations_fts_delete_trg AFTER DELETE ON annotations
-BEGIN
-    INSERT INTO annotations_fts(annotations_fts, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
-    INSERT INTO annotations_fts_stemmed(annotations_fts_stemmed, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
-END;
-CREATE TRIGGER annotations_fts_update_trg AFTER UPDATE ON annotations
-BEGIN
-    INSERT INTO annotations_fts(annotations_fts, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
-    INSERT INTO annotations_fts(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
-    INSERT INTO annotations_fts_stemmed(annotations_fts_stemmed, rowid, searchable_text) VALUES('delete', OLD.id, OLD.searchable_text);
-    INSERT INTO annotations_fts_stemmed(rowid, searchable_text) VALUES (NEW.id, NEW.searchable_text);
-END;
-CREATE TRIGGER books_delete_trg
-    AFTER DELETE ON books
-    BEGIN
-        DELETE FROM books_authors_link WHERE book=OLD.id;
-        DELETE FROM books_publishers_link WHERE book=OLD.id;
-        DELETE FROM books_ratings_link WHERE book=OLD.id;
-        DELETE FROM books_series_link WHERE book=OLD.id;
-        DELETE FROM books_tags_link WHERE book=OLD.id;
-        DELETE FROM books_languages_link WHERE book=OLD.id;
-        DELETE FROM data WHERE book=OLD.id;
-        DELETE FROM last_read_positions WHERE book=OLD.id;
-        DELETE FROM annotations WHERE book=OLD.id;
-        DELETE FROM comments WHERE book=OLD.id;
-        DELETE FROM conversion_options WHERE book=OLD.id;
-        DELETE FROM books_plugin_data WHERE book=OLD.id;
-        DELETE FROM identifiers WHERE book=OLD.id;
-END;
-CREATE TRIGGER fkc_annot_insert
-        BEFORE INSERT ON annotations
-        BEGIN
-            SELECT CASE
-                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-            END;
-        END;
-CREATE TRIGGER fkc_annot_update
-        BEFORE UPDATE OF book ON annotations
-        BEGIN
-            SELECT CASE
-                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-            END;
-        END;
-CREATE TRIGGER fkc_update_books_custom_column_3_link_a
-                        BEFORE UPDATE OF book ON books_custom_column_3_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                            END;
-                        END;
-CREATE TRIGGER fkc_update_books_custom_column_3_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_3_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from custom_column_3 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_3')
-                            END;
-                        END;
-CREATE TRIGGER fkc_insert_books_custom_column_3_link
-                        BEFORE INSERT ON books_custom_column_3_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                                WHEN (SELECT id from custom_column_3 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_3')
-                            END;
-                        END;
-CREATE TRIGGER fkc_delete_books_custom_column_3_link
-                        AFTER DELETE ON custom_column_3
-                        BEGIN
-                            DELETE FROM books_custom_column_3_link WHERE value=OLD.id;
-                        END;
-CREATE VIEW tag_browser_custom_column_3 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(id) FROM books_custom_column_3_link WHERE value=custom_column_3.id) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_3_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_3_link.value=custom_column_3.id and bl.book=books_custom_column_3_link.book and
-                           r.id = bl.rating and r.rating <> 0) avg_rating,
-                    value AS sort
-                FROM custom_column_3
-/* tag_browser_custom_column_3(id,value,count,avg_rating,sort) */;
-CREATE VIEW tag_browser_filtered_custom_column_3 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(books_custom_column_3_link.id) FROM books_custom_column_3_link WHERE value=custom_column_3.id AND
-                    books_list_filter(book)) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_3_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_3_link.value=custom_column_3.id AND bl.book=books_custom_column_3_link.book AND
-                           r.id = bl.rating AND r.rating <> 0 AND
-                           books_list_filter(bl.book)) avg_rating,
-                    value AS sort
-                FROM custom_column_3;
-CREATE TRIGGER fkc_insert_custom_column_4
-                        BEFORE INSERT ON custom_column_4
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                            END;
-                        END;
-CREATE TRIGGER fkc_update_custom_column_4
-                        BEFORE UPDATE OF book ON custom_column_4
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                            END;
-                        END;
-CREATE TRIGGER fkc_update_books_custom_column_6_link_a
-                        BEFORE UPDATE OF book ON books_custom_column_6_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                            END;
-                        END;
-CREATE TRIGGER fkc_update_books_custom_column_6_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_6_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from custom_column_6 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_6')
-                            END;
-                        END;
-CREATE TRIGGER fkc_insert_books_custom_column_6_link
-                        BEFORE INSERT ON books_custom_column_6_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                                WHEN (SELECT id from custom_column_6 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_6')
-                            END;
-                        END;
-CREATE TRIGGER fkc_delete_books_custom_column_6_link
-                        AFTER DELETE ON custom_column_6
-                        BEGIN
-                            DELETE FROM books_custom_column_6_link WHERE value=OLD.id;
-                        END;
-CREATE VIEW tag_browser_custom_column_6 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(id) FROM books_custom_column_6_link WHERE value=custom_column_6.id) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_6_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_6_link.value=custom_column_6.id and bl.book=books_custom_column_6_link.book and
-                           r.id = bl.rating and r.rating <> 0) avg_rating,
-                    value AS sort
-                FROM custom_column_6
-/* tag_browser_custom_column_6(id,value,count,avg_rating,sort) */;
-CREATE VIEW tag_browser_filtered_custom_column_6 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(books_custom_column_6_link.id) FROM books_custom_column_6_link WHERE value=custom_column_6.id AND
-                    books_list_filter(book)) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_6_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_6_link.value=custom_column_6.id AND bl.book=books_custom_column_6_link.book AND
-                           r.id = bl.rating AND r.rating <> 0 AND
-                           books_list_filter(bl.book)) avg_rating,
-                    value AS sort
-                FROM custom_column_6;
-CREATE TRIGGER fkc_update_books_custom_column_7_link_a
-                        BEFORE UPDATE OF book ON books_custom_column_7_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                            END;
-                        END;
-CREATE TRIGGER fkc_update_books_custom_column_7_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_7_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from custom_column_7 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_7')
-                            END;
-                        END;
-CREATE TRIGGER fkc_insert_books_custom_column_7_link
-                        BEFORE INSERT ON books_custom_column_7_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                                WHEN (SELECT id from custom_column_7 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_7')
-                            END;
-                        END;
-CREATE TRIGGER fkc_delete_books_custom_column_7_link
-                        AFTER DELETE ON custom_column_7
-                        BEGIN
-                            DELETE FROM books_custom_column_7_link WHERE value=OLD.id;
-                        END;
-CREATE VIEW tag_browser_custom_column_7 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(id) FROM books_custom_column_7_link WHERE value=custom_column_7.id) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_7_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_7_link.value=custom_column_7.id and bl.book=books_custom_column_7_link.book and
-                           r.id = bl.rating and r.rating <> 0) avg_rating,
-                    value AS sort
-                FROM custom_column_7
-/* tag_browser_custom_column_7(id,value,count,avg_rating,sort) */;
-CREATE VIEW tag_browser_filtered_custom_column_7 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(books_custom_column_7_link.id) FROM books_custom_column_7_link WHERE value=custom_column_7.id AND
-                    books_list_filter(book)) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_7_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_7_link.value=custom_column_7.id AND bl.book=books_custom_column_7_link.book AND
-                           r.id = bl.rating AND r.rating <> 0 AND
-                           books_list_filter(bl.book)) avg_rating,
-                    value AS sort
-                FROM custom_column_7;
-CREATE TRIGGER fkc_update_books_custom_column_8_link_a
-                        BEFORE UPDATE OF book ON books_custom_column_8_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                            END;
-                        END;
-CREATE TRIGGER fkc_update_books_custom_column_8_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_8_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from custom_column_8 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_8')
-                            END;
-                        END;
-CREATE TRIGGER fkc_insert_books_custom_column_8_link
-                        BEFORE INSERT ON books_custom_column_8_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                                WHEN (SELECT id from custom_column_8 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_8')
-                            END;
-                        END;
-CREATE TRIGGER fkc_delete_books_custom_column_8_link
-                        AFTER DELETE ON custom_column_8
-                        BEGIN
-                            DELETE FROM books_custom_column_8_link WHERE value=OLD.id;
-                        END;
-CREATE VIEW tag_browser_custom_column_8 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(id) FROM books_custom_column_8_link WHERE value=custom_column_8.id) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_8_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_8_link.value=custom_column_8.id and bl.book=books_custom_column_8_link.book and
-                           r.id = bl.rating and r.rating <> 0) avg_rating,
-                    value AS sort
-                FROM custom_column_8
-/* tag_browser_custom_column_8(id,value,count,avg_rating,sort) */;
-CREATE VIEW tag_browser_filtered_custom_column_8 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(books_custom_column_8_link.id) FROM books_custom_column_8_link WHERE value=custom_column_8.id AND
-                    books_list_filter(book)) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_8_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_8_link.value=custom_column_8.id AND bl.book=books_custom_column_8_link.book AND
-                           r.id = bl.rating AND r.rating <> 0 AND
-                           books_list_filter(bl.book)) avg_rating,
-                    value AS sort
-                FROM custom_column_8;
-CREATE TABLE custom_column_9(
-                    id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                    value TEXT NOT NULL COLLATE NOCASE,
-                    link TEXT NOT NULL DEFAULT "",
-                    UNIQUE(value));
-CREATE INDEX custom_column_9_idx ON custom_column_9 (value COLLATE NOCASE);
-CREATE TABLE books_custom_column_9_link(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    book INTEGER NOT NULL,
-                    value INTEGER NOT NULL,
-                    
-                    UNIQUE(book, value)
-                    );
-CREATE INDEX books_custom_column_9_link_aidx ON books_custom_column_9_link (value);
-CREATE INDEX books_custom_column_9_link_bidx ON books_custom_column_9_link (book);
-CREATE TRIGGER fkc_update_books_custom_column_9_link_a
-                        BEFORE UPDATE OF book ON books_custom_column_9_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                            END;
-                        END;
-CREATE TRIGGER fkc_update_books_custom_column_9_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_9_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from custom_column_9 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_9')
-                            END;
-                        END;
-CREATE TRIGGER fkc_insert_books_custom_column_9_link
-                        BEFORE INSERT ON books_custom_column_9_link
-                        BEGIN
-                            SELECT CASE
-                                WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                                WHEN (SELECT id from custom_column_9 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_9')
-                            END;
-                        END;
-CREATE TRIGGER fkc_delete_books_custom_column_9_link
-                        AFTER DELETE ON custom_column_9
-                        BEGIN
-                            DELETE FROM books_custom_column_9_link WHERE value=OLD.id;
-                        END;
-CREATE VIEW tag_browser_custom_column_9 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(id) FROM books_custom_column_9_link WHERE value=custom_column_9.id) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_9_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_9_link.value=custom_column_9.id and bl.book=books_custom_column_9_link.book and
-                           r.id = bl.rating and r.rating <> 0) avg_rating,
-                    value AS sort
-                FROM custom_column_9
-/* tag_browser_custom_column_9(id,value,count,avg_rating,sort) */;
-CREATE VIEW tag_browser_filtered_custom_column_9 AS SELECT
-                    id,
-                    value,
-                    (SELECT COUNT(books_custom_column_9_link.id) FROM books_custom_column_9_link WHERE value=custom_column_9.id AND
-                    books_list_filter(book)) count,
-                    (SELECT AVG(r.rating)
-                     FROM books_custom_column_9_link,
-                          books_ratings_link as bl,
-                          ratings as r
-                     WHERE books_custom_column_9_link.value=custom_column_9.id AND bl.book=books_custom_column_9_link.book AND
-                           r.id = bl.rating AND r.rating <> 0 AND
-                           books_list_filter(bl.book)) avg_rating,
-                    value AS sort
-                FROM custom_column_9;
-CREATE TABLE books_custom_column_10 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT);
-CREATE TABLE books_custom_column_11 (book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE, value TEXT);

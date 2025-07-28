@@ -1,0 +1,206 @@
+Adding a Custom Column: inserting a new Multi-Value Custom Columns
+
+-- 1. Insert metadata for the custom column into custom_columns
+INSERT INTO custom_columns (label, name, datatype, is_multiple, editable, display, normalized)
+VALUES (:label, :name, :datatype, :is_multiple, :editable, :display_json, :normalized);
+
+-- The column number (e.g., "2") must be set based on:
+-- SELECT MAX(id) + 1 FROM custom_columns;
+
+-- 2. Create a table to hold the distinct values of the column
+CREATE TABLE custom_column_:col_num (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    value TEXT NOT NULL COLLATE NOCASE,
+    link  TEXT NOT NULL DEFAULT "",
+    UNIQUE(value)
+);
+
+-- 3. Create the link table (this allows a book to have multiple values for the column)
+CREATE TABLE books_custom_column_:col_num_link (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER NOT NULL,
+    value INTEGER NOT NULL,
+    UNIQUE(book, value)
+);
+
+-- 4. Create indexes for quick lookups
+CREATE INDEX custom_column_:col_num_idx ON custom_column_:col_num (value COLLATE NOCASE);
+CREATE INDEX books_custom_column_:col_num_link_aidx ON books_custom_column_:col_num_link (value);
+CREATE INDEX books_custom_column_:col_num_link_bidx ON books_custom_column_:col_num_link (book);
+
+-- 5. Create triggers for referential integrity
+CREATE TRIGGER fkc_update_books_custom_column_:col_num_link_a
+    BEFORE UPDATE OF book ON books_custom_column_:col_num_link
+    BEGIN
+        SELECT CASE
+            WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: book not in books')
+        END;
+    END;
+
+CREATE TRIGGER fkc_update_books_custom_column_:col_num_link_b
+    BEFORE UPDATE OF author ON books_custom_column_:col_num_link
+    BEGIN
+        SELECT CASE
+            WHEN (SELECT id FROM custom_column_:col_num WHERE id=NEW.value) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_:col_num')
+        END;
+    END;
+
+CREATE TRIGGER fkc_insert_books_custom_column_:col_num_link
+    BEFORE INSERT ON books_custom_column_:col_num_link
+    BEGIN
+        SELECT CASE
+            WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: book not in books')
+            WHEN (SELECT id FROM custom_column_:col_num WHERE id=NEW.value) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_:col_num')
+        END;
+    END;
+
+CREATE TRIGGER fkc_delete_books_custom_column_:col_num_link
+    AFTER DELETE ON custom_column_:col_num
+    BEGIN
+        DELETE FROM books_custom_column_:col_num_link WHERE value=OLD.id;
+    END;
+
+-- 6. Create views for the tag browser
+CREATE VIEW tag_browser_custom_column_:col_num AS
+SELECT
+    id,
+    value,
+    (SELECT COUNT(id) FROM books_custom_column_:col_num_link WHERE value=custom_column_:col_num.id) count,
+    (SELECT AVG(r.rating)
+        FROM books_custom_column_:col_num_link,
+             books_ratings_link as bl,
+             ratings as r
+        WHERE books_custom_column_:col_num_link.value=custom_column_:col_num.id
+          AND bl.book=books_custom_column_:col_num_link.book
+          AND r.id = bl.rating
+          AND r.rating <> 0) avg_rating,
+    value AS sort
+FROM custom_column_:col_num;
+
+CREATE VIEW tag_browser_filtered_custom_column_:col_num AS
+SELECT
+    id,
+    value,
+    (SELECT COUNT(books_custom_column_:col_num_link.id)
+     FROM books_custom_column_:col_num_link
+     WHERE value=custom_column_:col_num.id AND books_list_filter(book)) count,
+    (SELECT AVG(r.rating)
+        FROM books_custom_column_:col_num_link,
+             books_ratings_link as bl,
+             ratings as r
+        WHERE books_custom_column_:col_num_link.value=custom_column_:col_num.id
+          AND bl.book=books_custom_column_:col_num_link.book
+          AND r.id = bl.rating
+          AND r.rating <> 0
+          AND books_list_filter(bl.book)) avg_rating,
+    value AS sort
+FROM custom_column_:col_num;
+
+
+
+Adding a Custom Column inserting a new single-value text column
+
+-- 1. Insert into custom_columns to define the column
+INSERT INTO custom_columns (label, name, datatype, is_multiple, editable, display, normalized)
+VALUES (:label, :name, :datatype, :is_multiple, :editable, :display_json, :normalized);
+
+-- The column number (e.g., "1") is determined by the current max custom column ID + 1.
+-- You must compute this (e.g., SELECT MAX(id) FROM custom_columns) and replace :col_num.
+
+-- 2. Create the table to store values
+CREATE TABLE custom_column_:col_num (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    value TEXT NOT NULL COLLATE NOCASE,
+    link  TEXT NOT NULL DEFAULT "",
+    UNIQUE(value)
+);
+
+-- 3. Create the link table to connect books with values
+CREATE TABLE books_custom_column_:col_num_link (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book INTEGER NOT NULL,
+    value INTEGER NOT NULL,
+    UNIQUE(book, value)
+);
+
+-- 4. Create indexes
+CREATE INDEX custom_column_:col_num_idx ON custom_column_:col_num (value COLLATE NOCASE);
+CREATE INDEX books_custom_column_:col_num_link_aidx ON books_custom_column_:col_num_link (value);
+CREATE INDEX books_custom_column_:col_num_link_bidx ON books_custom_column_:col_num_link (book);
+
+-- 5. Create triggers
+CREATE TRIGGER fkc_update_books_custom_column_:col_num_link_a
+    BEFORE UPDATE OF book ON books_custom_column_:col_num_link
+    BEGIN
+        SELECT CASE
+            WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: book not in books')
+        END;
+    END;
+
+CREATE TRIGGER fkc_update_books_custom_column_:col_num_link_b
+    BEFORE UPDATE OF author ON books_custom_column_:col_num_link
+    BEGIN
+        SELECT CASE
+            WHEN (SELECT id FROM custom_column_:col_num WHERE id=NEW.value) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_:col_num')
+        END;
+    END;
+
+CREATE TRIGGER fkc_insert_books_custom_column_:col_num_link
+    BEFORE INSERT ON books_custom_column_:col_num_link
+    BEGIN
+        SELECT CASE
+            WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: book not in books')
+            WHEN (SELECT id FROM custom_column_:col_num WHERE id=NEW.value) IS NULL
+            THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_:col_num')
+        END;
+    END;
+
+CREATE TRIGGER fkc_delete_books_custom_column_:col_num_link
+    AFTER DELETE ON custom_column_:col_num
+    BEGIN
+        DELETE FROM books_custom_column_:col_num_link WHERE value=OLD.id;
+    END;
+
+-- 6. Create views for tag browser
+CREATE VIEW tag_browser_custom_column_:col_num AS
+SELECT
+    id,
+    value,
+    (SELECT COUNT(id) FROM books_custom_column_:col_num_link WHERE value=custom_column_:col_num.id) count,
+    (SELECT AVG(r.rating)
+        FROM books_custom_column_:col_num_link,
+             books_ratings_link as bl,
+             ratings as r
+        WHERE books_custom_column_:col_num_link.value=custom_column_:col_num.id
+          AND bl.book=books_custom_column_:col_num_link.book
+          AND r.id = bl.rating
+          AND r.rating <> 0) avg_rating,
+    value AS sort
+FROM custom_column_:col_num;
+
+CREATE VIEW tag_browser_filtered_custom_column_:col_num AS
+SELECT
+    id,
+    value,
+    (SELECT COUNT(books_custom_column_:col_num_link.id)
+     FROM books_custom_column_:col_num_link
+     WHERE value=custom_column_:col_num.id AND books_list_filter(book)) count,
+    (SELECT AVG(r.rating)
+        FROM books_custom_column_:col_num_link,
+             books_ratings_link as bl,
+             ratings as r
+        WHERE books_custom_column_:col_num_link.value=custom_column_:col_num.id
+          AND bl.book=books_custom_column_:col_num_link.book
+          AND r.id = bl.rating
+          AND r.rating <> 0
+          AND books_list_filter(bl.book)) avg_rating,
+    value AS sort
+FROM custom_column_:col_num;
+
