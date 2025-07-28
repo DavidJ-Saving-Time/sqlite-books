@@ -266,7 +266,7 @@ try {
                                 </p>
                             <?php endif; ?>
                             <div class="mt-auto">
-                                <a href="view_book.php?id=<?= urlencode($b['id']) ?>" class="btn btn-outline-primary btn-sm me-2">
+                                <a href="book.php?id=<?= urlencode($b['id']) ?>" class="btn btn-outline-primary btn-sm me-2">
                                     <i class="fa-solid fa-eye"></i> View
                                 </a>
                                 <button class="btn btn-sm btn-danger remove-challenge" data-book-id="<?= htmlspecialchars($b['id']) ?>">
