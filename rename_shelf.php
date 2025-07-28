@@ -17,8 +17,22 @@ try {
     $pdo->beginTransaction();
     $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (:new)')->execute([':new' => $new]);
     $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-    $table = "custom_column_{$shelfId}";
-    $pdo->prepare("UPDATE $table SET value = :new WHERE value = :old")->execute([':new' => $new, ':old' => $old]);
+    $valueTable = "custom_column_{$shelfId}";
+    $linkTable  = "books_custom_column_{$shelfId}_link";
+
+    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:new)")->execute([':new' => $new]);
+    $stmtOld = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :old");
+    $stmtOld->execute([':old' => $old]);
+    $oldId = $stmtOld->fetchColumn();
+    $stmtNew = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :new");
+    $stmtNew->execute([':new' => $new]);
+    $newId = $stmtNew->fetchColumn();
+    if ($oldId !== false && $newId !== false) {
+        $pdo->prepare("UPDATE $linkTable SET value = :newId WHERE value = :oldId")
+            ->execute([':newId' => $newId, ':oldId' => $oldId]);
+        $pdo->prepare("DELETE FROM $valueTable WHERE id = :oldId")
+            ->execute([':oldId' => $oldId]);
+    }
     $pdo->prepare('DELETE FROM shelves WHERE name = :old')->execute([':old' => $old]);
     $pdo->commit();
     echo json_encode(['status' => 'ok']);
