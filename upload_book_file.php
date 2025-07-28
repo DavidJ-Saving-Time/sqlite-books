@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="file" name="file" id="file" class="form-control" required>
         </div>
         <button type="submit" class="btn btn-primary">Upload</button>
-        <a href="book.php?id=<?= urlencode($bookId) ?>" class="btn btn-secondary ms-2">Back</a>
+        <a href="view_book.php?id=<?= urlencode($bookId) ?>" class="btn btn-secondary ms-2">Back</a>
     </form>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
