@@ -98,8 +98,9 @@ $tags = $tagsStmt->fetchColumn();
 // Fetch saved recommendations if present
 try {
     $recId = ensureSingleValueColumn($pdo, '#recommendation', 'Recommendation');
-    $table = "custom_column_{$recId}";
-    $recStmt = $pdo->prepare("SELECT value FROM $table WHERE book = ?");
+    $valTable  = "custom_column_{$recId}";
+    $linkTable = "books_custom_column_{$recId}_link";
+    $recStmt = $pdo->prepare("SELECT v.value FROM $linkTable l JOIN $valTable v ON l.value = v.id WHERE l.book = ?");
     $recStmt->execute([$id]);
     $savedRecommendations = $recStmt->fetchColumn();
 } catch (PDOException $e) {
