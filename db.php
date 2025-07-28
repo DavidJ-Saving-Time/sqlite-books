@@ -192,8 +192,6 @@ function initializeCustomColumns(PDO $pdo): void {
             $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
         }
 
-        ensureCustomColumnsIndex($pdo);
-
         // 2. Ensure Shelf column (single-value)
         $shelfId = ensureSingleValueColumn($pdo, 'shelf', 'Shelf');
         insertDefaultSingleValue($pdo, $shelfId, 'Ebook Calibre');
@@ -225,8 +223,8 @@ function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): 
     if ($id === false) {
         $pdo->prepare(
             "INSERT INTO custom_columns
-            (label, name, datatype, is_multiple, editable, display, normalized)
-            VALUES (?, ?, 'text', 0, 1, '{}', 0)"
+            (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
+            VALUES (?, ?, 'text', 0, 1, '{}', 0, 0)"
         )->execute([$label, $name]);
         $id = $pdo->lastInsertId();
     }
@@ -250,8 +248,8 @@ function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): i
     if ($id === false) {
         $pdo->prepare(
             "INSERT INTO custom_columns
-            (label, name, datatype, is_multiple, editable, display, normalized)
-            VALUES (?, ?, 'text', 1, 1, '{}', 1)"
+            (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
+            VALUES (?, ?, 'text', 0, 1, '{}', 1, 1)"
         )->execute([$label, $name]);
         $id = $pdo->lastInsertId();
     }
@@ -475,7 +473,7 @@ function ensureCustomColumnExtras(PDO $pdo, int $id): void {
     $pdo->exec("DROP TRIGGER IF EXISTS fkc_update_{$linkTable}_b");
     $pdo->exec(
         "CREATE TRIGGER fkc_update_{$linkTable}_b " .
-        "BEFORE UPDATE OF value ON $linkTable " .
+        "BEFORE UPDATE OF author ON $linkTable " .
         "BEGIN " .
             "SELECT CASE WHEN (SELECT id FROM $valueTable WHERE id=NEW.value) IS NULL " .
                 "THEN RAISE(ABORT, 'Foreign key violation: value not in $valueTable') END;" .
@@ -539,8 +537,4 @@ function ensureCustomColumnViews(PDO $pdo, int $id): void {
             "value AS sort FROM custom_column_{$id}"
         );
     }
-}
-
-function ensureCustomColumnsIndex(PDO $pdo): void {
-    $pdo->exec("CREATE INDEX IF NOT EXISTS custom_columns_idx ON custom_columns (label)");
 }
