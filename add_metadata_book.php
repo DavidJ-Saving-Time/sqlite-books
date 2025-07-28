@@ -26,7 +26,10 @@ if ($title === '' || $authors_str === '') {
 try {
     $pdo->beginTransaction();
 
-    $authors = array_map('trim', preg_split('/,|;/', $authors_str));
+    $authors = array_unique(array_filter(
+        array_map('trim', preg_split('/,|;/', $authors_str)),
+        'strlen'
+    ));
     $firstAuthor = $authors[0];
 
     foreach ($authors as $author) {
@@ -43,7 +46,7 @@ try {
     $bookId = (int)$pdo->lastInsertId();
 
     foreach ($authors as $author) {
-        $pdo->exec("INSERT INTO books_authors_link (book, author) SELECT $bookId, id FROM authors WHERE name=" . $pdo->quote($author));
+        $pdo->exec("INSERT OR IGNORE INTO books_authors_link (book, author) SELECT $bookId, id FROM authors WHERE name=" . $pdo->quote($author));
     }
 
     $tags = [];

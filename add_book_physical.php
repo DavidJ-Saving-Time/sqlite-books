@@ -34,7 +34,10 @@ function safe_filename($name, $max_length = 150) {
 }
 
 // --- Author Handling ---
-$authors = array_map('trim', preg_split('/,|;/', $authors_str));
+$authors = array_unique(array_filter(
+    array_map('trim', preg_split('/,|;/', $authors_str)),
+    'strlen'
+));
 $first_author = $authors[0];
 $author_folder_name = safe_filename($first_author . (count($authors) > 1 ? " et al." : ""));
 
@@ -57,7 +60,7 @@ $bookId = $pdo->lastInsertId();
 
 // Link book to authors
 foreach ($authors as $author) {
-    $pdo->exec("INSERT INTO books_authors_link (book, author)
+    $pdo->exec("INSERT OR IGNORE INTO books_authors_link (book, author)
                 SELECT $bookId, id FROM authors WHERE name=" . $pdo->quote($author));
 }
 
