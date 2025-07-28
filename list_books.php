@@ -94,7 +94,7 @@ if ($source === 'openlibrary') {
     header('Location: annas_results.php?' . http_build_query($redirectParams));
     exit;
 }
-$allowedSorts = ['title', 'author', 'series', 'author_series', 'recommended'];
+$allowedSorts = ['title', 'author', 'series', 'author_series', 'author_series_surname', 'recommended'];
 if (!in_array($sort, $allowedSorts, true)) {
     $sort = 'author_series';
 }
@@ -105,6 +105,7 @@ $orderByMap = [
     'author' => 'authors, b.title',
     'series' => 'series, b.series_index, b.title',
     'author_series' => 'authors, series, b.series_index, b.title',
+    'author_series_surname' => 'b.author_sort, series, b.series_index, b.title',
     'recommended' => 'authors, series, b.series_index, b.title'
 ];
 $orderBy = $orderByMap[$sort];
