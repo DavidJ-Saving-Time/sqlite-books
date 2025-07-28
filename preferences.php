@@ -76,6 +76,7 @@ $currentLibrary = getLibraryPath();
       </label>
     </div>
     <button type="submit" class="btn btn-primary">Save</button>
+    <a href="fix_author_sort.php" class="btn btn-secondary ms-2">Fix Author Sort</a>
   </form>
 </body>
 </html>
