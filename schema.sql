@@ -670,7 +670,7 @@ CREATE TRIGGER fkc_update_books_custom_column_1_link_a
                             END;
                         END;
 CREATE TRIGGER fkc_update_books_custom_column_1_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_1_link
+                        BEFORE UPDATE OF value ON books_custom_column_1_link
                         BEGIN
                             SELECT CASE
                                 WHEN (SELECT id from custom_column_1 WHERE id=NEW.value) IS NULL
@@ -743,7 +743,7 @@ CREATE TRIGGER fkc_update_books_custom_column_2_link_a
                             END;
                         END;
 CREATE TRIGGER fkc_update_books_custom_column_2_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_2_link
+                        BEFORE UPDATE OF value ON books_custom_column_2_link
                         BEGIN
                             SELECT CASE
                                 WHEN (SELECT id from custom_column_2 WHERE id=NEW.value) IS NULL

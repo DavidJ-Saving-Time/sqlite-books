@@ -192,6 +192,8 @@ function initializeCustomColumns(PDO $pdo): void {
             $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
         }
 
+        ensureCustomColumnsIndex($pdo);
+
         // 2. Ensure Shelf column (single-value)
         $shelfId = ensureSingleValueColumn($pdo, 'shelf', 'Shelf');
         insertDefaultSingleValue($pdo, $shelfId, 'Ebook Calibre');
@@ -223,14 +225,16 @@ function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): 
     if ($id === false) {
         $pdo->prepare(
             "INSERT INTO custom_columns
-            (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
-            VALUES (?, ?, 'text', 0, 1, '{}', 0, 0)"
+            (label, name, datatype, is_multiple, editable, display, normalized)
+            VALUES (?, ?, 'text', 0, 1, '{}', 0)"
         )->execute([$label, $name]);
         $id = $pdo->lastInsertId();
     }
 
-    $table = "custom_column_$id";
-    ensureSingleValueTable($pdo, $table);
+    $valueTable = "custom_column_$id";
+    $linkTable  = "books_custom_column_{$id}_link";
+    ensureSingleValueTable($pdo, $valueTable, $linkTable);
+    ensureCustomColumnExtras($pdo, (int)$id);
 
     return (int)$id;
 }
@@ -246,8 +250,8 @@ function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): i
     if ($id === false) {
         $pdo->prepare(
             "INSERT INTO custom_columns
-            (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
-            VALUES (?, ?, 'text', 0, 1, '{}', 1, 1)"
+            (label, name, datatype, is_multiple, editable, display, normalized)
+            VALUES (?, ?, 'text', 1, 1, '{}', 1)"
         )->execute([$label, $name]);
         $id = $pdo->lastInsertId();
     }
@@ -255,16 +259,30 @@ function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): i
     $valueTable = "custom_column_$id";
     $linkTable  = "books_custom_column_{$id}_link";
     ensureMultiValueTables($pdo, $valueTable, $linkTable);
+    ensureCustomColumnExtras($pdo, (int)$id);
 
     return (int)$id;
 }
 
 function insertDefaultSingleValue(PDO $pdo, int $columnId, string $defaultValue): void {
     $valueTable = "custom_column_$columnId";
+    $linkTable  = "books_custom_column_{$columnId}_link";
 
-    // Assign default value to books that do not yet have an entry
-    $stmt = $pdo->prepare("INSERT OR IGNORE INTO $valueTable (book, value) SELECT id, ? FROM books WHERE id NOT IN (SELECT book FROM $valueTable)");
+    // Ensure default value exists
+    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (?)")
+        ->execute([$defaultValue]);
+
+    // Get the ID of the default value
+    $stmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = ?");
     $stmt->execute([$defaultValue]);
+    $valueId = $stmt->fetchColumn();
+
+    // Assign default value to books without any entry
+    $pdo->exec(
+        "INSERT INTO $linkTable (book, value)
+         SELECT id, $valueId FROM books
+         WHERE id NOT IN (SELECT book FROM $linkTable)"
+    );
 }
 
 function insertDefaultMultiValue(PDO $pdo, int $columnId, string $defaultValue): void {
@@ -296,6 +314,12 @@ function tableExists(PDO $pdo, string $table): bool {
     return $stmt->fetchColumn() !== false;
 }
 
+function viewExists(PDO $pdo, string $view): bool {
+    $stmt = $pdo->prepare("SELECT name FROM sqlite_master WHERE type='view' AND name=?");
+    $stmt->execute([$view]);
+    return $stmt->fetchColumn() !== false;
+}
+
 function tableColumns(PDO $pdo, string $table): array {
     $cols = [];
     foreach ($pdo->query("PRAGMA table_info('$table')") as $row) {
@@ -304,39 +328,43 @@ function tableColumns(PDO $pdo, string $table): array {
     return $cols;
 }
 
-function ensureSingleValueTable(PDO $pdo, string $table): void {
-    $expected = ['book', 'value'];
+function ensureSingleValueTable(PDO $pdo, string $valueTable, string $linkTable): void {
+    $expectedOld = ['book', 'value'];
+    $expectedNew = ['id', 'value', 'link'];
 
-    if (tableExists($pdo, $table)) {
-        $cols = tableColumns($pdo, $table);
+    $needsMigration = false;
+    if (tableExists($pdo, $valueTable)) {
+        $cols = tableColumns($pdo, $valueTable);
         $sorted = $cols;
         sort($sorted);
-        $exp = $expected;
-        sort($exp);
-        if ($sorted === $exp) {
-            return;
+        $expOld = $expectedOld;
+        sort($expOld);
+        $expNew = $expectedNew;
+        sort($expNew);
+        if ($sorted === $expOld) {
+            $backup = $valueTable . '_backup_' . time();
+            $pdo->exec("ALTER TABLE $valueTable RENAME TO $backup");
+            $needsMigration = $backup;
+        } elseif ($sorted === $expNew) {
+            // Already in new format
+            $backup = null;
+        } else {
+            $backup = $valueTable . '_backup_' . time();
+            $pdo->exec("ALTER TABLE $valueTable RENAME TO $backup");
+            $needsMigration = $backup;
         }
-
-        $backup = $table . '_backup_' . time();
-        $pdo->exec("ALTER TABLE $table RENAME TO $backup");
     } else {
         $backup = null;
     }
 
-    $pdo->exec(
-        "CREATE TABLE $table (
-            book INTEGER PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
-            value TEXT
-        )"
-    );
+    ensureMultiValueTables($pdo, $valueTable, $linkTable);
 
-    if ($backup) {
-        $cols = tableColumns($pdo, $backup);
-        $common = array_intersect($cols, $expected);
-        if ($common) {
-            $colList = implode(',', $common);
-            $pdo->exec("INSERT INTO $table ($colList) SELECT $colList FROM $backup");
-        }
+    if ($needsMigration) {
+        $pdo->exec("INSERT OR IGNORE INTO $valueTable (value) SELECT DISTINCT value FROM $needsMigration");
+        $pdo->exec(
+            "INSERT INTO $linkTable (book, value) " .
+            "SELECT b.book, v.id FROM $needsMigration b JOIN $valueTable v ON v.value = b.value"
+        );
     }
 }
 
@@ -419,4 +447,100 @@ function ensureMultiValueLinkTable(PDO $pdo, string $table): void {
 function ensureMultiValueTables(PDO $pdo, string $valueTable, string $linkTable): void {
     ensureMultiValueValueTable($pdo, $valueTable);
     ensureMultiValueLinkTable($pdo, $linkTable);
+}
+
+/**
+ * Ensure indexes and triggers for a custom column exist.
+ */
+function ensureCustomColumnExtras(PDO $pdo, int $id): void {
+    $valueTable = "custom_column_$id";
+    $linkTable  = "books_custom_column_{$id}_link";
+
+    // Indexes for faster lookups
+    $pdo->exec("CREATE INDEX IF NOT EXISTS custom_column_{$id}_idx ON $valueTable (value COLLATE NOCASE)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS books_custom_column_{$id}_link_aidx ON $linkTable (value)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS books_custom_column_{$id}_link_bidx ON $linkTable (book)");
+
+    // Triggers for referential integrity
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_update_{$linkTable}_a");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_update_{$linkTable}_a " .
+        "BEFORE UPDATE OF book ON $linkTable " .
+        "BEGIN " .
+            "SELECT CASE WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL " .
+                "THEN RAISE(ABORT, 'Foreign key violation: book not in books') END;" .
+        " END;"
+    );
+
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_update_{$linkTable}_b");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_update_{$linkTable}_b " .
+        "BEFORE UPDATE OF value ON $linkTable " .
+        "BEGIN " .
+            "SELECT CASE WHEN (SELECT id FROM $valueTable WHERE id=NEW.value) IS NULL " .
+                "THEN RAISE(ABORT, 'Foreign key violation: value not in $valueTable') END;" .
+        " END;"
+    );
+
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_insert_{$linkTable}");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_insert_{$linkTable} " .
+        "BEFORE INSERT ON $linkTable " .
+        "BEGIN " .
+            "SELECT CASE " .
+                "WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL " .
+                    "THEN RAISE(ABORT, 'Foreign key violation: book not in books') " .
+                "WHEN (SELECT id FROM $valueTable WHERE id=NEW.value) IS NULL " .
+                    "THEN RAISE(ABORT, 'Foreign key violation: value not in $valueTable') " .
+            "END;" .
+        " END;"
+    );
+
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_delete_{$linkTable}");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_delete_{$linkTable} " .
+        "AFTER DELETE ON $valueTable " .
+        "BEGIN DELETE FROM $linkTable WHERE value=OLD.id; END;"
+    );
+
+    ensureCustomColumnViews($pdo, $id);
+}
+
+function ensureCustomColumnViews(PDO $pdo, int $id): void {
+    $baseView = "tag_browser_custom_column_{$id}";
+    $filteredView = "tag_browser_filtered_custom_column_{$id}";
+
+    if (!viewExists($pdo, $baseView)) {
+        $pdo->exec(
+            "CREATE VIEW " . $baseView . " AS " .
+            "SELECT id, value, " .
+            "(SELECT COUNT(id) FROM books_custom_column_{$id}_link WHERE value=custom_column_{$id}.id) count, " .
+            "(SELECT AVG(r.rating) FROM books_custom_column_{$id}_link, books_ratings_link AS bl, ratings AS r " .
+                "WHERE books_custom_column_{$id}_link.value=custom_column_{$id}.id " .
+                "AND bl.book=books_custom_column_{$id}_link.book " .
+                "AND r.id = bl.rating " .
+                "AND r.rating <> 0) avg_rating, " .
+            "value AS sort FROM custom_column_{$id}"
+        );
+    }
+
+    if (!viewExists($pdo, $filteredView)) {
+        $pdo->exec(
+            "CREATE VIEW " . $filteredView . " AS " .
+            "SELECT id, value, " .
+            "(SELECT COUNT(books_custom_column_{$id}_link.id) FROM books_custom_column_{$id}_link " .
+                "WHERE value=custom_column_{$id}.id AND books_list_filter(book)) count, " .
+            "(SELECT AVG(r.rating) FROM books_custom_column_{$id}_link, books_ratings_link AS bl, ratings AS r " .
+                "WHERE books_custom_column_{$id}_link.value=custom_column_{$id}.id " .
+                "AND bl.book=books_custom_column_{$id}_link.book " .
+                "AND r.id = bl.rating " .
+                "AND r.rating <> 0 " .
+                "AND books_list_filter(bl.book)) avg_rating, " .
+            "value AS sort FROM custom_column_{$id}"
+        );
+    }
+}
+
+function ensureCustomColumnsIndex(PDO $pdo): void {
+    $pdo->exec("CREATE INDEX IF NOT EXISTS custom_columns_idx ON custom_columns (label)");
 }

@@ -5,8 +5,8 @@ $pdo = new PDO('sqlite:' . getLibraryPath() . '/metadata.db');
 // Create single-value column: shelf
 $pdo->exec("
     INSERT INTO custom_columns
-    (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
-    VALUES ('shelf', 'Shelf', 'text', 0, 1, '{}', 0, 0)
+    (label, name, datatype, is_multiple, editable, display, normalized)
+    VALUES ('shelf', 'Shelf', 'text', 0, 1, '{}', 0)
 ");
 $shelfId = $pdo->lastInsertId();
 
@@ -21,8 +21,8 @@ $pdo->exec("
 // Create multi-value custom column: #genre
 $pdo->exec("
     INSERT INTO custom_columns
-    (label, name, datatype, mark_for_delete, editable, display, is_multiple, normalized)
-    VALUES ('#genre', 'Genre', 'text', 0, 1, '{}', 1, 1)
+    (label, name, datatype, is_multiple, editable, display, normalized)
+    VALUES ('#genre', 'Genre', 'text', 1, 1, '{}', 1)
 ");
 $genreId = $pdo->lastInsertId();
 
