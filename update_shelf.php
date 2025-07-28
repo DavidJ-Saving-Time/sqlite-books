@@ -21,17 +21,10 @@ if ($bookId <= 0 || !in_array($value, $allowed, true)) {
 }
 
 $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-$valueTable = "custom_column_{$shelfId}";
-$linkTable  = "books_custom_column_{$shelfId}_link";
+$table = "custom_column_{$shelfId}";
 
-$pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:val)")
-    ->execute([':val' => $value]);
-$valStmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :val");
-$valStmt->execute([':val' => $value]);
-$valId = $valStmt->fetchColumn();
-$pdo->prepare("DELETE FROM $linkTable WHERE book = :book")->execute([':book' => $bookId]);
-$stmt = $pdo->prepare("INSERT INTO $linkTable (book, value) VALUES (:book, :val)");
-$stmt->execute([':book' => $bookId, ':val' => $valId]);
+$stmt = $pdo->prepare("REPLACE INTO $table (book, value) VALUES (:book, :val)");
+$stmt->execute([':book' => $bookId, ':val' => $value]);
 
 echo json_encode(['status' => 'ok']);
 ?>
