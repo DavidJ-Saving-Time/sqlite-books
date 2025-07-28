@@ -206,7 +206,6 @@ $missingFile = !bookHasFile($book['path']);
             <div id="recommendSection"<?php if (!empty($savedRecommendations)): ?> data-saved="<?= htmlspecialchars($savedRecommendations, ENT_QUOTES) ?>"<?php endif; ?>></div>
         </div>
     </div>
-    <div id="descriptionSection" class="mb-4"<?php if (!empty($description)): ?> data-saved="<?= htmlspecialchars($description, ENT_QUOTES) ?>"<?php endif; ?>></div>
 
     <!-- Edit form -->
     <div class="card shadow-sm mb-4">
@@ -294,7 +293,7 @@ $missingFile = !bookHasFile($book['path']);
 const recommendBtn = document.getElementById('recommendBtn');
 const recommendSection = document.getElementById('recommendSection');
 const synopsisBtn = document.getElementById('synopsisBtn');
-const descriptionSection = document.getElementById('descriptionSection');
+const descriptionInput = document.getElementById('description');
 
 function escapeHTML(str) {
     return str.replace(/&/g, '&amp;')
@@ -351,11 +350,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (recommendSection.dataset.saved) {
         recommendSection.innerHTML = renderRecommendations(recommendSection.dataset.saved);
     }
-    if (descriptionSection && descriptionSection.dataset.saved) {
-        descriptionSection.innerHTML = '<h2>Description</h2><p>' +
-            escapeHTML(descriptionSection.dataset.saved).replace(/\n/g, '<br>') +
-            '</p>';
-    }
 });
 
 recommendBtn.addEventListener('click', function () {
@@ -383,26 +377,25 @@ synopsisBtn.addEventListener('click', function () {
     const bookId = this.dataset.bookId;
     const authors = this.dataset.authors;
     const title = this.dataset.title;
-    if (descriptionSection) {
-        descriptionSection.innerHTML = '<h2>Description</h2><p>Loading...</p>';
+    if (descriptionInput) {
+        descriptionInput.value = 'Loading...';
     }
 
     fetch('synopsis.php?book_id=' + encodeURIComponent(bookId) +
         '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
         .then(resp => resp.json())
         .then(data => {
-            if (descriptionSection) {
+            if (descriptionInput) {
                 if (data.output) {
-                    descriptionSection.innerHTML = '<h2>Description</h2><p>' +
-                        escapeHTML(data.output).replace(/\n/g, '<br>') + '</p>';
+                    descriptionInput.value = data.output;
                 } else {
-                    descriptionSection.textContent = data.error || 'Error';
+                    descriptionInput.value = data.error || 'Error';
                 }
             }
         })
         .catch(() => {
-            if (descriptionSection) {
-                descriptionSection.textContent = 'Error fetching synopsis';
+            if (descriptionInput) {
+                descriptionInput.value = 'Error fetching synopsis';
             }
         });
 });
