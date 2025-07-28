@@ -232,6 +232,7 @@ function ensureSingleValueColumn(PDO $pdo, string $label, string $name = null): 
     $valueTable = "custom_column_$id";
     $linkTable  = "books_custom_column_{$id}_link";
     ensureSingleValueTable($pdo, $valueTable, $linkTable);
+    ensureCustomColumnExtras($pdo, (int)$id);
 
     return (int)$id;
 }
@@ -256,6 +257,7 @@ function ensureMultiValueColumn(PDO $pdo, string $label, string $name = null): i
     $valueTable = "custom_column_$id";
     $linkTable  = "books_custom_column_{$id}_link";
     ensureMultiValueTables($pdo, $valueTable, $linkTable);
+    ensureCustomColumnExtras($pdo, (int)$id);
 
     return (int)$id;
 }
@@ -437,4 +439,59 @@ function ensureMultiValueLinkTable(PDO $pdo, string $table): void {
 function ensureMultiValueTables(PDO $pdo, string $valueTable, string $linkTable): void {
     ensureMultiValueValueTable($pdo, $valueTable);
     ensureMultiValueLinkTable($pdo, $linkTable);
+}
+
+/**
+ * Ensure indexes and triggers for a custom column exist.
+ */
+function ensureCustomColumnExtras(PDO $pdo, int $id): void {
+    $valueTable = "custom_column_$id";
+    $linkTable  = "books_custom_column_{$id}_link";
+
+    // Indexes for faster lookups
+    $pdo->exec("CREATE INDEX IF NOT EXISTS custom_column_{$id}_idx ON $valueTable (value COLLATE NOCASE)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS books_custom_column_{$id}_link_aidx ON $linkTable (value)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS books_custom_column_{$id}_link_bidx ON $linkTable (book)");
+
+    // Triggers for referential integrity
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_update_{$linkTable}_a");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_update_{$linkTable}_a " .
+        "BEFORE UPDATE OF book ON $linkTable " .
+        "BEGIN " .
+            "SELECT CASE WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL " .
+                "THEN RAISE(ABORT, 'Foreign key violation: book not in books') END;" .
+        " END;"
+    );
+
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_update_{$linkTable}_b");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_update_{$linkTable}_b " .
+        "BEFORE UPDATE OF author ON $linkTable " .
+        "BEGIN " .
+            "SELECT CASE WHEN (SELECT id FROM $valueTable WHERE id=NEW.value) IS NULL " .
+                "THEN RAISE(ABORT, 'Foreign key violation: value not in $valueTable') END;" .
+        " END;"
+    );
+
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_insert_{$linkTable}");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_insert_{$linkTable} " .
+        "BEFORE INSERT ON $linkTable " .
+        "BEGIN " .
+            "SELECT CASE " .
+                "WHEN (SELECT id FROM books WHERE id=NEW.book) IS NULL " .
+                    "THEN RAISE(ABORT, 'Foreign key violation: book not in books') " .
+                "WHEN (SELECT id FROM $valueTable WHERE id=NEW.value) IS NULL " .
+                    "THEN RAISE(ABORT, 'Foreign key violation: value not in $valueTable') " .
+            "END;" .
+        " END;"
+    );
+
+    $pdo->exec("DROP TRIGGER IF EXISTS fkc_delete_{$linkTable}");
+    $pdo->exec(
+        "CREATE TRIGGER fkc_delete_{$linkTable} " .
+        "AFTER DELETE ON $valueTable " .
+        "BEGIN DELETE FROM $linkTable WHERE value=OLD.id; END;"
+    );
 }
