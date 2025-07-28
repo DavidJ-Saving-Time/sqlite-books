@@ -42,9 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $authorsList = [$authorsInput];
         }
         $primaryAuthor = $authorsList[0];
-        $insertAuthor = $pdo->prepare('INSERT OR IGNORE INTO authors (name, sort) VALUES (:name, :sort)');
+        $insertAuthor = $pdo->prepare('INSERT OR IGNORE INTO authors (name, sort) VALUES (:name, author_sort(:name))');
         foreach ($authorsList as $a) {
-            $insertAuthor->execute([':name' => $a, ':sort' => $a]);
+            $insertAuthor->execute([':name' => $a]);
         }
         $pdo->prepare('DELETE FROM books_authors_link WHERE book = :book')->execute([':book' => $id]);
         foreach ($authorsList as $a) {
@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $linkStmt->execute([':book' => $id, ':author' => $aid]);
             }
         }
-        $pdo->prepare('UPDATE books SET author_sort = :sort WHERE id = :id')->execute([':sort' => $primaryAuthor, ':id' => $id]);
+        $pdo->prepare('UPDATE books SET author_sort = author_sort(:sort) WHERE id = :id')->execute([':sort' => $primaryAuthor, ':id' => $id]);
     }
 
     if ($descriptionInput !== '') {
