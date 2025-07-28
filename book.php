@@ -25,11 +25,34 @@ $updated = false;
 // Handle updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'] ?? '';
+    $authorsInput = trim($_POST['authors'] ?? '');
     $descriptionInput = trim($_POST['description'] ?? '');
 
     $pdo->beginTransaction();
     $stmt = $pdo->prepare('UPDATE books SET title = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?');
     $stmt->execute([$title, $id]);
+
+    if ($authorsInput !== '') {
+        $authorsList = preg_split('/\s*(?:,|;| and )\s*/i', $authorsInput);
+        $authorsList = array_filter(array_map('trim', $authorsList), 'strlen');
+        if (empty($authorsList)) {
+            $authorsList = [$authorsInput];
+        }
+        $primaryAuthor = $authorsList[0];
+        $insertAuthor = $pdo->prepare('INSERT OR IGNORE INTO authors (name, sort) VALUES (:name, :sort)');
+        foreach ($authorsList as $a) {
+            $insertAuthor->execute([':name' => $a, ':sort' => $a]);
+        }
+        $pdo->prepare('DELETE FROM books_authors_link WHERE book = :book')->execute([':book' => $id]);
+        foreach ($authorsList as $a) {
+            $aid = $pdo->query('SELECT id FROM authors WHERE name=' . $pdo->quote($a))->fetchColumn();
+            if ($aid !== false) {
+                $linkStmt = $pdo->prepare('INSERT INTO books_authors_link (book, author) VALUES (:book, :author)');
+                $linkStmt->execute([':book' => $id, ':author' => $aid]);
+            }
+        }
+        $pdo->prepare('UPDATE books SET author_sort = :sort WHERE id = :id')->execute([':sort' => $primaryAuthor, ':id' => $id]);
+    }
 
     if ($descriptionInput !== '') {
         $descStmt = $pdo->prepare('INSERT INTO comments (book, text) VALUES (:book, :text) '
@@ -225,6 +248,13 @@ $missingFile = !bookHasFile($book['path']);
                         <i class="fa-solid fa-book me-1 text-primary"></i> Title
                     </label>
                     <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="authors" class="form-label">
+                        <i class="fa-solid fa-user me-1 text-primary"></i> Author(s)
+                    </label>
+                    <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
+                    <datalist id="authorSuggestionsEdit"></datalist>
                 </div>
                 <div class="mb-3">
                     <label for="description" class="form-label">
@@ -571,6 +601,30 @@ document.addEventListener('DOMContentLoaded', () => {
             img.addEventListener('load', updateDimensions);
             img.addEventListener('error', () => { dimLabel.textContent = 'Image not found'; });
         }
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const authorInput = document.getElementById('authors');
+    const suggestionList = document.getElementById('authorSuggestionsEdit');
+    if (authorInput && suggestionList) {
+        authorInput.addEventListener('input', async () => {
+            const term = authorInput.value.trim();
+            suggestionList.innerHTML = '';
+            if (term.length < 2) return;
+            try {
+                const res = await fetch(`author_autocomplete.php?term=${encodeURIComponent(term)}`);
+                const data = await res.json();
+                suggestionList.innerHTML = '';
+                data.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    suggestionList.appendChild(opt);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        });
     }
 });
 </script>
