@@ -15,10 +15,20 @@ try {
     $stmt = $pdo->prepare('DELETE FROM shelves WHERE name = :name');
     $stmt->execute([':name' => $shelf]);
     $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-    $table = "custom_column_{$shelfId}";
+    $valueTable = "custom_column_{$shelfId}";
+    $linkTable  = "books_custom_column_{$shelfId}_link";
 
-    $stmt = $pdo->prepare("UPDATE $table SET value = 'Ebook Calibre' WHERE value = :old");
-    $stmt->execute([':old' => $shelf]);
+    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Ebook Calibre')")->execute();
+    $newId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Ebook Calibre'")->fetchColumn();
+
+    $oldStmt = $pdo->prepare("SELECT id FROM $valueTable WHERE value = :old");
+    $oldStmt->execute([':old' => $shelf]);
+    $oldId = $oldStmt->fetchColumn();
+    if ($oldId !== false) {
+        $pdo->prepare("UPDATE $linkTable SET value = :new WHERE value = :old")
+            ->execute([':new' => $newId, ':old' => $oldId]);
+        $pdo->prepare("DELETE FROM $valueTable WHERE id = :old")->execute([':old' => $oldId]);
+    }
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);
