@@ -312,6 +312,12 @@ function tableExists(PDO $pdo, string $table): bool {
     return $stmt->fetchColumn() !== false;
 }
 
+function viewExists(PDO $pdo, string $view): bool {
+    $stmt = $pdo->prepare("SELECT name FROM sqlite_master WHERE type='view' AND name=?");
+    $stmt->execute([$view]);
+    return $stmt->fetchColumn() !== false;
+}
+
 function tableColumns(PDO $pdo, string $table): array {
     $cols = [];
     foreach ($pdo->query("PRAGMA table_info('$table')") as $row) {
@@ -494,4 +500,41 @@ function ensureCustomColumnExtras(PDO $pdo, int $id): void {
         "AFTER DELETE ON $valueTable " .
         "BEGIN DELETE FROM $linkTable WHERE value=OLD.id; END;"
     );
+
+    ensureCustomColumnViews($pdo, $id);
+}
+
+function ensureCustomColumnViews(PDO $pdo, int $id): void {
+    $baseView = "tag_browser_custom_column_{$id}";
+    $filteredView = "tag_browser_filtered_custom_column_{$id}";
+
+    if (!viewExists($pdo, $baseView)) {
+        $pdo->exec(
+            "CREATE VIEW " . $baseView . " AS " .
+            "SELECT id, value, " .
+            "(SELECT COUNT(id) FROM books_custom_column_{$id}_link WHERE value=custom_column_{$id}.id) count, " .
+            "(SELECT AVG(r.rating) FROM books_custom_column_{$id}_link, books_ratings_link AS bl, ratings AS r " .
+                "WHERE books_custom_column_{$id}_link.value=custom_column_{$id}.id " .
+                "AND bl.book=books_custom_column_{$id}_link.book " .
+                "AND r.id = bl.rating " .
+                "AND r.rating <> 0) avg_rating, " .
+            "value AS sort FROM custom_column_{$id}"
+        );
+    }
+
+    if (!viewExists($pdo, $filteredView)) {
+        $pdo->exec(
+            "CREATE VIEW " . $filteredView . " AS " .
+            "SELECT id, value, " .
+            "(SELECT COUNT(books_custom_column_{$id}_link.id) FROM books_custom_column_{$id}_link " .
+                "WHERE value=custom_column_{$id}.id AND books_list_filter(book)) count, " .
+            "(SELECT AVG(r.rating) FROM books_custom_column_{$id}_link, books_ratings_link AS bl, ratings AS r " .
+                "WHERE books_custom_column_{$id}_link.value=custom_column_{$id}.id " .
+                "AND bl.book=books_custom_column_{$id}_link.book " .
+                "AND r.id = bl.rating " .
+                "AND r.rating <> 0 " .
+                "AND books_list_filter(bl.book)) avg_rating, " .
+            "value AS sort FROM custom_column_{$id}"
+        );
+    }
 }
