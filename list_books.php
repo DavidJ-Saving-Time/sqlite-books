@@ -508,7 +508,6 @@ function linkTextColor(string $current, string $compare): string {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="theme.js"></script>
     <script src="search.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/clusterize.js@1.0.0/clusterize.min.js"></script>
     <!-- Removed jQuery and jQuery UI -->
     <style>
         .title-col {
@@ -729,7 +728,7 @@ function linkTextColor(string $current, string $compare): string {
             
             <!-- Main Content -->
 <div class="col-md-12">
-     <div id="book-list" class="clusterize-content">
+     <div id="book-list">
     <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId); ?>
      </div>
 </div>
@@ -798,7 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
     var fetchUrlBase = <?= json_encode($baseUrl) ?>;
     var googleModalEl = document.getElementById('googleModal');
     var googleModal = new bootstrap.Modal(googleModalEl);
-    var clusterize = new Clusterize({ scrollElem: window, contentId: 'book-list' });
+    var bookList = document.getElementById('book-list');
 
     var restorePage = parseInt(sessionStorage.getItem('listBooksPage') || '0', 10);
     var restoreScroll = parseInt(sessionStorage.getItem('listBooksScroll') || '0', 10);
@@ -828,8 +827,9 @@ async function loadMore() {
         const html = await res.text();
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
-        const rows = Array.from(tmp.children).map(el => el.outerHTML);
-        clusterize.append(rows);
+        while (tmp.firstChild) {
+            bookList.appendChild(tmp.firstChild);
+        }
         currentPage++;
     } catch (err) {
         console.error(err);
