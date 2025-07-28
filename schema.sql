@@ -719,76 +719,76 @@ CREATE VIEW tag_browser_filtered_custom_column_1 AS SELECT
                            books_list_filter(bl.book)) avg_rating,
                     value AS sort
                 FROM custom_column_1;
-CREATE TABLE custom_column_2(
+CREATE TABLE custom_column_3(
                     id    INTEGER PRIMARY KEY AUTOINCREMENT,
                     value TEXT NOT NULL COLLATE NOCASE,
                     link TEXT NOT NULL DEFAULT "",
                     UNIQUE(value));
-CREATE INDEX custom_column_2_idx ON custom_column_2 (value COLLATE NOCASE);
-CREATE TABLE books_custom_column_2_link(
+CREATE INDEX custom_column_3_idx ON custom_column_3 (value COLLATE NOCASE);
+CREATE TABLE books_custom_column_3_link(
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     book INTEGER NOT NULL,
                     value INTEGER NOT NULL,
                     
                     UNIQUE(book, value)
                     );
-CREATE INDEX books_custom_column_2_link_aidx ON books_custom_column_2_link (value);
-CREATE INDEX books_custom_column_2_link_bidx ON books_custom_column_2_link (book);
-CREATE TRIGGER fkc_update_books_custom_column_2_link_a
-                        BEFORE UPDATE OF book ON books_custom_column_2_link
+CREATE INDEX books_custom_column_3_link_aidx ON books_custom_column_3_link (value);
+CREATE INDEX books_custom_column_3_link_bidx ON books_custom_column_3_link (book);
+CREATE TRIGGER fkc_update_books_custom_column_3_link_a
+                        BEFORE UPDATE OF book ON books_custom_column_3_link
                         BEGIN
                             SELECT CASE
                                 WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
                                 THEN RAISE(ABORT, 'Foreign key violation: book not in books')
                             END;
                         END;
-CREATE TRIGGER fkc_update_books_custom_column_2_link_b
-                        BEFORE UPDATE OF author ON books_custom_column_2_link
+CREATE TRIGGER fkc_update_books_custom_column_3_link_b
+                        BEFORE UPDATE OF author ON books_custom_column_3_link
                         BEGIN
                             SELECT CASE
-                                WHEN (SELECT id from custom_column_2 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_2')
+                                WHEN (SELECT id from custom_column_3 WHERE id=NEW.value) IS NULL
+                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_3')
                             END;
                         END;
-CREATE TRIGGER fkc_insert_books_custom_column_2_link
-                        BEFORE INSERT ON books_custom_column_2_link
+CREATE TRIGGER fkc_insert_books_custom_column_3_link
+                        BEFORE INSERT ON books_custom_column_3_link
                         BEGIN
                             SELECT CASE
                                 WHEN (SELECT id from books WHERE id=NEW.book) IS NULL
                                 THEN RAISE(ABORT, 'Foreign key violation: book not in books')
-                                WHEN (SELECT id from custom_column_2 WHERE id=NEW.value) IS NULL
-                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_2')
+                                WHEN (SELECT id from custom_column_3 WHERE id=NEW.value) IS NULL
+                                THEN RAISE(ABORT, 'Foreign key violation: value not in custom_column_3')
                             END;
                         END;
-CREATE TRIGGER fkc_delete_books_custom_column_2_link
-                        AFTER DELETE ON custom_column_2
+CREATE TRIGGER fkc_delete_books_custom_column_3_link
+                        AFTER DELETE ON custom_column_3
                         BEGIN
-                            DELETE FROM books_custom_column_2_link WHERE value=OLD.id;
+                            DELETE FROM books_custom_column_3_link WHERE value=OLD.id;
                         END;
-CREATE VIEW tag_browser_custom_column_2 AS SELECT
+CREATE VIEW tag_browser_custom_column_3 AS SELECT
                     id,
                     value,
-                    (SELECT COUNT(id) FROM books_custom_column_2_link WHERE value=custom_column_2.id) count,
+                    (SELECT COUNT(id) FROM books_custom_column_3_link WHERE value=custom_column_3.id) count,
                     (SELECT AVG(r.rating)
-                     FROM books_custom_column_2_link,
+                     FROM books_custom_column_3_link,
                           books_ratings_link as bl,
                           ratings as r
-                     WHERE books_custom_column_2_link.value=custom_column_2.id and bl.book=books_custom_column_2_link.book and
+                     WHERE books_custom_column_3_link.value=custom_column_3.id and bl.book=books_custom_column_3_link.book and
                            r.id = bl.rating and r.rating <> 0) avg_rating,
                     value AS sort
-                FROM custom_column_2
-/* tag_browser_custom_column_2(id,value,count,avg_rating,sort) */;
-CREATE VIEW tag_browser_filtered_custom_column_2 AS SELECT
+                FROM custom_column_3
+/* tag_browser_custom_column_3(id,value,count,avg_rating,sort) */;
+CREATE VIEW tag_browser_filtered_custom_column_3 AS SELECT
                     id,
                     value,
-                    (SELECT COUNT(books_custom_column_2_link.id) FROM books_custom_column_2_link WHERE value=custom_column_2.id AND
+                    (SELECT COUNT(books_custom_column_3_link.id) FROM books_custom_column_3_link WHERE value=custom_column_3.id AND
                     books_list_filter(book)) count,
                     (SELECT AVG(r.rating)
-                     FROM books_custom_column_2_link,
+                     FROM books_custom_column_3_link,
                           books_ratings_link as bl,
                           ratings as r
-                     WHERE books_custom_column_2_link.value=custom_column_2.id AND bl.book=books_custom_column_2_link.book AND
+                     WHERE books_custom_column_3_link.value=custom_column_3.id AND bl.book=books_custom_column_3_link.book AND
                            r.id = bl.rating AND r.rating <> 0 AND
                            books_list_filter(bl.book)) avg_rating,
                     value AS sort
-                FROM custom_column_2;
+                FROM custom_column_3;
