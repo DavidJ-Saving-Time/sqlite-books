@@ -49,7 +49,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
           <?php if ($statusNameVal !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>"><?php endif; ?>
 
           <div class="input-group">
-            <input class="form-control" type="search" name="search" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search" list="authorSuggestions">
+            <input class="form-control" type="search" name="search" style="width: 20rem;" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search" list="authorSuggestions">
             <datalist id="authorSuggestions"></datalist>
             <select name="source" class="form-select" style="max-width: 12rem;">
               <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>

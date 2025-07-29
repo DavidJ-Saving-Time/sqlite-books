@@ -250,62 +250,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Add Book</title>
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <script src="js/theme.js"></script>
+    <style>
+        .file-upload-highlight {
+            border: 2px dashed #6c757d;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .file-upload-highlight:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
 </head>
 <body>
 <?php include 'navbar.php'; ?>
 <div class="container my-4">
-    <h1 class="mb-4">Add Book</h1>
+    <h1 class="mb-4 text-center">Add a New Book</h1>
+    
     <?php if ($message): ?>
         <div class="alert alert-success"><?= htmlspecialchars($message) ?></div>
     <?php elseif ($errors): ?>
         <div class="alert alert-danger"><?= htmlspecialchars(implode(' ', $errors)) ?></div>
     <?php endif; ?>
-    <form method="post" enctype="multipart/form-data">
-        <div class="mb-3">
-            <label for="title" class="form-label">Title</label>
-            <input type="text" name="title" id="title" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label for="authors" class="form-label">Author(s)</label>
-            <input type="text" name="authors" id="authors" class="form-control" placeholder="Separate multiple authors with commas" required>
-        </div>
-        <div class="mb-3">
-            <label for="file" class="form-label">Book File</label>
-            <input type="file" name="file" id="file" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label for="tags" class="form-label">Tags</label>
-            <input type="text" name="tags" id="tags" class="form-control" placeholder="Optional, comma separated">
-        </div>
-        <button type="submit" class="btn btn-primary">Add</button>
-        <a href="list_books.php" class="btn btn-secondary ms-2">Back</a>
-    </form>
+
+    <div class="card shadow-sm p-4">
+        <form method="post" enctype="multipart/form-data">
+            <!-- File Upload First -->
+            <div class="mb-4">
+                <label for="file" class="form-label fw-bold">Upload Book File</label>
+                <div class="file-upload-highlight" onclick="document.getElementById('file').click();">
+                    <p class="mb-1"><strong>Click to upload a book file</strong> or drag & drop here</p>
+                    <small class="text-muted">(Supported formats: PDF, EPUB, etc.)</small>
+                </div>
+                <input type="file" name="file" id="file" class="form-control mt-2" style="display:none;" required>
+            </div>
+
+            <!-- Progress bar (hidden by default) -->
+            <div class="mb-3" id="metadataProgress" style="display:none;">
+                <label class="form-label">Fetching Metadata...</label>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- Book Details (hidden until file upload) -->
+            <div id="bookDetails" style="display:none;">
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" name="title" id="title" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="authors" class="form-label">Author(s)</label>
+                    <input type="text" name="authors" id="authors" class="form-control" placeholder="Separate multiple authors with commas" required>
+                </div>
+                <div class="mb-3">
+                    <label for="tags" class="form-label">Tags</label>
+                    <input type="text" name="tags" id="tags" class="form-control" placeholder="Optional, comma separated">
+                </div>
+                <button type="submit" class="btn btn-primary">Add Book</button>
+                <a href="list_books.php" class="btn btn-secondary ms-2">Back</a>
+            </div>
+        </form>
+    </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
 const fileInput = document.getElementById('file');
 const titleInput = document.getElementById('title');
 const authorsInput = document.getElementById('authors');
-if (fileInput) {
-  fileInput.addEventListener('change', () => {
+const bookDetails = document.getElementById('bookDetails');
+const metadataProgress = document.getElementById('metadataProgress');
+
+fileInput.addEventListener('change', () => {
     if (!fileInput.files.length) return;
+
+    // Show progress bar
+    metadataProgress.style.display = 'block';
+
     const fd = new FormData();
     fd.append('file', fileInput.files[0]);
     fetch('ebook_meta.php', { method: 'POST', body: fd })
-      .then(r => r.json())
-      .then(data => {
-        if (data.title && !titleInput.value) titleInput.value = data.title;
-        if (data.authors && !authorsInput.value) {
-          if (Array.isArray(data.authors)) {
-            authorsInput.value = data.authors.join(', ');
-          } else {
-            authorsInput.value = String(data.authors).replace(/ and /g, ', ');
-          }
-        }
-      })
-      .catch(() => {});
-  });
-}
+        .then(r => r.json())
+        .then(data => {
+            if (data.title && !titleInput.value) titleInput.value = data.title;
+            if (data.authors && !authorsInput.value) {
+                authorsInput.value = Array.isArray(data.authors)
+                    ? data.authors.join(', ')
+                    : String(data.authors).replace(/ and /g, ', ');
+            }
+        })
+        .catch(() => {})
+        .finally(() => {
+            // Hide progress and show book details
+            metadataProgress.style.display = 'none';
+            bookDetails.style.display = 'block';
+        });
+});
 </script>
 </body>
 </html>
+

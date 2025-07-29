@@ -5,5 +5,20 @@
             "db_path": "ebooks\/metadata.db",
             "library_path": "ebooks"
         }
+    },
+    "david": {
+        "password": "david",
+        "prefs": {
+            "db_path": "david_ebooks\/metadata.db",
+            "library_path": "david_ebooks",
+            "reading_goal_2025": 40
+        }
+    },
+    "test": {
+        "password": "test",
+        "prefs": {
+            "db_path": "test_lib\/metadata.db",
+            "library_path": "test_lib"
+        }
     }
 }
