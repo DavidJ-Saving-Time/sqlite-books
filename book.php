@@ -353,6 +353,12 @@ $missingFile = !bookHasFile($book['path']);
                                     </label>
                                     <input type="text" id="authorSort" name="author_sort" value="<?= htmlspecialchars($book['author_sort']) ?>" class="form-control">
                                 </div>
+                                <div class="mb-3">
+                                    <label for="libraryBasePath" class="form-label">
+                                        <i class="fa-solid fa-folder-open me-1 text-primary"></i> Library Base Directory
+                                    </label>
+                                    <input type="text" id="libraryBasePath" class="form-control" value="<?= htmlspecialchars(getLibraryPath()) ?>" readonly>
+                                </div>
                             </div>
 
                             <!-- Series Info -->
