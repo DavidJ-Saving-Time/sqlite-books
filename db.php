@@ -125,6 +125,19 @@ function bookHasFile(string $relativePath): bool {
     return false;
 }
 
+function firstBookFile(string $relativePath): ?string {
+    $library = getLibraryPath();
+    $dir = $library . '/' . $relativePath;
+    if (!is_dir($dir)) {
+        return null;
+    }
+    $files = glob($dir . '/*.{epub,mobi,azw3,pdf,txt}', GLOB_BRACE);
+    if ($files) {
+        return substr($files[0], strlen($library) + 1);
+    }
+    return null;
+}
+
 function getDatabaseConnection(?string $path = null) {
     $path = $path ?? currentDatabasePath();
     try {

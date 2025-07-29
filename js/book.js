@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const recommendSection = document.getElementById('recommendSection');
   const synopsisBtn = document.getElementById('synopsisBtn');
   const descriptionInput = document.getElementById('description');
+  const titleInput = document.getElementById('title');
 
   if (recommendSection.dataset.saved) {
     recommendSection.innerHTML = renderRecommendations(recommendSection.dataset.saved);
@@ -73,6 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const googleResults = document.getElementById('googleResults');
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
+
+  const ebookBtn = document.getElementById('ebookMetaBtn');
+  const ebookFile = bodyData.ebookFile;
 
   recommendBtn.addEventListener('click', () => {
     const bookId = recommendBtn.dataset.bookId;
@@ -180,6 +184,24 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(() => { googleResults.textContent = 'Error fetching results'; });
     googleModal.show();
   });
+
+  if (ebookBtn && ebookFile) {
+    ebookBtn.addEventListener('click', () => {
+      fetch('ebook_meta.php?path=' + encodeURIComponent(ebookFile))
+        .then(r => r.json())
+        .then(data => {
+          if (data.title && titleInput) titleInput.value = data.title;
+          if (data.authors && authorInput) {
+            authorInput.value = data.authors.replace(/ and /g, ', ');
+            updateAuthorSort();
+          }
+          if (data.comments && descriptionInput) {
+            descriptionInput.value = data.comments;
+          }
+        })
+        .catch(() => { alert('Error reading metadata'); });
+    });
+  }
 
   document.addEventListener('click', e => {
     if (e.target.classList.contains('annas-use')) {
