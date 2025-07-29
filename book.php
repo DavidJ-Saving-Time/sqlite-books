@@ -2,6 +2,11 @@
 require_once 'db.php';
 requireLogin();
 
+function safe_filename(string $name, int $max_length = 150): string {
+    $name = preg_replace('/[^A-Za-z0-9 _-]/', '', $name);
+    return substr(trim($name), 0, $max_length);
+}
+
 $pdo = getDatabaseConnection();
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -177,6 +182,17 @@ try {
 }
 
 $missingFile = !bookHasFile($book['path']);
+
+$libraryDirPath = getLibraryPath();
+if (!empty($book['path'])) {
+    $libraryDirPath .= '/' . $book['path'];
+} else {
+    $authorList = array_map('trim', explode(',', $book['authors'] ?? ''));
+    $firstAuthor = $authorList[0] ?? '';
+    $authorFolderName = safe_filename($firstAuthor . (count($authorList) > 1 ? ' et al.' : ''));
+    $bookFolderName = safe_filename($book['title']) . ' (' . $book['id'] . ')';
+    $libraryDirPath .= '/' . $authorFolderName . '/' . $bookFolderName;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -357,7 +373,7 @@ $missingFile = !bookHasFile($book['path']);
                                     <label for="libraryBasePath" class="form-label">
                                         <i class="fa-solid fa-folder-open me-1 text-primary"></i> Library Base Directory
                                     </label>
-                                    <input type="text" id="libraryBasePath" class="form-control" value="<?= htmlspecialchars(getLibraryPath()) ?>" readonly>
+                                    <input type="text" id="libraryBasePath" class="form-control" value="<?= htmlspecialchars($libraryDirPath) ?>" readonly>
                                 </div>
                             </div>
 
