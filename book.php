@@ -237,7 +237,10 @@ $missingFile = !bookHasFile($book['path']);
     <div class="row mb-4">
         <div class="col-md-3">
             <?php if (!empty($book['has_cover'])): ?>
-                <img src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="img-fluid">
+                <div class="position-relative d-inline-block">
+                    <img id="coverImagePreview" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="img-thumbnail shadow-sm" style="max-width: 200px;">
+                    <div id="coverDimensions" class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 1.2rem;">Loading...</div>
+                </div>
             <?php else: ?>
                 <div class="text-muted">No cover</div>
             <?php endif; ?>
@@ -299,7 +302,10 @@ $missingFile = !bookHasFile($book['path']);
                     <label for="authors" class="form-label">
                         <i class="fa-solid fa-user me-1 text-primary"></i> Author(s)
                     </label>
-                    <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
+                    <div class="input-group">
+                        <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
+                        <button type="button" id="applyAuthorSortBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
                     <datalist id="authorSuggestionsEdit"></datalist>
                 </div>
                 <div class="mb-3">
@@ -343,15 +349,6 @@ $missingFile = !bookHasFile($book['path']);
                     </label>
                     <input type="file" id="cover" name="cover" class="form-control">
                 </div>
-                <?php if (!empty($book['has_cover'])): ?>
-                    <div class="mb-3">
-                        <p class="mb-1"><i class="fa-solid fa-eye me-1 text-success"></i> Current Cover:</p>
-                        <div class="position-relative d-inline-block">
-                            <img id="coverImagePreview" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="img-thumbnail shadow-sm" style="max-width: 200px;">
-                            <div id="coverDimensions" class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 1.2rem;">Loading...</div>
-                        </div>
-                    </div>
-                <?php endif; ?>
                 <div class="d-flex justify-content-between">
                     <a href="list_books.php" class="btn btn-secondary">
                         <i class="fa-solid fa-arrow-left me-1"></i> Back to list
