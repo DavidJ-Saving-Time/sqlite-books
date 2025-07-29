@@ -32,10 +32,13 @@ function parse_ebook_meta(string $text): array {
         $result['identifiers'] = $identifiers;
     }
 
-    // Convert authors string to array (split on " and " or ",")
+    // Convert authors string to array, removing any author sort text like
+    // "John Doe [Doe, John]" that Calibre's `ebook-meta` may include
     if (!empty($result['authors'])) {
-        $authors = preg_split('/\s+and\s+|,/', $result['authors']);
-        $result['authors'] = array_map('trim', $authors);
+        $clean = preg_replace('/\[[^\]]*\]/', '', $result['authors']);
+        $authors = preg_split('/\s*&\s*|\s+and\s+|,/', $clean);
+        $authors = array_filter(array_map('trim', $authors), fn($a) => $a !== '');
+        $result['authors'] = array_values($authors);
     }
 
     return $result;
