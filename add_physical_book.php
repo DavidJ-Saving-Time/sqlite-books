@@ -282,5 +282,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+const fileInput = document.getElementById('file');
+const titleInput = document.getElementById('title');
+const authorsInput = document.getElementById('authors');
+if (fileInput) {
+  fileInput.addEventListener('change', () => {
+    if (!fileInput.files.length) return;
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fetch('ebook_meta.php', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        if (data.title && !titleInput.value) titleInput.value = data.title;
+        if (data.authors && !authorsInput.value) {
+          authorsInput.value = data.authors.replace(/ and /g, ', ');
+        }
+      })
+      .catch(() => {});
+  });
+}
+</script>
 </body>
 </html>

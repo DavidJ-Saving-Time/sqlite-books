@@ -193,6 +193,7 @@ if (!empty($book['path'])) {
     $bookFolderName = safe_filename($book['title']) . ' (' . $book['id'] . ')';
     $libraryDirPath .= '/' . $authorFolderName . '/' . $bookFolderName;
 }
+$ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -207,7 +208,7 @@ if (!empty($book['path'])) {
         #description { min-height: 200px; resize: vertical; }
     </style>
 </head>
-<body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
+<body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>"<?php if($ebookFileRel): ?> data-ebook-file="<?= htmlspecialchars($ebookFileRel) ?>"<?php endif; ?>>
 <?php include "navbar.php"; ?>
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">
@@ -256,6 +257,9 @@ if (!empty($book['path'])) {
             <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary">Anna's Archive</a>
             <button type="button" id="annasMetaBtn" class="btn btn-secondary">Get Metadata</button>
             <button type="button" id="googleMetaBtn" class="btn btn-secondary">Google Metadata</button>
+            <?php if (!$missingFile && $ebookFileRel): ?>
+            <button type="button" id="ebookMetaBtn" class="btn btn-secondary">File Metadata</button>
+            <?php endif; ?>
         </div>
         <?php if ($missingFile): ?>
             <div class="btn-group mb-2">
