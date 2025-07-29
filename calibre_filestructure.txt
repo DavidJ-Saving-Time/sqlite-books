@@ -1,0 +1,18 @@
+├── Author unsorted
+│   ├── Book Ttile (ID)
+│   │   ├── cover.jpg
+│   │   ├── metadata.opf
+│   │   └── Tears of the Giraffe - Alexander McCall Smith.epub
+│   └── Book Title (ID)
+│       ├── cover.jpg
+│       ├── metadata.opf
+│       └── The Good Husband of Zebra Drive - Alexander McCall Smith.epub
+├── Author unsorted
+│   └── Book Title (ID)
+│       ├── Best Crime Stories of the Year Volume 4 - Anthony Horowitz.epub
+│       ├── cover.jpg
+│       └── metadata.opf
+└── metadata.db
+
+
+
