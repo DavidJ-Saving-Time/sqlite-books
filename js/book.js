@@ -295,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const dimLabel = document.getElementById('coverDimensions');
   const coverInput = document.getElementById('cover');
   const isbnCoverWrap = document.getElementById('isbnCover');
+
   const isbnInput = document.getElementById('isbn');
   const initialIsbn = bodyData.isbn || (isbnInput ? isbnInput.value.trim() : '');
 
@@ -325,6 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const val = isbnInput.value.trim();
       if (val) fetchIsbnCover(val);
     });
+
   }
   function updateDimensions() {
     if (!img || !dimLabel) return;
