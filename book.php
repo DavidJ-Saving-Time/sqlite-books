@@ -18,6 +18,13 @@ if ($id <= 0) {
 $stmt = $pdo->prepare('SELECT * FROM books WHERE id = ?');
 $stmt->execute([$id]);
 $book = $stmt->fetch(PDO::FETCH_ASSOC);
+// Prefer ISBN stored in identifiers table if present
+$isbnStmt = $pdo->prepare('SELECT val FROM identifiers WHERE book = ? AND type = "isbn" COLLATE NOCASE');
+$isbnStmt->execute([$id]);
+$isbnVal = $isbnStmt->fetchColumn();
+if ($isbnVal !== false && $isbnVal !== null) {
+    $book['isbn'] = $isbnVal;
+}
 if (!$book) {
     die('Book not found');
 }
@@ -124,8 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare('UPDATE books SET pubdate=? WHERE id=?')->execute([$pubDate, $id]);
     }
 
-    // Update ISBN
+    // Update ISBN stored in both books table and identifiers table
     $pdo->prepare('UPDATE books SET isbn=? WHERE id=?')->execute([$isbnInput, $id]);
+    $pdo->prepare('DELETE FROM identifiers WHERE book=? AND type="isbn"')->execute([$id]);
+    if ($isbnInput !== '') {
+        $pdo->prepare('INSERT INTO identifiers (book, type, val) VALUES (?, "isbn", ?)')
+            ->execute([$id, $isbnInput]);
+    }
 
     if (!empty($_FILES['cover']) && $_FILES['cover']['error'] === UPLOAD_ERR_OK) {
         $libraryPath = getLibraryPath();
@@ -169,6 +181,13 @@ $stmt = $pdo->prepare("SELECT b.*,
 $stmt->bindValue(':id', $id, PDO::PARAM_INT);
 $stmt->execute();
 $book = $stmt->fetch(PDO::FETCH_ASSOC);
+// Pull ISBN from identifiers table if available
+$isbnStmt = $pdo->prepare('SELECT val FROM identifiers WHERE book = ? AND type = "isbn" COLLATE NOCASE');
+$isbnStmt->execute([$id]);
+$isbnVal = $isbnStmt->fetchColumn();
+if ($isbnVal !== false && $isbnVal !== null) {
+    $book['isbn'] = $isbnVal;
+}
 if (!$book) {
     die('Book not found');
 }
