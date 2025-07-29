@@ -1,6 +1,8 @@
 <?php
 // Ensure new files are group writable
 umask(0002);
+
+require_once __DIR__ . '/TitleSortClass.php';
 // Simple cookie based login
 function currentUser(): ?string {
     return $_COOKIE['user'] ?? null;
@@ -148,16 +150,9 @@ function getDatabaseConnection(?string $path = null) {
 
         // Register a PHP implementation of Calibre's title_sort function so
         // database triggers referring to title_sort() work correctly.
-        $pdo->sqliteCreateFunction('title_sort', function ($title) {
-            $title = trim($title ?? '');
-            if ($title === '') {
-                return '';
-            }
-            // Handle common English leading articles for basic sorting
-            if (preg_match('/^(a|an|the)\s+(.+)/i', $title, $m)) {
-                return $m[2] . ', ' . ucfirst(strtolower($m[1]));
-            }
-            return $title;
+        $sorter = new TitleSort();
+        $pdo->sqliteCreateFunction('title_sort', function ($title) use ($sorter) {
+            return $sorter->sort($title);
         }, 1);
 
         // Register a PHP implementation of Calibre's author_sort function so
