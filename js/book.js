@@ -269,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const authorInput = document.getElementById('authors');
   const authorSortInput = document.getElementById('authorSort');
+  const applySortBtn = document.getElementById('applyAuthorSortBtn');
   const suggestionList = document.getElementById('authorSuggestionsEdit');
   function calcAuthorSort(str) {
     const first = str.split(/\s*(?:,|;| and )\s*/i)[0].trim();
@@ -305,6 +306,9 @@ document.addEventListener('DOMContentLoaded', () => {
       authorInput.addEventListener('input', updateAuthorSort);
       if (!authorSortInput.value) updateAuthorSort();
     }
+  }
+  if (applySortBtn) {
+    applySortBtn.addEventListener('click', updateAuthorSort);
   }
 
   const seriesSelect = document.getElementById('series');
