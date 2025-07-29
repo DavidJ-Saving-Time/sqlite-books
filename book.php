@@ -26,6 +26,7 @@ $updated = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'] ?? '';
     $authorsInput = trim($_POST['authors'] ?? '');
+    $authorSortInput = trim($_POST['author_sort'] ?? '');
     $descriptionInput = trim($_POST['description'] ?? '');
     $seriesIdInput = $_POST['series_id'] ?? '';
     $newSeriesName = trim($_POST['new_series'] ?? '');
@@ -42,7 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $authorsList = [$authorsInput];
         }
         $primaryAuthor = $authorsList[0];
-        $insertAuthor = $pdo->prepare('INSERT OR IGNORE INTO authors (name, sort) VALUES (:name, author_sort(:name))');
+        $insertAuthor = $pdo->prepare(
+            'INSERT INTO authors (name, sort)
+             VALUES (:name, author_sort(:name))
+             ON CONFLICT(name) DO UPDATE SET sort = excluded.sort'
+        );
         foreach ($authorsList as $a) {
             $insertAuthor->execute([':name' => $a]);
         }
@@ -54,7 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $linkStmt->execute([':book' => $id, ':author' => $aid]);
             }
         }
-        $pdo->prepare('UPDATE books SET author_sort = author_sort(:sort) WHERE id = :id')->execute([':sort' => $primaryAuthor, ':id' => $id]);
+        if ($authorSortInput === '') {
+            $sortStmt = $pdo->prepare('SELECT author_sort(:name)');
+            $sortStmt->execute([':name' => $primaryAuthor]);
+            $authorSortInput = (string)$sortStmt->fetchColumn();
+        }
+        $pdo->prepare('UPDATE books SET author_sort = :sort WHERE id = :id')
+            ->execute([':sort' => $authorSortInput, ':id' => $id]);
     }
 
     if ($descriptionInput !== '') {
@@ -290,6 +301,12 @@ $missingFile = !bookHasFile($book['path']);
                     </label>
                     <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
                     <datalist id="authorSuggestionsEdit"></datalist>
+                </div>
+                <div class="mb-3">
+                    <label for="authorSort" class="form-label">
+                        <i class="fa-solid fa-user-pen me-1 text-primary"></i> Author Sort
+                    </label>
+                    <input type="text" id="authorSort" name="author_sort" value="<?= htmlspecialchars($book['author_sort']) ?>" class="form-control">
                 </div>
                 <div class="mb-3">
                     <label for="series" class="form-label">
@@ -660,7 +677,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('DOMContentLoaded', () => {
     const authorInput = document.getElementById('authors');
+    const authorSortInput = document.getElementById('authorSort');
     const suggestionList = document.getElementById('authorSuggestionsEdit');
+    function calcAuthorSort(str) {
+        const first = str.split(/\s*(?:,|;| and )\s*/i)[0].trim();
+        if (first.includes(',')) return first;
+        const parts = first.split(/\s+/);
+        if (parts.length > 1) {
+            const last = parts.pop();
+            return `${last}, ${parts.join(' ')}`;
+        }
+        return first;
+    }
+    function updateAuthorSort() {
+        if (authorInput && authorSortInput) {
+            authorSortInput.value = calcAuthorSort(authorInput.value);
+        }
+    }
     if (authorInput && suggestionList) {
         authorInput.addEventListener('input', async () => {
             const term = authorInput.value.trim();
@@ -679,6 +712,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error(err);
             }
         });
+        if (authorSortInput) {
+            authorInput.addEventListener('input', updateAuthorSort);
+            if (!authorSortInput.value) updateAuthorSort();
+        }
     }
 });
 
