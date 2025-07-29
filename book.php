@@ -194,13 +194,18 @@ $missingFile = !bookHasFile($book['path']);
 <body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
 <?php include "navbar.php"; ?>
 <div class="container my-4">
-    <a href="list_books.php" class="btn btn-secondary mb-3">Back to list</a>
+    <a href="list_books.php" class="btn btn-secondary mb-3">
+        <i class="fa-solid fa-arrow-left me-1"></i> Back to list
+    </a>
+
+    <!-- Book Title and Info -->
     <h1 class="mb-0">
         <?php if ($missingFile): ?>
             <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
         <?php endif; ?>
         <?= htmlspecialchars($book['title']) ?>
     </h1>
+
     <?php
         $formattedPubdate = '';
         if (!empty($book['pubdate'])) {
@@ -212,7 +217,7 @@ $missingFile = !bookHasFile($book['path']);
             }
         }
     ?>
-    <p class="mb-4">
+    <p class="mb-4 text-muted">
         <?php if (!empty($book['isbn'])): ?>
             <strong>ISBN:</strong> <?= htmlspecialchars($book['isbn']) ?><br>
         <?php endif; ?>
@@ -220,146 +225,196 @@ $missingFile = !bookHasFile($book['path']);
             <strong>Published:</strong> <?= htmlspecialchars($formattedPubdate) ?>
         <?php endif; ?>
     </p>
-    <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4">Get Book Recommendations</button>
-    <button type="button" id="synopsisBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary mb-4 ms-2">Generate Synopsis</button>
-    <?php
-        $annasQuery = urlencode($book['title'] . ' ' . $book['authors']);
-        $annasUrl = 'list_books.php?source=annas&search=' . $annasQuery;
-    ?>
-    <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary mb-4 ms-2">Search Anna's Archive</a>
-    <button type="button" id="annasMetaBtn" class="btn btn-secondary mb-4 ms-2">Get Metadata</button>
-    <button type="button" id="googleMetaBtn" class="btn btn-secondary mb-4 ms-2">Metadata Google</button>
+
+    <!-- Actions Toolbar -->
+    <div class="btn-toolbar mb-4 flex-wrap">
+        <div class="btn-group me-2 mb-2">
+            <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary">
+                Get Recommendations
+            </button>
+            <button type="button" id="synopsisBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary">
+                Generate Synopsis
+            </button>
+        </div>
+        <div class="btn-group me-2 mb-2">
+            <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary">Anna's Archive</a>
+            <button type="button" id="annasMetaBtn" class="btn btn-secondary">Get Metadata</button>
+            <button type="button" id="googleMetaBtn" class="btn btn-secondary">Google Metadata</button>
+        </div>
+        <?php if ($missingFile): ?>
+            <div class="btn-group mb-2">
+                <button type="button" id="uploadFileButton" class="btn btn-secondary">Upload File</button>
+                <input type="file" id="bookFileInput" style="display:none">
+            </div>
+        <?php endif; ?>
+    </div>
     <?php if ($missingFile): ?>
-        <button type="button" id="uploadFileButton" class="btn btn-secondary mb-4 ms-2">Upload File</button>
-        <input type="file" id="bookFileInput" style="display:none">
         <div id="uploadMessage" class="mt-2 mb-2 h2"></div>
     <?php endif; ?>
-    <div class="row mb-4">
-        <div class="col-md-3">
+
+    <!-- Two-column layout -->
+    <div class="row">
+        <!-- Left Column: Book Metadata -->
+        <div class="col-lg-4 mb-4">
             <?php if (!empty($book['has_cover'])): ?>
-                <div class="position-relative d-inline-block">
-                    <img id="coverImagePreview" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="img-thumbnail shadow-sm" style="max-width: 200px;">
-                    <div id="coverDimensions" class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 1.2rem;">Loading...</div>
+                <div class="card shadow-sm mb-4">
+                    <div class="position-relative">
+                        <img id="coverImagePreview" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="card-img-top img-thumbnail">
+                        <div id="coverDimensions" class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 1.2rem;">Loading...</div>
+                    </div>
                 </div>
             <?php else: ?>
                 <div class="text-muted">No cover</div>
             <?php endif; ?>
-        </div>
-        <div class="col-md-9">
-            <p><strong>Author(s):</strong>
-                <?php if (!empty($book['author_data'])): ?>
-                    <?php
-                        $links = [];
-                        foreach (explode('|', $book['author_data']) as $pair) {
-                            list($aid, $aname) = explode(':', $pair, 2);
-                            $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
-                            $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
-                        }
-                        echo implode(', ', $links);
-                    ?>
-                <?php else: ?>
-                    &mdash;
-                <?php endif; ?>
-            </p>
-            <p><strong>Series:</strong>
-                <?php if (!empty($book['series'])): ?>
-                    <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
-                        <?= htmlspecialchars($book['series']) ?>
-                    </a>
-                    <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
-                        (<?= htmlspecialchars($book['series_index']) ?>)
+
+            <div class="border p-3 rounded bg-light shadow-sm">
+                <p><strong>Author(s):</strong>
+                    <?php if (!empty($book['author_data'])): ?>
+                        <?php
+                            $links = [];
+                            foreach (explode('|', $book['author_data']) as $pair) {
+                                list($aid, $aname) = explode(':', $pair, 2);
+                                $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
+                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
+                            }
+                            echo implode(', ', $links);
+                        ?>
+                    <?php else: ?>
+                        &mdash;
                     <?php endif; ?>
-                <?php else: ?>
-                    &mdash;
+                </p>
+                <p><strong>Series:</strong>
+                    <?php if (!empty($book['series'])): ?>
+                        <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
+                            <?= htmlspecialchars($book['series']) ?>
+                        </a>
+                        <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
+                            (<?= htmlspecialchars($book['series_index']) ?>)
+                        <?php endif; ?>
+                    <?php else: ?>
+                        &mdash;
+                    <?php endif; ?>
+                </p>
+                <?php if (!empty($tags)): ?>
+                    <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
                 <?php endif; ?>
-            </p>
-            <?php if (!empty($tags)): ?>
-                <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
-            <?php endif; ?>
-            <div id="recommendSection"<?php if (!empty($savedRecommendations)): ?> data-saved="<?= htmlspecialchars($savedRecommendations, ENT_QUOTES) ?>"<?php endif; ?>></div>
+                <div id="recommendSection"<?php if (!empty($savedRecommendations)): ?> data-saved="<?= htmlspecialchars($savedRecommendations, ENT_QUOTES) ?>"<?php endif; ?>></div>
+            </div>
+        </div>
+
+        <!-- Right Column: Edit Form with Tabs -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="card-title mb-4">
+                        <i class="fa-solid fa-pen-to-square me-2"></i> Edit Book Metadata
+                    </h2>
+                    <?php if ($updated): ?>
+                        <div class="alert alert-success">
+                            <i class="fa-solid fa-circle-check me-2"></i> Book updated successfully
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Tabbed Form -->
+                    <ul class="nav nav-tabs mb-3" id="editBookTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabBasic">Basic Info</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSeries">Series</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDescription">Description & Cover</button>
+                        </li>
+                    </ul>
+                    <form method="post" enctype="multipart/form-data">
+                        <div class="tab-content">
+                            <!-- Basic Info -->
+                            <div class="tab-pane fade show active" id="tabBasic">
+                                <div class="mb-3">
+                                    <label for="title" class="form-label">
+                                        <i class="fa-solid fa-book me-1 text-primary"></i> Title
+                                    </label>
+                                    <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="authors" class="form-label">
+                                        <i class="fa-solid fa-user me-1 text-primary"></i> Author(s)
+                                    </label>
+                                    <div class="input-group">
+                                        <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
+                                        <button type="button" id="applyAuthorSortBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-right"></i></button>
+                                    </div>
+                                    <datalist id="authorSuggestionsEdit"></datalist>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="authorSort" class="form-label">
+                                        <i class="fa-solid fa-user-pen me-1 text-primary"></i> Author Sort
+                                    </label>
+                                    <input type="text" id="authorSort" name="author_sort" value="<?= htmlspecialchars($book['author_sort']) ?>" class="form-control">
+                                </div>
+                            </div>
+
+                            <!-- Series Info -->
+                            <div class="tab-pane fade" id="tabSeries">
+                                <div class="mb-3">
+                                    <label for="series" class="form-label">
+                                        <i class="fa-solid fa-layer-group me-1 text-primary"></i> Series
+                                    </label>
+                                    <div class="input-group">
+                                        <select id="series" name="series_id" class="form-select">
+                                            <option value=""<?= empty($book['series_id']) ? ' selected' : '' ?>>None</option>
+                                            <?php foreach ($seriesList as $s): ?>
+                                                <option value="<?= htmlspecialchars($s['id']) ?>"<?= (int)$book['series_id'] === (int)$s['id'] ? ' selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
+                                            <?php endforeach; ?>
+                                            <option value="new">Add new series...</option>
+                                        </select>
+                                        <button type="button" id="addSeriesBtn" class="btn btn-outline-primary"><i class="fa-solid fa-plus"></i></button>
+                                        <button type="button" id="editSeriesBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-pen"></i></button>
+                                    </div>
+                                    <input type="text" id="newSeriesInput" name="new_series" class="form-control mt-2" placeholder="New series name" style="display:none">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="seriesIndex" class="form-label">
+                                        <i class="fa-solid fa-hashtag me-1 text-primary"></i> Number in Series
+                                    </label>
+                                    <input type="number" step="0.1" id="seriesIndex" name="series_index" value="<?= htmlspecialchars($book['series_index']) ?>" class="form-control">
+                                </div>
+                            </div>
+
+                            <!-- Description & Cover -->
+                            <div class="tab-pane fade" id="tabDescription">
+                                <div class="mb-3">
+                                    <label for="description" class="form-label">
+                                        <i class="fa-solid fa-align-left me-1 text-primary"></i> Description
+                                    </label>
+                                    <textarea id="description" name="description" class="form-control" rows="10"><?= htmlspecialchars($description) ?></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="cover" class="form-label">
+                                        <i class="fa-solid fa-image me-1 text-primary"></i> Cover Image
+                                    </label>
+                                    <input type="file" id="cover" name="cover" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="list_books.php" class="btn btn-secondary">
+                                <i class="fa-solid fa-arrow-left me-1"></i> Back to list
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-solid fa-save me-1"></i> Save
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Edit form -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <h2 class="card-title mb-4">
-                <i class="fa-solid fa-pen-to-square me-2"></i> Edit Book Metadata
-            </h2>
-            <?php if ($updated): ?>
-                <div class="alert alert-success">
-                    <i class="fa-solid fa-circle-check me-2"></i> Book updated successfully
-                </div>
-            <?php endif; ?>
-            <form method="post" enctype="multipart/form-data" class="mb-3">
-                <div class="mb-3">
-                    <label for="title" class="form-label">
-                        <i class="fa-solid fa-book me-1 text-primary"></i> Title
-                    </label>
-                    <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label for="authors" class="form-label">
-                        <i class="fa-solid fa-user me-1 text-primary"></i> Author(s)
-                    </label>
-                    <div class="input-group">
-                        <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
-                        <button type="button" id="applyAuthorSortBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-right"></i></button>
-                    </div>
-                    <datalist id="authorSuggestionsEdit"></datalist>
-                </div>
-                <div class="mb-3">
-                    <label for="authorSort" class="form-label">
-                        <i class="fa-solid fa-user-pen me-1 text-primary"></i> Author Sort
-                    </label>
-                    <input type="text" id="authorSort" name="author_sort" value="<?= htmlspecialchars($book['author_sort']) ?>" class="form-control">
-                </div>
-                <div class="mb-3">
-                    <label for="series" class="form-label">
-                        <i class="fa-solid fa-layer-group me-1 text-primary"></i> Series
-                    </label>
-                    <div class="input-group">
-                        <select id="series" name="series_id" class="form-select">
-                            <option value=""<?= empty($book['series_id']) ? ' selected' : '' ?>>None</option>
-                            <?php foreach ($seriesList as $s): ?>
-                                <option value="<?= htmlspecialchars($s['id']) ?>"<?= (int)$book['series_id'] === (int)$s['id'] ? ' selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
-                            <?php endforeach; ?>
-                            <option value="new">Add new series...</option>
-                        </select>
-                        <button type="button" id="addSeriesBtn" class="btn btn-outline-primary"><i class="fa-solid fa-plus"></i></button>
-                        <button type="button" id="editSeriesBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-pen"></i></button>
-                    </div>
-                    <input type="text" id="newSeriesInput" name="new_series" class="form-control mt-2" placeholder="New series name" style="display:none">
-                </div>
-                <div class="mb-3">
-                    <label for="seriesIndex" class="form-label">
-                        <i class="fa-solid fa-hashtag me-1 text-primary"></i> Number in Series
-                    </label>
-                    <input type="number" step="0.1" id="seriesIndex" name="series_index" value="<?= htmlspecialchars($book['series_index']) ?>" class="form-control">
-                </div>
-                <div class="mb-3">
-                    <label for="description" class="form-label">
-                        <i class="fa-solid fa-align-left me-1 text-primary"></i> Description
-                    </label>
-                    <textarea id="description" name="description" class="form-control" rows="16"><?= htmlspecialchars($description) ?></textarea>
-                </div>
-                <div class="mb-3">
-                    <label for="cover" class="form-label">
-                        <i class="fa-solid fa-image me-1 text-primary"></i> Cover Image
-                    </label>
-                    <input type="file" id="cover" name="cover" class="form-control">
-                </div>
-                <div class="d-flex justify-content-between">
-                    <a href="list_books.php" class="btn btn-secondary">
-                        <i class="fa-solid fa-arrow-left me-1"></i> Back to list
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fa-solid fa-save me-1"></i> Save
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+
 
     <!-- Anna's Archive Metadata Modal -->
     <div class="modal fade" id="annasModal" tabindex="-1" aria-hidden="true">
@@ -391,6 +446,7 @@ $missingFile = !bookHasFile($book['path']);
       </div>
     </div>
 </div>
+    
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script src="js/book.js"></script>
 </body>
