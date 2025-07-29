@@ -64,6 +64,20 @@ function safe_filename(string $name, int $max_length = 150): string {
     return substr(trim($name), 0, $max_length);
 }
 
+/**
+ * Ensure a language exists in the languages table and return its ID.
+ */
+function getLanguageId(PDO $pdo, string $code): int {
+    $stmt = $pdo->prepare('SELECT id FROM languages WHERE lang_code = ?');
+    $stmt->execute([$code]);
+    $id = $stmt->fetchColumn();
+    if ($id === false) {
+        $pdo->prepare('INSERT INTO languages (lang_code) VALUES (?)')->execute([$code]);
+        $id = $pdo->lastInsertId();
+    }
+    return (int)$id;
+}
+
 $pdo = getDatabaseConnection();
 $libraryPath = getLibraryPath();
 
@@ -166,7 +180,8 @@ try {
 
     $pdo->prepare('DELETE FROM books_languages_link WHERE book=?')->execute([$bookId]);
     foreach ($languages as $lang) {
-        $pdo->prepare('INSERT INTO books_languages_link(book,lang_code) VALUES(?, ?)')->execute([$bookId, $lang]);
+        $langId = getLanguageId($pdo, $lang);
+        $pdo->prepare('INSERT INTO books_languages_link(book,lang_code) VALUES(?, ?)')->execute([$bookId, $langId]);
     }
     touchLastModified($pdo, $bookId);
 
