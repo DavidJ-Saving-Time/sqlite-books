@@ -27,7 +27,7 @@ if (!$coverId && !empty($covers)) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($workTitle) ?></title>
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <script src="theme.js"></script>
+    <script src="js/theme.js"></script>
 </head>
 <body>
 <?php include "navbar.php"; ?>
@@ -63,35 +63,6 @@ if (!$coverId && !empty($covers)) {
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-<script>
-document.getElementById('addBtn').addEventListener('click', function () {
-    const title = this.dataset.title;
-    const authors = this.dataset.authors;
-    const thumbnail = this.dataset.thumbnail || '';
-    const description = this.dataset.description || '';
-    const params = new URLSearchParams({title: title, authors: authors, thumbnail: thumbnail, description: description});
-    const resultEl = document.getElementById('addResult');
-    resultEl.textContent = 'Adding...';
-    fetch('add_metadata_book.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: params
-    })
-    .then(resp => resp.json())
-    .then(data => {
-        if (data.status === 'ok') {
-            window.location.href =
-                'list_books.php?search=' +
-                encodeURIComponent(title) +
-                '&source=local';
-            return;
-        }
-        resultEl.textContent = data.error || 'Error adding book';
-    })
-    .catch(() => {
-        resultEl.textContent = 'Error adding book';
-    });
-});
-</script>
+<script src="js/openlibrary_view.js"></script>
 </body>
 </html>

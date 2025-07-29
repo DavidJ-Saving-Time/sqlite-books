@@ -75,7 +75,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
 
           <div class="input-group">
             <span class="input-group-text"><i class="fa-solid fa-arrow-down-a-z"></i></span>
-            <select class="form-select" name="sort" onchange="this.form.submit()">
+            <select class="form-select" name="sort" id="sortSelect">
               <option value="title"<?= $sortVal === 'title' ? ' selected' : '' ?>>Title</option>
               <option value="author"<?= $sortVal === 'author' ? ' selected' : '' ?>>Author</option>
               <option value="series"<?= $sortVal === 'series' ? ' selected' : '' ?>>Series</option>
@@ -145,3 +145,4 @@ $statusNameVal = isset($statusName) ? $statusName : '';
   </div>
 </nav>
 
+<script src="js/navbar.js"></script>

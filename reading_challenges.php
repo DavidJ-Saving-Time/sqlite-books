@@ -112,7 +112,7 @@ try {
     <title>Reading Challenge</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <script src="theme.js"></script>
+    <script src="js/theme.js"></script>
 </head>
 <body class="pt-5">
 <?php include "navbar.php"; ?>
@@ -281,17 +281,6 @@ try {
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-<script>
-document.querySelectorAll('.remove-challenge').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-        var id = this.getAttribute('data-book-id');
-        fetch('update_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ book_id: id, value: 'Read' })
-        }).then(function() { location.reload(); });
-    });
-});
-</script>
+<script src="js/reading_challenges.js"></script>
 </body>
 </html>
