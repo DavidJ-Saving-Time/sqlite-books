@@ -242,6 +242,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }).catch(() => {
           alert('Error updating metadata');
         });
+    } else if (e.target.id === 'longitoodUseCover') {
+      const url = e.target.dataset.url;
+      fetch('update_metadata.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ book_id: currentBookId, imgurl: url })
+      }).then(r => r.json())
+        .then(data => {
+          if (data.status === 'ok') {
+            location.reload();
+          } else {
+            alert(data.error || 'Error saving cover');
+          }
+        }).catch(() => {
+          alert('Error saving cover');
+        });
     }
   });
 
@@ -278,6 +294,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const img = document.getElementById('coverImagePreview');
   const dimLabel = document.getElementById('coverDimensions');
   const coverInput = document.getElementById('cover');
+  const isbnCoverWrap = document.getElementById('isbnCover');
+  const isbnInput = document.getElementById('isbn');
+  const initialIsbn = bodyData.isbn || (isbnInput ? isbnInput.value.trim() : '');
+
+  async function fetchIsbnCover(val) {
+    if (!isbnCoverWrap || !val) return;
+    isbnCoverWrap.textContent = 'Looking up cover...';
+    try {
+      const res = await fetch(`https://bookcover.longitood.com/bookcover/${encodeURIComponent(val)}`);
+      const data = await res.json();
+      if (data && data.url) {
+        const u = data.url;
+        isbnCoverWrap.innerHTML =
+          `<img src="${escapeHTML(u)}" class="img-thumbnail mb-2" style="max-height:150px">` +
+          `<div><button type="button" class="btn btn-sm btn-primary" id="longitoodUseCover" data-url="${u.replace(/"/g,'&quot;')}">Use This</button></div>`;
+      } else {
+        isbnCoverWrap.textContent = 'No cover found';
+      }
+    } catch (err) {
+      isbnCoverWrap.textContent = 'Error fetching cover';
+    }
+  }
+
+  if (initialIsbn) {
+    fetchIsbnCover(initialIsbn);
+  }
+  if (isbnInput) {
+    isbnInput.addEventListener('change', () => {
+      const val = isbnInput.value.trim();
+      if (val) fetchIsbnCover(val);
+    });
+  }
   function updateDimensions() {
     if (!img || !dimLabel) return;
     if (img.naturalWidth && img.naturalHeight) {
