@@ -266,7 +266,7 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
         #description { min-height: 200px; resize: vertical; }
     </style>
 </head>
-<body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>"<?php if($ebookFileRel): ?> data-ebook-file="<?= htmlspecialchars($ebookFileRel) ?>"<?php endif; ?>>
+<body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>"<?php if($ebookFileRel): ?> data-ebook-file="<?= htmlspecialchars($ebookFileRel) ?>"<?php endif; ?><?php if(!empty($book['isbn'])): ?> data-isbn="<?= htmlspecialchars($book['isbn']) ?>"<?php endif; ?>>
 <?php include "navbar.php"; ?>
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">
@@ -499,6 +499,7 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                                         <i class="fa-solid fa-image me-1 text-primary"></i> Cover Image
                                     </label>
                                     <input type="file" id="cover" name="cover" class="form-control">
+                                    <div id="isbnCover" class="mt-2"></div>
                                 </div>
                             </div>
                             <!-- Recommendations -->
