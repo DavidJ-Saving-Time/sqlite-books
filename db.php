@@ -3,6 +3,7 @@
 umask(0002);
 
 require_once __DIR__ . '/TitleSortClass.php';
+require_once __DIR__ . '/AuthorSortClass.php';
 // Simple cookie based login
 function currentUser(): ?string {
     return $_COOKIE['user'] ?? null;
@@ -157,43 +158,13 @@ function getDatabaseConnection(?string $path = null) {
 
         // Register a PHP implementation of Calibre's author_sort function so
         // SQL statements can use author_sort() just like in Calibre.
-        $pdo->sqliteCreateFunction('author_sort', function ($author) {
+        $authorSorter = new AuthorSort('invert');
+        $pdo->sqliteCreateFunction('author_sort', function ($author) use ($authorSorter) {
             $author = trim($author ?? '');
             if ($author === '') {
                 return '';
             }
-
-            // Leave "Last, First" names untouched
-            if (strpos($author, ',') !== false) {
-                return $author;
-            }
-
-            $particles = ['da','de','del','della','di','du','la','le','van','von','der','den','ter','ten','el'];
-            $suffixes  = ['jr','jr.','sr','sr.','ii','iii','iv'];
-
-            $parts = preg_split('/\s+/', $author);
-            $numParts = count($parts);
-            if ($numParts <= 1) {
-                return $author;
-            }
-
-            // Detect suffix like Jr., III
-            $suffix = '';
-            $last = strtolower($parts[$numParts - 1]);
-            if (in_array($last, $suffixes, true)) {
-                $suffix = ' ' . array_pop($parts);
-                $numParts--;
-            }
-
-            // Build last name including particles
-            $lastName = array_pop($parts);
-            while ($numParts > 1 && in_array(strtolower($parts[$numParts - 2]), $particles, true)) {
-                $lastName = array_pop($parts) . ' ' . $lastName;
-                $numParts--;
-            }
-
-            $firstNames = implode(' ', $parts);
-            return trim($lastName . $suffix . ', ' . $firstNames);
+            return $authorSorter->sort($author);
         }, 1);
 
 

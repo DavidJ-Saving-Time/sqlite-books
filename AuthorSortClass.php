@@ -101,7 +101,7 @@ class AuthorSort
 }
 
 // --- Example usage ---
-$sorter = new AuthorSort('invert');
-echo $sorter->sort("Vincent van Gogh & John Smith Jr.") . "\n";
+// $sorter = new AuthorSort('invert');
+// echo $sorter->sort("Vincent van Gogh & John Smith Jr.") . "\n";
 // Output: "van Gogh, Vincent & Smith Jr., John"
 
