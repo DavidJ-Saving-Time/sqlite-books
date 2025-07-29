@@ -167,15 +167,38 @@ function getDatabaseConnection(?string $path = null) {
             if ($author === '') {
                 return '';
             }
+
+            // Leave "Last, First" names untouched
             if (strpos($author, ',') !== false) {
                 return $author;
             }
+
+            $particles = ['da','de','del','della','di','du','la','le','van','von','der','den','ter','ten','el'];
+            $suffixes  = ['jr','jr.','sr','sr.','ii','iii','iv'];
+
             $parts = preg_split('/\s+/', $author);
-            if (count($parts) > 1) {
-                $last = array_pop($parts);
-                return $last . ', ' . implode(' ', $parts);
+            $numParts = count($parts);
+            if ($numParts <= 1) {
+                return $author;
             }
-            return $author;
+
+            // Detect suffix like Jr., III
+            $suffix = '';
+            $last = strtolower($parts[$numParts - 1]);
+            if (in_array($last, $suffixes, true)) {
+                $suffix = ' ' . array_pop($parts);
+                $numParts--;
+            }
+
+            // Build last name including particles
+            $lastName = array_pop($parts);
+            while ($numParts > 1 && in_array(strtolower($parts[$numParts - 2]), $particles, true)) {
+                $lastName = array_pop($parts) . ' ' . $lastName;
+                $numParts--;
+            }
+
+            $firstNames = implode(' ', $parts);
+            return trim($lastName . $suffix . ', ' . $firstNames);
         }, 1);
 
 

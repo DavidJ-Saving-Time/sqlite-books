@@ -312,13 +312,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const suggestionList = document.getElementById('authorSuggestionsEdit');
   function calcAuthorSort(str) {
     const first = str.split(/\s*(?:,|;| and )\s*/i)[0].trim();
+    if (!first) return '';
     if (first.includes(',')) return first;
+
+    const particles = ['da','de','del','della','di','du','la','le','van','von','der','den','ter','ten','el'];
+    const suffixes  = ['jr','jr.','sr','sr.','ii','iii','iv'];
+
     const parts = first.split(/\s+/);
-    if (parts.length > 1) {
-      const last = parts.pop();
-      return `${last}, ${parts.join(' ')}`;
+    if (parts.length <= 1) return first;
+
+    let suffix = '';
+    const last = parts[parts.length - 1].toLowerCase();
+    if (suffixes.includes(last)) {
+      suffix = ' ' + parts.pop();
     }
-    return first;
+
+    let lastName = parts.pop();
+    while (parts.length > 0 && particles.includes(parts[parts.length - 1].toLowerCase())) {
+      lastName = parts.pop() + ' ' + lastName;
+    }
+
+    const firstNames = parts.join(' ');
+    return `${lastName}${suffix}, ${firstNames}`.trim();
   }
   function updateAuthorSort() {
     if (authorInput && authorSortInput) {
