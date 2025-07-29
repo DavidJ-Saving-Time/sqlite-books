@@ -251,8 +251,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const img = document.getElementById('coverImagePreview');
   const dimLabel = document.getElementById('coverDimensions');
+  const coverInput = document.getElementById('cover');
   function updateDimensions() {
-    if (img && img.naturalWidth && img.naturalHeight) {
+    if (!img || !dimLabel) return;
+    if (img.naturalWidth && img.naturalHeight) {
       dimLabel.textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
     } else {
       dimLabel.textContent = 'No image data';
@@ -263,8 +265,23 @@ document.addEventListener('DOMContentLoaded', () => {
       updateDimensions();
     } else {
       img.addEventListener('load', updateDimensions);
-      img.addEventListener('error', () => { dimLabel.textContent = 'Image not found'; });
+      if (dimLabel) {
+        img.addEventListener('error', () => { dimLabel.textContent = 'Image not found'; });
+      }
     }
+  }
+
+  if (coverInput && img) {
+    coverInput.addEventListener('change', () => {
+      if (!coverInput.files.length) return;
+      const file = coverInput.files[0];
+      const url = URL.createObjectURL(file);
+      img.src = url;
+      img.addEventListener('load', () => {
+        updateDimensions();
+        URL.revokeObjectURL(url);
+      }, { once: true });
+    });
   }
 
   const authorInput = document.getElementById('authors');
