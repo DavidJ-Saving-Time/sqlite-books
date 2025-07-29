@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.addEventListener('click', ev => {
+  document.addEventListener('click', async ev => {
     const metaBtn = ev.target.closest('.google-meta');
     const resultsEl = document.getElementById('googleResults');
     if (metaBtn) {
