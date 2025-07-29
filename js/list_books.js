@@ -137,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await fetch('update_rating.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'same-origin',
         body: new URLSearchParams({ book_id: bookId, value })
       });
     }
