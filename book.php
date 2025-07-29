@@ -312,13 +312,17 @@ $missingFile = !bookHasFile($book['path']);
                     <label for="series" class="form-label">
                         <i class="fa-solid fa-layer-group me-1 text-primary"></i> Series
                     </label>
-                    <select id="series" name="series_id" class="form-select">
-                        <option value=""<?= empty($book['series_id']) ? ' selected' : '' ?>>None</option>
-                        <?php foreach ($seriesList as $s): ?>
-                            <option value="<?= htmlspecialchars($s['id']) ?>"<?= (int)$book['series_id'] === (int)$s['id'] ? ' selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
-                        <?php endforeach; ?>
-                        <option value="new">Add new series...</option>
-                    </select>
+                    <div class="input-group">
+                        <select id="series" name="series_id" class="form-select">
+                            <option value=""<?= empty($book['series_id']) ? ' selected' : '' ?>>None</option>
+                            <?php foreach ($seriesList as $s): ?>
+                                <option value="<?= htmlspecialchars($s['id']) ?>"<?= (int)$book['series_id'] === (int)$s['id'] ? ' selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
+                            <?php endforeach; ?>
+                            <option value="new">Add new series...</option>
+                        </select>
+                        <button type="button" id="addSeriesBtn" class="btn btn-outline-primary"><i class="fa-solid fa-plus"></i></button>
+                        <button type="button" id="editSeriesBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-pen"></i></button>
+                    </div>
                     <input type="text" id="newSeriesInput" name="new_series" class="form-control mt-2" placeholder="New series name" style="display:none">
                 </div>
                 <div class="mb-3">
@@ -722,6 +726,8 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const seriesSelect = document.getElementById('series');
     const newSeriesInput = document.getElementById('newSeriesInput');
+    const addSeriesBtn = document.getElementById('addSeriesBtn');
+    const editSeriesBtn = document.getElementById('editSeriesBtn');
     function toggleSeriesInput() {
         if (!seriesSelect) return;
         if (seriesSelect.value === 'new') {
@@ -730,10 +736,44 @@ document.addEventListener('DOMContentLoaded', () => {
             newSeriesInput.style.display = 'none';
             if (seriesSelect.value !== 'new') newSeriesInput.value = '';
         }
+        if (editSeriesBtn) {
+            editSeriesBtn.style.display = (seriesSelect.value && seriesSelect.value !== 'new') ? '' : 'none';
+        }
     }
     if (seriesSelect && newSeriesInput) {
         seriesSelect.addEventListener('change', toggleSeriesInput);
         toggleSeriesInput();
+    }
+    if (addSeriesBtn) {
+        addSeriesBtn.addEventListener('click', () => {
+            if (seriesSelect) {
+                seriesSelect.value = 'new';
+                toggleSeriesInput();
+                newSeriesInput.focus();
+            }
+        });
+    }
+    if (editSeriesBtn && seriesSelect) {
+        editSeriesBtn.addEventListener('click', async () => {
+            const id = seriesSelect.value;
+            if (!id || id === 'new') return;
+            const option = seriesSelect.options[seriesSelect.selectedIndex];
+            let name = prompt('Rename series:', option.textContent);
+            if (name === null) return;
+            name = name.trim();
+            if (!name || name === option.textContent) return;
+            try {
+                const res = await fetch('rename_series.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ id, new: name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    option.textContent = name;
+                }
+            } catch (err) { console.error(err); }
+        });
     }
 });
 </script>
