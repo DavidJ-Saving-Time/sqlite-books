@@ -49,6 +49,28 @@ function initCoverDimensions(root = document) {
   });
 }
 
+function updateStarUI(container, rating) {
+  if (!container) return;
+  container.querySelectorAll('.rating-star').forEach(star => {
+    const val = parseInt(star.dataset.value, 10);
+    if (val <= rating) {
+      star.classList.remove('fa-regular', 'text-muted');
+      star.classList.add('fa-solid', 'text-warning');
+    } else {
+      star.classList.add('fa-regular', 'text-muted');
+      star.classList.remove('fa-solid', 'text-warning');
+    }
+  });
+  const clr = container.querySelector('.rating-clear');
+  if (clr) {
+    if (rating > 0) {
+      clr.classList.remove('d-none');
+    } else {
+      clr.classList.add('d-none');
+    }
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
   let currentPage = parseInt(bodyData.page, 10);
@@ -228,6 +250,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.addEventListener('click', async e => {
+    const star = e.target.closest('.rating-star');
+    const clear = e.target.closest('.rating-clear');
+    if (star || clear) {
+      const container = (star || clear).closest('.star-rating');
+      const bookId = container ? container.dataset.bookId : null;
+      const value = star ? parseInt(star.dataset.value, 10) : 0;
+      if (bookId) {
+        try {
+          await fetch('update_rating.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            credentials: 'same-origin',
+            body: new URLSearchParams({ book_id: bookId, value })
+          });
+          updateStarUI(container, value);
+        } catch (err) { console.error(err); }
+      }
+      return;
+    }
     const delShelfBtn = e.target.closest('.delete-shelf');
     if (delShelfBtn) {
       if (!confirm('Are you sure you want to remove this shelf?')) return;
