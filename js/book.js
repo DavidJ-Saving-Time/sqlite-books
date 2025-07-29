@@ -295,23 +295,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const dimLabel = document.getElementById('coverDimensions');
   const coverInput = document.getElementById('cover');
   const isbnCoverWrap = document.getElementById('isbnCover');
-  const isbn = bodyData.isbn;
 
-  if (isbnCoverWrap && isbn) {
+  const isbnInput = document.getElementById('isbn');
+  const initialIsbn = bodyData.isbn || (isbnInput ? isbnInput.value.trim() : '');
+
+  async function fetchIsbnCover(val) {
+    if (!isbnCoverWrap || !val) return;
     isbnCoverWrap.textContent = 'Looking up cover...';
-    fetch(`https://bookcover.longitood.com/bookcover/${encodeURIComponent(isbn)}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data && data.url) {
-          const u = data.url;
-          isbnCoverWrap.innerHTML =
-            `<img src="${escapeHTML(u)}" class="img-thumbnail mb-2" style="max-height:150px">` +
-            `<div><button type="button" class="btn btn-sm btn-primary" id="longitoodUseCover" data-url="${u.replace(/"/g,'&quot;')}">Use This</button></div>`;
-        } else {
-          isbnCoverWrap.textContent = 'No cover found';
-        }
-      })
-      .catch(() => { isbnCoverWrap.textContent = 'Error fetching cover'; });
+    try {
+      const res = await fetch(`https://bookcover.longitood.com/bookcover/${encodeURIComponent(val)}`);
+      const data = await res.json();
+      if (data && data.url) {
+        const u = data.url;
+        isbnCoverWrap.innerHTML =
+          `<img src="${escapeHTML(u)}" class="img-thumbnail mb-2" style="max-height:150px">` +
+          `<div><button type="button" class="btn btn-sm btn-primary" id="longitoodUseCover" data-url="${u.replace(/"/g,'&quot;')}">Use This</button></div>`;
+      } else {
+        isbnCoverWrap.textContent = 'No cover found';
+      }
+    } catch (err) {
+      isbnCoverWrap.textContent = 'Error fetching cover';
+    }
+  }
+
+  if (initialIsbn) {
+    fetchIsbnCover(initialIsbn);
+  }
+  if (isbnInput) {
+    isbnInput.addEventListener('change', () => {
+      const val = isbnInput.value.trim();
+      if (val) fetchIsbnCover(val);
+    });
+
   }
   function updateDimensions() {
     if (!img || !dimLabel) return;
