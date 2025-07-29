@@ -36,6 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $seriesIdInput = $_POST['series_id'] ?? '';
     $newSeriesName = trim($_POST['new_series'] ?? '');
     $seriesIndexInput = trim($_POST['series_index'] ?? '');
+    $publisherInput = trim($_POST['publisher'] ?? '');
+    $pubdateInput = trim($_POST['pubdate'] ?? '');
+    $pubDate = $book['pubdate'];
+    $isbnInput = trim($_POST['isbn'] ?? '');
 
     $pdo->beginTransaction();
     $stmt = $pdo->prepare('UPDATE books SET title = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?');
@@ -104,6 +108,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->prepare('UPDATE books SET series_index = :idx WHERE id = :id')
         ->execute([':idx' => $seriesIndex, ':id' => $id]);
 
+    // Update publisher information
+    if ($publisherInput !== '') {
+        $pdo->prepare('INSERT OR IGNORE INTO publishers(name) VALUES (?)')->execute([$publisherInput]);
+        $pdo->prepare('DELETE FROM books_publishers_link WHERE book=?')->execute([$id]);
+        $pdo->prepare('INSERT INTO books_publishers_link(book,publisher) SELECT ?, id FROM publishers WHERE name=?')
+            ->execute([$id, $publisherInput]);
+    } else {
+        $pdo->prepare('DELETE FROM books_publishers_link WHERE book=?')->execute([$id]);
+    }
+
+    // Update publication date
+    if ($pubdateInput !== '') {
+        $pubDate = preg_match('/^\d{4}$/', $pubdateInput) ? $pubdateInput . '-01-01' : $pubdateInput;
+        $pdo->prepare('UPDATE books SET pubdate=? WHERE id=?')->execute([$pubDate, $id]);
+    }
+
+    // Update ISBN
+    $pdo->prepare('UPDATE books SET isbn=? WHERE id=?')->execute([$isbnInput, $id]);
+
     if (!empty($_FILES['cover']) && $_FILES['cover']['error'] === UPLOAD_ERR_OK) {
         $libraryPath = getLibraryPath();
         $destDir = $libraryPath . '/' . $book['path'];
@@ -135,7 +158,10 @@ $stmt = $pdo->prepare("SELECT b.*,
             JOIN authors a ON bal.author = a.id
             WHERE bal.book = b.id) AS author_data,
         s.id AS series_id,
-        s.name AS series
+        s.name AS series,
+        (SELECT name FROM publishers WHERE publishers.id IN
+            (SELECT publisher FROM books_publishers_link WHERE book = b.id)
+            LIMIT 1) AS publisher
     FROM books b
     LEFT JOIN books_series_link bsl ON bsl.book = b.id
     LEFT JOIN series s ON bsl.series = s.id
@@ -159,6 +185,19 @@ $tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
     WHERE btl.book = ?");
 $tagsStmt->execute([$id]);
 $tags = $tagsStmt->fetchColumn();
+
+// Extract publication year for display
+$pubYear = '';
+if (!empty($book['pubdate'])) {
+    try {
+        $dt = new DateTime($book['pubdate']);
+        $pubYear = $dt->format('Y');
+    } catch (Exception $e) {
+        if (preg_match('/^\d{4}/', $book['pubdate'], $m)) {
+            $pubYear = $m[0];
+        }
+    }
+}
 
 // Fetch list of all series for dropdown
 $seriesList = [];
@@ -318,7 +357,6 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                 <?php if (!empty($tags)): ?>
                     <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
                 <?php endif; ?>
-                <div id="recommendSection"<?php if (!empty($savedRecommendations)): ?> data-saved="<?= htmlspecialchars($savedRecommendations, ENT_QUOTES) ?>"<?php endif; ?>></div>
             </div>
         </div>
 
@@ -345,6 +383,9 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                         </li>
                         <li class="nav-item">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDescription">Description & Cover</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRecommendations">Recommendations</button>
                         </li>
                     </ul>
                     <form method="post" enctype="multipart/form-data">
@@ -378,6 +419,24 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                                         <i class="fa-solid fa-folder-open me-1 text-primary"></i> Library Base Directory
                                     </label>
                                     <input type="text" id="libraryBasePath" class="form-control" value="<?= htmlspecialchars($libraryDirPath) ?>" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="publisher" class="form-label">
+                                        <i class="fa-solid fa-building me-1 text-primary"></i> Publisher
+                                    </label>
+                                    <input type="text" id="publisher" name="publisher" value="<?= htmlspecialchars($book['publisher'] ?? '') ?>" class="form-control">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="pubdate" class="form-label">
+                                        <i class="fa-solid fa-calendar me-1 text-primary"></i> Publication Year
+                                    </label>
+                                    <input type="text" id="pubdate" name="pubdate" value="<?= htmlspecialchars($pubYear) ?>" class="form-control">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="isbn" class="form-label">
+                                        <i class="fa-solid fa-barcode me-1 text-primary"></i> ISBN
+                                    </label>
+                                    <input type="text" id="isbn" name="isbn" value="<?= htmlspecialchars($book['isbn']) ?>" class="form-control">
                                 </div>
                             </div>
 
@@ -422,6 +481,10 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                                     </label>
                                     <input type="file" id="cover" name="cover" class="form-control">
                                 </div>
+                            </div>
+                            <!-- Recommendations -->
+                            <div class="tab-pane fade" id="tabRecommendations">
+                                <div id="recommendSection"<?php if (!empty($savedRecommendations)): ?> data-saved="<?= htmlspecialchars($savedRecommendations, ENT_QUOTES) ?>"<?php endif; ?>></div>
                             </div>
                         </div>
 
