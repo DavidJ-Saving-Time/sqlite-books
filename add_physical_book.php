@@ -296,7 +296,11 @@ if (fileInput) {
       .then(data => {
         if (data.title && !titleInput.value) titleInput.value = data.title;
         if (data.authors && !authorsInput.value) {
-          authorsInput.value = data.authors.replace(/ and /g, ', ');
+          if (Array.isArray(data.authors)) {
+            authorsInput.value = data.authors.join(', ');
+          } else {
+            authorsInput.value = String(data.authors).replace(/ and /g, ', ');
+          }
         }
       })
       .catch(() => {});
