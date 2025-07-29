@@ -423,12 +423,12 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     </div>
                     <div>
                         <label class="small text-muted mb-1 d-block">Rating</label>
-                        <select class="form-select form-select-sm rating-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                            <option value="0"<?= ($book['rating'] === null || $book['rating'] === 0) ? ' selected' : '' ?>>None</option>
+                        <div class="star-rating" data-book-id="<?= htmlspecialchars($book['id']) ?>">
                             <?php for ($i = 1; $i <= 5; $i++): ?>
-                                <option value="<?= $i ?>"<?= ((int)$book['rating'] === $i) ? ' selected' : '' ?>><?= $i ?> star<?= $i > 1 ? 's' : '' ?></option>
+                                <i class="rating-star me-1 <?= ((int)$book['rating'] >= $i) ? 'fa-solid fa-star text-warning' : 'fa-regular fa-star text-muted' ?>" data-value="<?= $i ?>"></i>
                             <?php endfor; ?>
-                        </select>
+                            <i class="fa-solid fa-xmark rating-clear ms-1<?= ($book['rating'] > 0) ? '' : ' d-none' ?>" data-value="0" title="Clear rating"></i>
+                        </div>
                     </div>
 
                     <!-- Actions -->
@@ -583,6 +583,12 @@ function linkTextColor(string $current, string $compare): string {
 [data-book-block-id] .ms-auto {
     flex-wrap: wrap;
     gap: 0.5rem;
+}
+
+/* Star rating */
+.star-rating .fa-star,
+.star-rating .fa-xmark {
+    cursor: pointer;
 }
     </style>
 </head>
