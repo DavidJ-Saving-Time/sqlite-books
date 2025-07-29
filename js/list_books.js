@@ -55,6 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const totalPages = parseInt(bodyData.totalPages, 10);
   let loading = false;
   const fetchUrlBase = bodyData.baseUrl;
+  const saveState = () => {
+    sessionStorage.setItem('listBooksPage', String(currentPage));
+    sessionStorage.setItem('listBooksScroll', String(window.scrollY));
+  };
 
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
@@ -491,6 +495,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return;
     }
+
+    const link = e.target.closest('a');
+    if (link && link.href && !link.href.startsWith('#')) {
+      saveState();
+    }
   });
 
   window.addEventListener('scroll', () => {
@@ -498,4 +507,6 @@ document.addEventListener('DOMContentLoaded', () => {
       loadMore();
     }
   });
+
+  window.addEventListener('pagehide', saveState);
 });
