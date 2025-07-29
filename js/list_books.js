@@ -131,6 +131,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: bookId, value })
       });
+    } else if (e.target.classList.contains('rating-select')) {
+      const bookId = e.target.dataset.bookId;
+      const value = e.target.value;
+      await fetch('update_rating.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ book_id: bookId, value })
+      });
     }
   });
 

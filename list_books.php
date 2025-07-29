@@ -215,7 +215,8 @@ $books = [];
                             JOIN custom_column_{$genreColumnId} gv ON bcc.value = gv.id
                             WHERE bcc.book = b.id) AS genre_data,
                        bc11.value AS shelf,
-                       com.text AS description";
+                       com.text AS description,
+                       r.rating AS rating";
         if ($statusTable) {
             if ($statusIsLink) {
                 $selectFields .= ", scv.value AS status";
@@ -233,7 +234,9 @@ $books = [];
                 LEFT JOIN series s ON bsl.series = s.id
                 LEFT JOIN $shelfLinkTable bc11l ON bc11l.book = b.id
                 LEFT JOIN $shelfValueTable bc11 ON bc11l.value = bc11.id
-                LEFT JOIN comments com ON com.book = b.id";
+                LEFT JOIN comments com ON com.book = b.id
+                LEFT JOIN books_ratings_link brl ON brl.book = b.id
+                LEFT JOIN ratings r ON r.id = brl.rating";
         if ($statusTable) {
             if ($statusIsLink) {
                 $sql .= " LEFT JOIN $statusTable sc ON sc.book = b.id LEFT JOIN custom_column_" . (int)$statusId . " scv ON sc.value = scv.id";
@@ -265,6 +268,12 @@ $books = [];
             }
             unset($b);
         }
+        foreach ($books as &$b) {
+            if ($b['rating'] !== null) {
+                $b['rating'] = (int)($b['rating'] / 2);
+            }
+        }
+        unset($b);
     } catch (PDOException $e) {
         die('Query failed: ' . $e->getMessage());
     }
@@ -410,6 +419,15 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                             <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
                                 <option value="<?= htmlspecialchars($book['status']) ?>" selected><?= htmlspecialchars($book['status']) ?></option>
                             <?php endif; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="small text-muted mb-1 d-block">Rating</label>
+                        <select class="form-select form-select-sm rating-select" data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                            <option value="0"<?= ($book['rating'] === null || $book['rating'] === 0) ? ' selected' : '' ?>>None</option>
+                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                <option value="<?= $i ?>"<?= ((int)$book['rating'] === $i) ? ' selected' : '' ?>><?= $i ?> star<?= $i > 1 ? 's' : '' ?></option>
+                            <?php endfor; ?>
                         </select>
                     </div>
 
