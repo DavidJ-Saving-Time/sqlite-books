@@ -311,29 +311,35 @@ document.addEventListener('DOMContentLoaded', () => {
   const applySortBtn = document.getElementById('applyAuthorSortBtn');
   const suggestionList = document.getElementById('authorSuggestionsEdit');
   function calcAuthorSort(str) {
-    const first = str.split(/\s*(?:,|;| and )\s*/i)[0].trim();
-    if (!first) return '';
-    if (first.includes(',')) return first;
-
     const particles = ['da','de','del','della','di','du','la','le','van','von','der','den','ter','ten','el'];
     const suffixes  = ['jr','jr.','sr','sr.','ii','iii','iv'];
 
-    const parts = first.split(/\s+/);
-    if (parts.length <= 1) return first;
+    function invert(name) {
+      name = name.trim();
+      if (!name) return '';
+      if (name.includes(',')) return name;
 
-    let suffix = '';
-    const last = parts[parts.length - 1].toLowerCase();
-    if (suffixes.includes(last)) {
-      suffix = ' ' + parts.pop();
+      const parts = name.split(/\s+/);
+      if (parts.length <= 1) return name;
+
+      let suffix = '';
+      const last = parts[parts.length - 1].toLowerCase();
+      if (suffixes.includes(last)) {
+        suffix = ' ' + parts.pop();
+      }
+
+      let lastName = parts.pop();
+      while (parts.length > 0 && particles.includes(parts[parts.length - 1].toLowerCase())) {
+        lastName = parts.pop() + ' ' + lastName;
+      }
+
+      const firstNames = parts.join(' ');
+      return `${lastName}${suffix}, ${firstNames}`.trim();
     }
 
-    let lastName = parts.pop();
-    while (parts.length > 0 && particles.includes(parts[parts.length - 1].toLowerCase())) {
-      lastName = parts.pop() + ' ' + lastName;
-    }
-
-    const firstNames = parts.join(' ');
-    return `${lastName}${suffix}, ${firstNames}`.trim();
+    const authors = str.split(/\s*(?:&| and )\s*/i).filter(a => a.trim());
+    const sorted = authors.map(a => invert(a));
+    return sorted.join(' & ');
   }
   function updateAuthorSort() {
     if (authorInput && authorSortInput) {
