@@ -192,7 +192,11 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
           if (data.title && titleInput) titleInput.value = data.title;
           if (data.authors && authorInput) {
-            authorInput.value = data.authors.replace(/ and /g, ', ');
+            if (Array.isArray(data.authors)) {
+              authorInput.value = data.authors.join(', ');
+            } else {
+              authorInput.value = String(data.authors).replace(/ and /g, ', ');
+            }
             updateAuthorSort();
           }
           if (data.comments && descriptionInput) {
