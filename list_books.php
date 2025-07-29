@@ -303,10 +303,13 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
             <div class="col-md-2 col-12 text-center cover-wrapper">
                 <?php if (!empty($book['has_cover'])): ?>
                     <a href="book.php?id=<?= urlencode($book['id']) ?>">
-                        <img src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
-                             alt="Cover"
-                             class="img-thumbnail img-fluid book-cover"
-                             style="width: 100%; max-width:150px; height:auto;">
+                        <div class="position-relative d-inline-block">
+                            <img id="coverImage<?= (int)$book['id'] ?>" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
+                                 alt="Cover"
+                                 class="img-thumbnail img-fluid book-cover"
+                                 style="width: 100%; max-width:150px; height:auto;">
+                            <div id="coverDimensions<?= (int)$book['id'] ?>" class="cover-dimensions position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 0.8rem;">Loading...</div>
+                        </div>
                     </a>
                 <?php else: ?>
                     &mdash;
@@ -790,6 +793,26 @@ function setDescription(el, text) {
     el.innerHTML = html;
 }
 
+function initCoverDimensions(root = document) {
+    root.querySelectorAll('.cover-wrapper img.book-cover').forEach(img => {
+        const label = img.parentElement.querySelector('.cover-dimensions');
+        if (!label) return;
+        const update = () => {
+            if (img.naturalWidth && img.naturalHeight) {
+                label.textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
+            } else {
+                label.textContent = 'No image data';
+            }
+        };
+        if (img.complete) {
+            update();
+        } else {
+            img.addEventListener('load', update, { once: true });
+            img.addEventListener('error', () => { label.textContent = 'Image not found'; }, { once: true });
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
 
     var currentPage = <?= $page ?>;
@@ -799,6 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
     var googleModalEl = document.getElementById('googleModal');
     var googleModal = new bootstrap.Modal(googleModalEl);
     var bookList = document.getElementById('book-list');
+    initCoverDimensions();
 
     var restorePage = parseInt(sessionStorage.getItem('listBooksPage') || '0', 10);
     var restoreScroll = parseInt(sessionStorage.getItem('listBooksScroll') || '0', 10);
@@ -831,6 +855,7 @@ async function loadMore() {
         while (tmp.firstChild) {
             bookList.appendChild(tmp.firstChild);
         }
+        initCoverDimensions(bookList);
         currentPage++;
     } catch (err) {
         console.error(err);
@@ -1229,9 +1254,13 @@ document.addEventListener('click', async (ev) => {
                     const imgElem = bookBlock.querySelector('.book-cover');
                     if (imgElem) {
                         imgElem.src = img;
+                        initCoverDimensions(bookBlock);
                     } else {
                         const wrapper = bookBlock.querySelector('.cover-wrapper');
-                        if (wrapper) wrapper.innerHTML = `<img src="${img}" class="img-thumbnail img-fluid book-cover" alt="Cover">`;
+                        if (wrapper) {
+                            wrapper.innerHTML = `<div class="position-relative d-inline-block"><img src="${img}" class="img-thumbnail img-fluid book-cover" alt="Cover" style="width: 100%; max-width:150px; height:auto;"><div class="cover-dimensions position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 0.8rem;">Loading...</div></div>`;
+                            initCoverDimensions(wrapper);
+                        }
                     }
                 }
             }
