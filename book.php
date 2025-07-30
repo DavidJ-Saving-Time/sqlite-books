@@ -139,6 +139,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ->execute([$id, $isbnInput]);
     }
 
+    // If authors changed adjust the filesystem path accordingly
+    if ($authorsInput !== '') {
+        $oldPath = $book['path'];
+        $oldBookFolder = $oldPath !== '' ? basename($oldPath) : safe_filename($title) . ' (' . $id . ')';
+        $oldAuthorFolder = $oldPath !== '' ? dirname($oldPath) : '';
+        $newAuthorFolder = safe_filename($primaryAuthor . (count($authorsList) > 1 ? ' et al.' : ''));
+        $newPath = $newAuthorFolder . '/' . $oldBookFolder;
+
+        if ($newPath !== $oldPath) {
+            $libraryPath = getLibraryPath();
+            $oldFullPath = $oldPath !== '' ? $libraryPath . '/' . $oldPath : '';
+            $newFullPath = $libraryPath . '/' . $newPath;
+
+            // Create target author directory if needed
+            if (!is_dir(dirname($newFullPath))) {
+                mkdir(dirname($newFullPath), 0777, true);
+            }
+
+            // Move existing directory if present
+            if ($oldFullPath !== '' && is_dir($oldFullPath)) {
+                rename($oldFullPath, $newFullPath);
+
+                // Remove old author directory if empty
+                $oldAuthorDir = $libraryPath . '/' . $oldAuthorFolder;
+                if (is_dir($oldAuthorDir)) {
+                    $entries = array_diff(scandir($oldAuthorDir), ['.', '..']);
+                    if (count($entries) === 0) {
+                        rmdir($oldAuthorDir);
+                    }
+                }
+            } else if (!is_dir($newFullPath)) {
+                // If original folder missing just create the new one
+                mkdir($newFullPath, 0777, true);
+            }
+
+            $pdo->prepare('UPDATE books SET path = ? WHERE id = ?')->execute([$newPath, $id]);
+            $book['path'] = $newPath; // For subsequent operations
+        }
+    }
+
     if (!empty($_FILES['cover']) && $_FILES['cover']['error'] === UPLOAD_ERR_OK) {
         $libraryPath = getLibraryPath();
         $destDir = $libraryPath . '/' . $book['path'];
