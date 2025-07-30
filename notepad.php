@@ -38,6 +38,20 @@ if ($id > 0) {
     $text  = '';
 } else {
     $notes = $pdo->query('SELECT id, title, time, last_edited FROM notepad ORDER BY last_edited DESC')->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $notesId  = ensureSingleValueColumn($pdo, '#notes', 'Notes');
+        $valTable  = "custom_column_{$notesId}";
+        $linkTable = "books_custom_column_{$notesId}_link";
+        $bookNotes = $pdo->query(
+            "SELECT b.id, b.title, v.value AS note
+             FROM $linkTable l
+             JOIN $valTable v ON l.value = v.id
+             JOIN books b ON l.book = b.id
+             ORDER BY b.title COLLATE NOCASE"
+        )->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        $bookNotes = [];
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -136,18 +150,68 @@ document.addEventListener('DOMContentLoaded', function () {
                                     <td><?= htmlspecialchars($n['title']) ?></td>
                                     <td><?= htmlspecialchars($n['last_edited']) ?></td>
                                     <td class="text-end">
-                                        <a class="btn btn-sm btn-outline-primary" href="notepad.php?id=<?= (int)$n['id'] ?>">Edit</a>
+                                        <a class="btn btn-sm btn-outline-primary me-1" href="notepad.php?id=<?= (int)$n['id'] ?>">Edit</a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger delete-note" data-note-id="<?= (int)$n['id'] ?>">Delete</button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
+
+                <h2 class="mt-4">Book Notes</h2>
+                <?php if (empty($bookNotes)): ?>
+                    <p class="text-muted">No book notes found.</p>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover bg-white shadow-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Book</th>
+                                    <th>Excerpt</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($bookNotes as $bn): ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($bn['title']) ?></td>
+                                        <td><?= htmlspecialchars(mb_strimwidth(strip_tags($bn['note']), 0, 100, '...')) ?></td>
+                                        <td class="text-end">
+                                            <a class="btn btn-sm btn-outline-primary" href="notes.php?id=<?= (int)$bn['id'] ?>">Edit</a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         <?php endif; ?>
     </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+    document.addEventListener('click', async ev => {
+        const btn = ev.target.closest('.delete-note');
+        if (!btn) return;
+        if (!confirm('Are you sure you want to delete this note?')) return;
+        const id = btn.dataset.noteId;
+        try {
+            const res = await fetch('delete_note.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({ id })
+            });
+            const data = await res.json();
+            if (data.status === 'ok') {
+                btn.closest('tr').remove();
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    });
+    </script>
 </body>
 </html>
