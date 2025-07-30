@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="js/theme.js"></script>
 </head>
 <body>
-<?php include 'navbar.php'; ?>
+<?php include 'navbar_other.php'; ?>
 <div class="container my-4">
     <h1 class="mb-4">Upload File for <?= htmlspecialchars($book['title']) ?></h1>
     <?php if ($message): ?>

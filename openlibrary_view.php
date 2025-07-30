@@ -30,7 +30,7 @@ if (!$coverId && !empty($covers)) {
     <script src="js/theme.js"></script>
 </head>
 <body>
-<?php include "navbar.php"; ?>
+<?php include "navbar_other.php"; ?>
 <div class="container my-4">
     <a href="javascript:history.back()" class="btn btn-secondary mb-3">Back</a>
     <h1 class="mb-4"><?= htmlspecialchars($workTitle) ?></h1>

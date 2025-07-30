@@ -22,7 +22,7 @@ if ($search !== '') {
     <script src="js/search.js"></script>
 </head>
 <body class="pt-5">
-<?php include "navbar.php"; ?>
+<?php include "navbar_other.php"; ?>
 <div class="container my-4">
     <h1 class="mb-4">Anna's Archive Results</h1>
     <table class="table table-striped">

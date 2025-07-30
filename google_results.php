@@ -22,7 +22,7 @@ if ($search !== '') {
     <script src="js/search.js"></script>
 </head>
 <body class="pt-5">
-<?php include "navbar.php"; ?>
+<?php include "navbar_other.php"; ?>
 <div class="container">
     <!-- Header Row -->
     <div class="row fw-bold border-bottom pb-2 mb-3">
