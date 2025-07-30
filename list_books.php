@@ -80,6 +80,11 @@ $statusName = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
 if ($statusName !== '' && !in_array($statusName, $statusOptions, true)) {
     $statusName = '';
 }
+$fileType = isset($_GET['filetype']) ? strtolower(trim((string)$_GET['filetype'])) : '';
+$allowedFileTypes = ['epub','mobi','azw3','txt','pdf','none'];
+if ($fileType !== '' && !in_array($fileType, $allowedFileTypes, true)) {
+    $fileType = '';
+}
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $source = $_GET['source'] ?? 'local';
 $redirectParams = $_GET;
@@ -128,6 +133,14 @@ if ($shelfName !== '') {
     $whereClauses[] = 'EXISTS (SELECT 1 FROM ' . $shelfLinkTable . ' sl JOIN ' . $shelfValueTable . ' sv ON sl.value = sv.id WHERE sl.book = b.id AND sv.value = :shelf_name)';
     $params[':shelf_name'] = $shelfName;
 }
+if ($fileType !== '') {
+    if ($fileType === 'none') {
+        $whereClauses[] = "NOT EXISTS (SELECT 1 FROM data d WHERE d.book = b.id AND lower(d.format) IN ('epub','mobi','azw3','txt','pdf'))";
+    } else {
+        $whereClauses[] = 'EXISTS (SELECT 1 FROM data d WHERE d.book = b.id AND lower(d.format) = :file_type)';
+        $params[':file_type'] = $fileType;
+    }
+}
 if ($statusName !== '' && $statusTable) {
     if ($statusIsLink) {
         $stmt = $pdo->prepare('SELECT id FROM custom_column_' . (int)$statusId . ' WHERE value = :v');
@@ -172,6 +185,7 @@ if ($seriesId) {
 $filterGenreName = $genreName !== '' ? $genreName : null;
 $filterStatusName = $statusName !== '' ? $statusName : null;
 $filterShelfName = $shelfName !== '' ? $shelfName : null;
+$filterFileTypeName = $fileType !== '' ? $fileType : null;
 
 // Fetch full genre list for sidebar
 $genreList = [];
@@ -297,6 +311,9 @@ if ($shelfName !== '') {
 }
 if ($statusName !== '') {
     $baseUrl .= '&status=' . urlencode($statusName);
+}
+if ($fileType !== '') {
+    $baseUrl .= '&filetype=' . urlencode($fileType);
 }
 if ($search !== '') {
     $baseUrl .= '&search=' . urlencode($search);
@@ -494,6 +511,7 @@ function buildBaseUrl(array $params, array $exclude = []): string {
         'search'    => $GLOBALS['search'] ?? '',
         'source'    => $GLOBALS['source'] ?? '',
         'status'    => $GLOBALS['statusName'] ?? '',
+        'filetype'  => $GLOBALS['fileType'] ?? '',
     ];
 
     // Remove excluded keys
@@ -672,6 +690,23 @@ function linkTextColor(string $current, string $compare): string {
             </form>
         </div>
 
+        <!-- File Type -->
+        <div class="mb-3">
+            <h6 class="fw-semibold mb-2">File Type</h6>
+            <?php $ftBase = buildBaseUrl([], ['filetype']); ?>
+            <ul class="list-group" id="fileTypeList">
+                <li class="list-group-item<?= linkActive($fileType, '') ?>">
+                    <a href="<?= htmlspecialchars($ftBase) ?>" class="stretched-link text-decoration-none<?= linkTextColor($fileType, '') ?>">All Types</a>
+                </li>
+                <?php foreach (['epub','mobi','azw3','txt','pdf','none'] as $ft): ?>
+                    <?php $url = buildBaseUrl(['filetype' => $ft]); ?>
+                    <li class="list-group-item<?= linkActive($fileType, $ft) ?>">
+                        <a href="<?= htmlspecialchars($url) ?>" class="stretched-link text-decoration-none<?= linkTextColor($fileType, $ft) ?>"><?= htmlspecialchars(strtoupper($ft)) ?></a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+
         <!-- Genres -->
         <div class="mb-3">
             <h6 class="fw-semibold mb-2">Genres</h6>
@@ -710,7 +745,7 @@ function linkTextColor(string $current, string $compare): string {
 <div class="container-fluid">      
         <div class="col-md-12">
             <h1 class="mb-4">Books</h1>
-        <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $search !== ''): ?>
+        <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $filterFileTypeName || $search !== ''): ?>
         <div class="alert alert-info mb-3">
             Showing
             <?php if ($filterAuthorName): ?>
@@ -737,6 +772,11 @@ function linkTextColor(string $current, string $compare): string {
                 <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName): ?>,
                 <?php endif; ?>
                 status: <?= htmlspecialchars($filterStatusName) ?>
+            <?php endif; ?>
+            <?php if ($filterFileTypeName): ?>
+                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName): ?>,
+                <?php endif; ?>
+                filetype: <?= htmlspecialchars(strtoupper($filterFileTypeName)) ?>
             <?php endif; ?>
             <?php if ($search !== ''): ?>
                 <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
