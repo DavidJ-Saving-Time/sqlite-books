@@ -410,26 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const editTitleBtn = e.target.closest('.edit-title');
-    if (editTitleBtn) {
-      const bookId = editTitleBtn.dataset.bookId;
-      const current = editTitleBtn.dataset.title;
-      let name = prompt('Rename title:', current);
-      if (name === null) return;
-      name = name.trim();
-      if (!name || name === current) return;
-      const link = editTitleBtn.closest('div').querySelector('a.book-title');
-      try {
-        await fetch('update_title.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ book_id: bookId, title: name })
-        });
-        if (link) link.textContent = name;
-        editTitleBtn.dataset.title = name;
-      } catch (err) { console.error(err); }
-      return;
-    }
   });
 
   document.addEventListener('click', async ev => {
