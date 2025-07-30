@@ -31,6 +31,7 @@ if (!$book) {
 $commentStmt = $pdo->prepare('SELECT text FROM comments WHERE book = ?');
 $commentStmt->execute([$id]);
 $description = $commentStmt->fetchColumn() ?: '';
+$notes = '';
 
 $updated = false;
 
@@ -47,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pubdateInput = trim($_POST['pubdate'] ?? '');
     $pubDate = $book['pubdate'];
     $isbnInput = trim($_POST['isbn'] ?? '');
+    $notesInput = trim($_POST['notes'] ?? '');
 
     $pdo->beginTransaction();
     $stmt = $pdo->prepare('UPDATE books SET title = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?');
@@ -90,6 +92,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $descStmt->execute([':book' => $id, ':text' => $descriptionInput]);
     } else {
         $pdo->prepare('DELETE FROM comments WHERE book = ?')->execute([$id]);
+    }
+
+    // Update notes in custom column
+    try {
+        $notesId = ensureSingleValueColumn($pdo, '#notes', 'Notes');
+        $notesValTable  = "custom_column_{$notesId}";
+        $notesLinkTable = "books_custom_column_{$notesId}_link";
+        $pdo->prepare("DELETE FROM $notesLinkTable WHERE book = :book")
+            ->execute([':book' => $id]);
+        if ($notesInput !== '') {
+            $pdo->prepare("INSERT OR IGNORE INTO $notesValTable (value) VALUES (:val)")
+                ->execute([':val' => $notesInput]);
+            $valStmt = $pdo->prepare("SELECT id FROM $notesValTable WHERE value = :val");
+            $valStmt->execute([':val' => $notesInput]);
+            $valId = $valStmt->fetchColumn();
+            if ($valId !== false) {
+                $pdo->prepare("INSERT INTO $notesLinkTable (book, value) VALUES (:book, :val)")
+                    ->execute([':book' => $id, ':val' => $valId]);
+            }
+        }
+    } catch (PDOException $e) {
+        // Ignore errors updating notes
     }
 
     // Handle series update
@@ -195,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Refresh description for display
     $description = $descriptionInput;
+    $notes = $notesInput;
 }
 
 $sort = $_GET['sort'] ?? 'title';
@@ -277,6 +302,18 @@ try {
     $savedRecommendations = $recStmt->fetchColumn();
 } catch (PDOException $e) {
     $savedRecommendations = null;
+}
+
+// Fetch notes if present
+try {
+    $notesId = ensureSingleValueColumn($pdo, '#notes', 'Notes');
+    $valTable  = "custom_column_{$notesId}";
+    $linkTable = "books_custom_column_{$notesId}_link";
+    $notesStmt = $pdo->prepare("SELECT v.value FROM $linkTable l JOIN $valTable v ON l.value = v.id WHERE l.book = ?");
+    $notesStmt->execute([$id]);
+    $notes = $notesStmt->fetchColumn() ?: '';
+} catch (PDOException $e) {
+    $notes = '';
 }
 
 $missingFile = !bookHasFile($book['path']);
@@ -444,6 +481,9 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDescription">Description & Cover</button>
                         </li>
                         <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabNotes">Notes</button>
+                        </li>
+                        <li class="nav-item">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRecommendations">Recommendations</button>
                         </li>
                     </ul>
@@ -540,6 +580,15 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                                     </label>
                                     <input type="file" id="cover" name="cover" class="form-control">
                                     <div id="isbnCover" class="mt-2"></div>
+                                </div>
+                            </div>
+                            <!-- Notes -->
+                            <div class="tab-pane fade" id="tabNotes">
+                                <div class="mb-3">
+                                    <label for="notes" class="form-label">
+                                        <i class="fa-solid fa-note-sticky me-1 text-primary"></i> Notes
+                                    </label>
+                                    <textarea id="notes" name="notes" class="form-control" rows="10"><?= htmlspecialchars($notes) ?></textarea>
                                 </div>
                             </div>
                             <!-- Recommendations -->
