@@ -188,6 +188,15 @@ function getDatabaseConnection(?string $path = null) {
 
 function initializeCustomColumns(PDO $pdo): void {
     try {
+        // 0. Ensure the notepad table for personal text entries
+        $pdo->exec("CREATE TABLE IF NOT EXISTS notepad (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            text TEXT NOT NULL,
+            time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_edited TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )");
+
         // 1. Ensure the shelves table (custom app table, not part of Calibre itself)
         $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
         foreach (['Physical', 'Ebook Calibre'] as $def) {
