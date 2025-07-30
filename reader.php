@@ -1,7 +1,19 @@
 <?php
-// Path to your EPUB file
-$bookFile = "/book.epub"; 
-$bookFileEncoded = dirname($bookFile) . '/' . rawurlencode(basename($bookFile));
+require_once 'db.php';
+requireLogin();
+
+$fileParam = $_GET['file'] ?? '';
+$bookFile = '';
+if ($fileParam !== '') {
+    $library = getLibraryPath();
+    $abs = realpath($library . '/' . $fileParam);
+    if ($abs !== false && strpos($abs, realpath($library)) === 0 && is_file($abs)) {
+        $bookFile = '/' . ltrim($fileParam, '/');
+    }
+}
+$bookFileEncoded = $bookFile !== ''
+    ? dirname($bookFile) . '/' . rawurlencode(basename($bookFile))
+    : '';
 ?>
 
 
