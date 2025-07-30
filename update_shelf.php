@@ -8,7 +8,7 @@ $value = $_POST['value'] ?? '';
 
 $pdo = getDatabaseConnection();
 $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
-$defaults = ['Physical', 'Ebook Calibre', 'PDFs'];
+$defaults = ['Physical', 'Ebook Calibre'];
 foreach ($defaults as $d) {
     $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$d]);
 }

@@ -9,7 +9,7 @@ $genreLinkTable = "books_custom_column_{$genreColumnId}_link";
 // Ensure shelf table and custom column exist
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
-    foreach (['Physical','Ebook Calibre','PDFs'] as $def) {
+    foreach (['Physical','Ebook Calibre'] as $def) {
         $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
     }
 
@@ -26,7 +26,7 @@ $shelfList = [];
 try {
     $shelfList = $pdo->query('SELECT name FROM shelves ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
 } catch (PDOException $e) {
-    $shelfList = ['Ebook Calibre','Physical','PDFs'];
+    $shelfList = ['Ebook Calibre','Physical'];
 }
 $shelfName = isset($_GET['shelf']) ? trim((string)$_GET['shelf']) : '';
 if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
