@@ -121,7 +121,7 @@ function bookHasFile(string $relativePath): bool {
             continue;
         }
         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-        if (in_array($ext, ['epub', 'mobi', 'azw3', 'txt'])) {
+        if (in_array($ext, ['epub', 'mobi', 'azw3', 'txt', 'pdf'])) {
             return true;
         }
     }
