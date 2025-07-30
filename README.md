@@ -12,6 +12,8 @@ Personal writing is kept in its own `notepad` table. This table is unrelated to
 any Calibre book and simply stores an `id`, `title`, the full `text`, the
 creation `time` and the `last_edited` timestamp. It is created automatically
 when the database is opened if it does not already exist.
+Open `notepad.php` to create or edit entries using the same TinyMCE editor used
+for book notes.
 
 Genres are stored in the custom column labeled `genre` and listed in the sidebar. You can add,
 rename or delete genres from that list just like shelves and status values.
