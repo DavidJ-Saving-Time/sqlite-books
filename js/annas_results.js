@@ -4,7 +4,7 @@ document.addEventListener('click', async e => {
     const md5 = dl.dataset.md5;
     if (!md5) return;
     try {
-      const r = await fetch('../api/annas_download.php?md5=' + encodeURIComponent(md5));
+      const r = await fetch('annas_download.php?md5=' + encodeURIComponent(md5));
       const data = await r.json();
       const url = data.url || (data.mirrors && data.mirrors[0]) || (Array.isArray(data) ? data[0] : null);
       if (url) {
@@ -23,7 +23,7 @@ document.addEventListener('click', async e => {
     const resultEl = addBtn.parentElement.querySelector('.annas-add-result');
     if (resultEl) resultEl.textContent = 'Adding...';
     try {
-      const r = await fetch('../api/add_metadata_book.php', {
+      const r = await fetch('add_metadata_book.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ title, authors, thumbnail, description })

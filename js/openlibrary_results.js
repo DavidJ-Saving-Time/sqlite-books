@@ -5,7 +5,7 @@ document.addEventListener('click', async e => {
   const resultEl = addBtn.parentElement.querySelector('.ol-add-result');
   if (resultEl) resultEl.textContent = 'Adding...';
   try {
-    const r = await fetch('../api/add_metadata_book.php', {
+    const r = await fetch('add_metadata_book.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ title, authors, thumbnail, description })

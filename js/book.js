@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const authors = recommendBtn.dataset.authors;
     const title = recommendBtn.dataset.title;
     recommendSection.textContent = 'Loading...';
-    fetch('../api/recommend.php?book_id=' + encodeURIComponent(bookId) +
+    fetch('recommend.php?book_id=' + encodeURIComponent(bookId) +
           '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
       .then(resp => resp.json())
       .then(data => {
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (descriptionInput) {
       descriptionInput.value = 'Loading...';
     }
-    fetch('../api/synopsis.php?book_id=' + encodeURIComponent(bookId) +
+    fetch('synopsis.php?book_id=' + encodeURIComponent(bookId) +
           '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
       .then(resp => resp.json())
       .then(data => {
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   annasBtn.addEventListener('click', () => {
     annasResults.textContent = 'Loading...';
-    fetch('../api/annas_search.php?q=' + encodeURIComponent(annasSearchQuery))
+    fetch('annas_search.php?q=' + encodeURIComponent(annasSearchQuery))
       .then(r => r.json())
       .then(data => {
         if (!data.books || data.books.length === 0) {
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   googleBtn.addEventListener('click', () => {
     googleResults.textContent = 'Loading...';
-    fetch('../api/google_search.php?q=' + encodeURIComponent(googleSearchQuery))
+    fetch('google_search.php?q=' + encodeURIComponent(googleSearchQuery))
       .then(r => r.json())
       .then(data => {
         if (!data.books || data.books.length === 0) {
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (ebookBtn && ebookFile) {
     ebookBtn.addEventListener('click', () => {
-      fetch('../api/ebook_meta.php?path=' + encodeURIComponent(ebookFile))
+      fetch('ebook_meta.php?path=' + encodeURIComponent(ebookFile))
         .then(r => r.json())
         .then(data => {
           if (data.title && titleInput) titleInput.value = data.title;
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', e => {
     if (e.target.classList.contains('annas-use')) {
       const { title, authors, year, imgurl, md5 = '' } = e.target.dataset;
-      fetch('../api/update_metadata.php', {
+      fetch('update_metadata.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: currentBookId, title, authors, year, imgurl, md5 })
@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } else if (e.target.classList.contains('google-use')) {
       const { title, authors, year, imgurl, description = '' } = e.target.dataset;
-      fetch('../api/update_metadata.php', {
+      fetch('update_metadata.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: currentBookId, title, authors, year, imgurl, description })
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } else if (e.target.id === 'longitoodUseCover') {
       const url = e.target.dataset.url;
-      fetch('../api/update_metadata.php', {
+      fetch('update_metadata.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: currentBookId, imgurl: url })
@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
       formData.append('id', currentBookId);
       formData.append('file', uploadInput.files[0]);
       uploadMsg.textContent = 'Uploading...';
-      fetch('../api/upload_book_file.php', {
+      fetch('upload_book_file.php', {
         method: 'POST',
         headers: { 'Accept': 'application/json' },
         body: formData
@@ -406,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
       suggestionList.innerHTML = '';
       if (term.length < 2) return;
       try {
-        const res = await fetch(`../api/author_autocomplete.php?term=${encodeURIComponent(term)}`);
+        const res = await fetch(`author_autocomplete.php?term=${encodeURIComponent(term)}`);
         const data = await res.json();
         suggestionList.innerHTML = '';
         data.forEach(name => {
@@ -464,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name = name.trim();
       if (!name || name === option.textContent) return;
       try {
-        const res = await fetch('../api/rename_series.php', {
+        const res = await fetch('rename_series.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ id, new: name })
