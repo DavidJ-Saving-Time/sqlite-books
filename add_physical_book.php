@@ -266,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-<?php include 'navbar.php'; ?>
+<?php include 'navbar_other.php'; ?>
 <div class="container my-4">
     <h1 class="mb-4 text-center">Add a New Book</h1>
     

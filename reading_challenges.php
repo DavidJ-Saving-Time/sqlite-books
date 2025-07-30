@@ -115,7 +115,7 @@ try {
     <script src="js/theme.js"></script>
 </head>
 <body class="pt-5">
-<?php include "navbar.php"; ?>
+<?php include "navbar_other.php"; ?>
 <div class="container my-4">
     <h1 class="mb-4 d-flex align-items-center">
         <i class="fa-solid fa-flag-checkered me-2 text-success"></i> 

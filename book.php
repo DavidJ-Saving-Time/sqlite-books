@@ -344,7 +344,7 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
     </style>
 </head>
 <body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>"<?php if($ebookFileRel): ?> data-ebook-file="<?= htmlspecialchars($ebookFileRel) ?>"<?php endif; ?><?php if(!empty($book['isbn'])): ?> data-isbn="<?= htmlspecialchars($book['isbn']) ?>"<?php endif; ?>>
-<?php include "navbar.php"; ?>
+<?php include "navbar_other.php"; ?>
 <div class="container my-4">
     <a href="list_books.php" class="btn btn-secondary mb-3">
         <i class="fa-solid fa-arrow-left me-1"></i> Back to list
