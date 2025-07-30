@@ -792,3 +792,11 @@ CREATE VIEW tag_browser_filtered_custom_column_3 AS SELECT
                            books_list_filter(bl.book)) avg_rating,
                     value AS sort
                 FROM custom_column_3;
+
+CREATE TABLE notepad (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    text TEXT NOT NULL,
+    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_edited TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
