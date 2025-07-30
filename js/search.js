@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
       suggestionList.innerHTML = '';
       if (term.length < 2) return;
       try {
-        const res = await fetch(`author_autocomplete.php?term=${encodeURIComponent(term)}`);
+        const res = await fetch(`../api/author_autocomplete.php?term=${encodeURIComponent(term)}`);
         const data = await res.json();
         suggestionList.innerHTML = '';
         data.forEach(name => {
