@@ -446,10 +446,19 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
 
                     <!-- Actions -->
                     <div class="ms-auto d-flex align-items-end">
-                        <?php if ($firstFile): 
-                            $ftype = strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION)); ?>
-                            <a class="btn btn-sm btn-success me-1" href="reader.php?file=<?= urlencode($firstFile) ?>">Read <?= htmlspecialchars($ftype) ?></a>
-                        <?php endif; ?>
+                        <?php if ($firstFile):
+                            $ftype = strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION));
+                            if ($ftype === 'PDF') {
+                                $fileUrl = getLibraryPath() . '/' . $firstFile;
+                                ?>
+                                <a class="btn btn-sm btn-success me-1" target="_blank" href="<?= htmlspecialchars($fileUrl) ?>">Read <?= htmlspecialchars($ftype) ?></a>
+                                <?php
+                            } else {
+                                ?>
+                                <a class="btn btn-sm btn-success me-1" href="reader.php?file=<?= urlencode($firstFile) ?>">Read <?= htmlspecialchars($ftype) ?></a>
+                                <?php
+                            }
+                        endif; ?>
                         <button type="button" class="btn btn-sm btn-secondary google-meta me-1"
                                 data-book-id="<?= htmlspecialchars($book['id']) ?>"
                                 data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
