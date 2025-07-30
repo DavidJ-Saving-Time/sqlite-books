@@ -190,7 +190,7 @@ function initializeCustomColumns(PDO $pdo): void {
     try {
         // 1. Ensure the shelves table (custom app table, not part of Calibre itself)
         $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
-        foreach (['Physical', 'Ebook Calibre', 'PDFs'] as $def) {
+        foreach (['Physical', 'Ebook Calibre'] as $def) {
             $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
         }
 
@@ -207,6 +207,9 @@ function initializeCustomColumns(PDO $pdo): void {
         // 5. Ensure Status column (multi-value)
         $statusId = ensureMultiValueColumn($pdo, 'status', 'Status');
         insertDefaultMultiValue($pdo, $statusId, 'Want to Read');
+
+        // 6. Ensure Notes column (single-value)
+        ensureSingleValueColumn($pdo, 'notes', 'Notes');
 
     } catch (PDOException $e) {
         error_log("initializeCustomColumns error: " . $e->getMessage());

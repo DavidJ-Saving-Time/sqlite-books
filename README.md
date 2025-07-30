@@ -6,6 +6,8 @@ When a different Calibre library is selected, the application ensures that all r
 
 Each book also has a "Shelf" value stored in the custom column labeled `#shelf`. Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar and click a shelf name to filter the list. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
 
+Books can now store freeform notes in the single-value custom column labeled `#notes`.
+
 Genres are stored in the custom column labeled `genre` and listed in the sidebar. You can add,
 rename or delete genres from that list just like shelves and status values.
 

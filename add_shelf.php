@@ -14,7 +14,7 @@ $pdo = getDatabaseConnection();
 try {
     $stmt = $pdo->prepare('CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)');
     $stmt->execute();
-    $defaults = ['Physical', 'Ebook Calibre', 'PDFs'];
+    $defaults = ['Physical', 'Ebook Calibre'];
     foreach ($defaults as $d) {
         $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$d]);
     }
