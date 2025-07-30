@@ -76,6 +76,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $destFile = $fullBookFolder . '/' . $baseFileName . '.' . $ext;
             move_uploaded_file($file['tmp_name'], $destFile);
 
+            if ($ext === 'pdf') {
+                $pdfFile = $destFile;
+                exec('ocrmypdf --find-text ' . escapeshellarg($pdfFile) . ' /dev/null 2>/dev/null', $out, $rv);
+                if ($rv !== 0) {
+                    $tmpPdf = $fullBookFolder . '/' . $baseFileName . '_tmp.pdf';
+                    shell_exec('ocrmypdf -l eng --skip-text --deskew --clean --optimize 3 '
+                        . escapeshellarg($pdfFile) . ' ' . escapeshellarg($tmpPdf));
+                    if (file_exists($tmpPdf)) {
+                        rename($tmpPdf, $pdfFile);
+                    }
+                }
+                $epubFile = $fullBookFolder . '/' . $baseFileName . '.epub';
+                shell_exec('ebook-convert ' . escapeshellarg($pdfFile) . ' ' . escapeshellarg($epubFile)
+                    . ' --enable-heuristics --base-font-size 12 --unwrap-factor 0.45'
+                    . ' --margin-left 10 --margin-right 10 --margin-top 10 --margin-bottom 10'
+                    . ' --remove-paragraph-spacing --remove-paragraph-spacing-indent-size 1.5');
+                $destFile = $epubFile;
+                $ext = 'epub';
+            }
+
             $stmt = $pdo->prepare('INSERT INTO data (book, format, uncompressed_size, name) VALUES (?, ?, ?, ?)');
             $stmt->execute([$bookId, strtoupper($ext), filesize($destFile), $baseFileName]);
 
