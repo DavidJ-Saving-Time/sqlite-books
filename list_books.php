@@ -81,7 +81,7 @@ if ($statusName !== '' && !in_array($statusName, $statusOptions, true)) {
     $statusName = '';
 }
 $fileType = isset($_GET['filetype']) ? strtolower(trim((string)$_GET['filetype'])) : '';
-$allowedFileTypes = ['epub','mobi','azw3','txt','pdf','none'];
+$allowedFileTypes = ['epub','mobi','azw3','txt','pdf','docx','none'];
 if ($fileType !== '' && !in_array($fileType, $allowedFileTypes, true)) {
     $fileType = '';
 }
@@ -135,7 +135,7 @@ if ($shelfName !== '') {
 }
 if ($fileType !== '') {
     if ($fileType === 'none') {
-        $whereClauses[] = "NOT EXISTS (SELECT 1 FROM data d WHERE d.book = b.id AND lower(d.format) IN ('epub','mobi','azw3','txt','pdf'))";
+        $whereClauses[] = "NOT EXISTS (SELECT 1 FROM data d WHERE d.book = b.id AND lower(d.format) IN ('epub','mobi','azw3','txt','pdf','docx'))";
     } else {
         $whereClauses[] = 'EXISTS (SELECT 1 FROM data d WHERE d.book = b.id AND lower(d.format) = :file_type)';
         $params[':file_type'] = $fileType;
@@ -707,7 +707,7 @@ function linkTextColor(string $current, string $compare): string {
                 <li class="list-group-item<?= linkActive($fileType, '') ?>">
                     <a href="<?= htmlspecialchars($ftBase) ?>" class="stretched-link text-decoration-none<?= linkTextColor($fileType, '') ?>">All Types</a>
                 </li>
-                <?php foreach (['epub','mobi','azw3','txt','pdf','none'] as $ft): ?>
+                <?php foreach (['epub','mobi','azw3','txt','pdf','docx','none'] as $ft): ?>
                     <?php $url = buildBaseUrl(['filetype' => $ft]); ?>
                     <li class="list-group-item<?= linkActive($fileType, $ft) ?>">
                         <a href="<?= htmlspecialchars($url) ?>" class="stretched-link text-decoration-none<?= linkTextColor($fileType, $ft) ?>"><?= htmlspecialchars(strtoupper($ft)) ?></a>
