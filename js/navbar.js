@@ -1,6 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const select = document.getElementById('sortSelect');
-  if (select && select.form) {
-    select.addEventListener('change', () => select.form.submit());
+  const sortSelect = document.getElementById('sortSelect');
+  if (sortSelect && sortSelect.form) {
+    sortSelect.addEventListener('change', () => sortSelect.form.submit());
+  }
+
+  const shelfSelect = document.getElementById('shelfSelect');
+  if (shelfSelect && shelfSelect.form) {
+    shelfSelect.addEventListener('change', () => shelfSelect.form.submit());
   }
 });
