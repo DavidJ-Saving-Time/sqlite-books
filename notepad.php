@@ -33,6 +33,9 @@ if ($id > 0) {
     }
     $title = $note['title'];
     $text  = $note['text'];
+} elseif ($action === 'new') {
+    $title = '';
+    $text  = '';
 } else {
     $notes = $pdo->query('SELECT id, title, time, last_edited FROM notepad ORDER BY last_edited DESC')->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -46,7 +49,7 @@ if ($id > 0) {
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="js/theme.js"></script>
-    <script src="node_modules/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
     <?php if ($id > 0 || $action === 'new'): ?>
     <script>
     tinymce.init({
