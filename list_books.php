@@ -306,6 +306,7 @@ $baseUrl .= '&page=';
 function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId): void {
     foreach ($books as $book) {
         $missing = !bookHasFile($book['path']);
+        $firstFile = $missing ? null : firstBookFile($book['path']);
         ?>
         <div class="row g-3 py-3 border-bottom" data-book-block-id="<?= htmlspecialchars($book['id']) ?>">
             <!-- Left: Thumbnail -->
@@ -434,6 +435,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <!-- Actions -->
                     <div class="ms-auto d-flex align-items-end">
                         <a class="btn btn-sm btn-primary me-1" href="book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
+                        <?php if ($firstFile): ?>
+                            <a class="btn btn-sm btn-success me-1" href="reader.php?file=<?= urlencode($firstFile) ?>">Read</a>
+                        <?php endif; ?>
                         <button type="button" class="btn btn-sm btn-secondary google-meta me-1"
                                 data-book-id="<?= htmlspecialchars($book['id']) ?>"
                                 data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
