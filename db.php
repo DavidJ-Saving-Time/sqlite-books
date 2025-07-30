@@ -134,7 +134,7 @@ function firstBookFile(string $relativePath): ?string {
     if (!is_dir($dir)) {
         return null;
     }
-    $files = glob($dir . '/*.{epub,mobi,azw3,pdf,txt}', GLOB_BRACE);
+    $files = glob($dir . '/*.{epub,mobi,azw3,pdf,txt, mobi}', GLOB_BRACE);
     if ($files) {
         return substr($files[0], strlen($library) + 1);
     }
