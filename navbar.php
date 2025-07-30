@@ -101,22 +101,26 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         </li>
 
         <?php if (isset($shelfList) && function_exists('buildBaseUrl')): ?>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            Shelves
-          </a>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li>
-              <a class="dropdown-item<?= $shelfNameVal === '' ? ' active' : '' ?>" href="<?= htmlspecialchars(buildBaseUrl([], ['shelf'])) ?>">All Shelves</a>
-            </li>
-            <?php foreach ($shelfList as $s): ?>
-            <li>
-              <a class="dropdown-item<?= $shelfNameVal === $s ? ' active' : '' ?>" href="<?= htmlspecialchars(buildBaseUrl(['shelf' => $s])) ?>">
-                <?= htmlspecialchars($s) ?>
-              </a>
-            </li>
-            <?php endforeach; ?>
-          </ul>
+        <li class="nav-item">
+          <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
+            <input type="hidden" name="page" value="1">
+            <?php if ($searchVal !== ''): ?><input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>"><?php endif; ?>
+            <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
+            <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
+            <?php if ($genreIdVal): ?><input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>"><?php endif; ?>
+            <?php if ($statusNameVal !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>"><?php endif; ?>
+            <?php if ($sortVal !== ''): ?><input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>"><?php endif; ?>
+
+            <div class="input-group">
+              <span class="input-group-text"><i class="fa-solid fa-layer-group"></i></span>
+              <select class="form-select" name="shelf" id="shelfSelect">
+                <option value=""<?= $shelfNameVal === '' ? ' selected' : '' ?>>All Shelves</option>
+                <?php foreach ($shelfList as $s): ?>
+                  <option value="<?= htmlspecialchars($s) ?>"<?= $shelfNameVal === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </form>
         </li>
         <?php endif; ?>
         <li class="nav-item">
