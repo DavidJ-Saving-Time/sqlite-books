@@ -49,61 +49,105 @@ if ($id > 0) {
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="js/theme.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
-    <?php if ($id > 0 || $action === 'new'): ?>
-    <script>
-    tinymce.init({
-        selector: '#noteEditor',
-        license_key: 'gpl',
-        promotion: false,
-        branding: false,
-        height: 600
-    });
-    </script>
-    <?php endif; ?>
-</head>
-<body class="pt-5">
-<?php include 'navbar_other.php'; ?>
-<div class="container my-4">
+    <script src="node_modules/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
+
+<style>
+    /* Ensure TinyMCE doesn't leave an invisible gap before rendering */
+    .tox-tinymce {
+        visibility: visible !important;
+        opacity: 1 !important;
+        transition: none !important;
+    }
+
+    /* Optional: remove extra spacing if TinyMCE adds padding */
+    .tox.tox-tinymce {
+        margin-top: 0 !important;
+    }
+
+    </style>
 <?php if ($id > 0 || $action === 'new'): ?>
-    <h1 class="mb-4"><?= $id > 0 ? 'Edit Note' : 'New Note' ?></h1>
-    <form method="post">
-        <?php if ($id > 0): ?><input type="hidden" name="id" value="<?= (int)$id ?>"><?php endif; ?>
-        <div class="mb-3" style="max-width:1000px;">
-            <label for="title" class="form-label">Title</label>
-            <input type="text" class="form-control" id="title" name="title" value="<?= htmlspecialchars($title ?? '') ?>" required>
-        </div>
-        <textarea id="noteEditor" name="text" style="max-width:1000px;"><?= htmlspecialchars($text ?? '') ?></textarea>
-        <div class="mt-3">
-            <a href="notepad.php" class="btn btn-secondary me-2">Back</a>
-            <button type="submit" class="btn btn-primary">Save</button>
-        </div>
-    </form>
-<?php else: ?>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="m-0">Notepad</h1>
-        <a class="btn btn-success" href="notepad.php?action=new"><i class="fa-solid fa-plus me-1"></i> New Note</a>
-    </div>
-    <?php if (empty($notes)): ?>
-        <p>No notes found.</p>
-    <?php else: ?>
-        <table class="table table-striped" style="max-width:1000px;">
-            <thead>
-                <tr><th>Title</th><th>Last Edited</th><th></th></tr>
-            </thead>
-            <tbody>
-            <?php foreach ($notes as $n): ?>
-                <tr>
-                    <td><?= htmlspecialchars($n['title']) ?></td>
-                    <td><?= htmlspecialchars($n['last_edited']) ?></td>
-                    <td class="text-end"><a class="btn btn-sm btn-primary" href="notepad.php?id=<?= (int)$n['id'] ?>">Edit</a></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    <?php endif; ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof tinymce !== 'undefined') {
+        tinymce.init({
+            selector: '#noteEditor',
+            license_key: 'gpl',
+            promotion: false,
+            branding: false,
+            height: 600
+        });
+    } else {
+        console.error("TinyMCE not loaded!");
+    }
+});
+</script>
 <?php endif; ?>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</head>
+<body class="pt-5 bg-light">
+    <?php include 'navbar_other.php'; ?>
+
+    <div class="container my-4">
+        <?php if ($id > 0 || $action === 'new'): ?>
+           
+            <form method="post" class="bg-white p-4 shadow rounded">
+                <?php if ($id > 0): ?>
+                    <input type="hidden" name="id" value="<?= (int)$id ?>">
+                <?php endif; ?>
+
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" class="form-control" id="title" name="title" value="<?= htmlspecialchars($title ?? '') ?>" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="noteEditor" class="form-label">Note</label>
+                    <textarea id="noteEditor" name="text"><?= htmlspecialchars($text ?? '') ?></textarea>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="notepad.php" class="btn btn-secondary">Back</a>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+
+        <?php else: ?>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="m-0">Notepad</h1>
+                <a class="btn btn-success" href="notepad.php?action=new">
+                    <i class="fa-solid fa-plus me-1"></i> New Note
+                </a>
+            </div>
+
+            <?php if (empty($notes)): ?>
+                <p class="text-muted">No notes found.</p>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover bg-white shadow-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Title</th>
+                                <th>Last Edited</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($notes as $n): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($n['title']) ?></td>
+                                    <td><?= htmlspecialchars($n['last_edited']) ?></td>
+                                    <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-primary" href="notepad.php?id=<?= (int)$n['id'] ?>">Edit</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 </body>
 </html>
