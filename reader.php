@@ -320,4 +320,6 @@ body {
         </svg>
     </button>
 </div>
+
+<div id="book-data" data-file="<?php echo $library ?><?php echo $bookFileEncoded ?>"></div>
 <script src="/foliate-js/reader.js" type="module"></script>
