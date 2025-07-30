@@ -464,6 +464,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                                 data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
                             Metadata Google
                         </button>
+                        <a class="btn btn-sm btn-primary me-1" href="notes.php?id=<?= urlencode($book['id']) ?>">
+                            Notes
+                        </a>
                         <button type="button" class="btn btn-sm btn-danger delete-book"
                                 data-book-id="<?= htmlspecialchars($book['id']) ?>">
                             Delete
