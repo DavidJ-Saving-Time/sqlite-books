@@ -337,11 +337,6 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
                         <?= htmlspecialchars($book['title']) ?>
                     </a>
-                    <button type="button" class="btn btn-link btn-sm p-0 ms-1 edit-title"
-                            data-book-id="<?= htmlspecialchars($book['id']) ?>"
-                            data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>">
-                        <i class="fa-solid fa-pen"></i>
-                    </button>
                     <?php if (!empty($book['has_recs'])): ?>
                         <span class="text-success ms-1">&#10003;</span>
                     <?php endif; ?>
@@ -434,9 +429,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
 
                     <!-- Actions -->
                     <div class="ms-auto d-flex align-items-end">
-                        <a class="btn btn-sm btn-primary me-1" href="book.php?id=<?= urlencode($book['id']) ?>">View / Edit</a>
-                        <?php if ($firstFile): ?>
-                            <a class="btn btn-sm btn-success me-1" href="reader.php?file=<?= urlencode($firstFile) ?>">Read</a>
+                        <?php if ($firstFile): 
+                            $ftype = strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION)); ?>
+                            <a class="btn btn-sm btn-success me-1" href="reader.php?file=<?= urlencode($firstFile) ?>">Read <?= htmlspecialchars($ftype) ?></a>
                         <?php endif; ?>
                         <button type="button" class="btn btn-sm btn-secondary google-meta me-1"
                                 data-book-id="<?= htmlspecialchars($book['id']) ?>"
