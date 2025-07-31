@@ -548,6 +548,39 @@ function linkTextColor(string $current, string $compare): string {
     return $current === $compare ? ' text-white' : '';
 }
 
+// Build breadcrumb items for navigation
+$breadcrumbs = [
+    ['label' => 'Books', 'url' => buildBaseUrl([], ['author_id','series_id','genre','shelf','status','filetype','search'])]
+];
+if ($filterAuthorName !== null) {
+    $breadcrumbs[] = ['label' => $filterAuthorName];
+}
+if ($filterSeriesName !== null) {
+    $breadcrumbs[] = ['label' => $filterSeriesName];
+}
+if ($filterGenreName !== null) {
+    $breadcrumbs[] = ['label' => $filterGenreName];
+}
+if ($filterShelfName !== null) {
+    $breadcrumbs[] = ['label' => $filterShelfName];
+}
+if ($filterStatusName !== null) {
+    $breadcrumbs[] = ['label' => $filterStatusName];
+}
+if ($filterFileTypeName !== null) {
+    $breadcrumbs[] = ['label' => strtoupper($filterFileTypeName)];
+}
+if ($recommendedOnly) {
+    $breadcrumbs[] = ['label' => 'Recommended'];
+}
+if ($search !== '') {
+    $breadcrumbs[] = ['label' => 'Search: ' . $search];
+}
+if (count($breadcrumbs) === 1) {
+    // No filters active, show Books as current page without link
+    $breadcrumbs[0]['url'] = null;
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -757,6 +790,22 @@ function linkTextColor(string $current, string $compare): string {
 <div class="container-fluid">      
         <div class="col-md-12">
             <h1 class="mb-4">Books</h1>
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb mb-0">
+                    <?php foreach ($breadcrumbs as $index => $bc): ?>
+                        <?php $isLast = ($index === array_key_last($breadcrumbs)); ?>
+                        <li class="breadcrumb-item<?= $isLast ? ' active' : '' ?>"<?= $isLast ? ' aria-current="page"' : '' ?>>
+                            <?php if (!$isLast && !empty($bc['url'])): ?>
+                                <a href="<?= htmlspecialchars($bc['url']) ?>">
+                                    <?= htmlspecialchars($bc['label']) ?>
+                                </a>
+                            <?php else: ?>
+                                <?= htmlspecialchars($bc['label']) ?>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
+            </nav>
         <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $filterFileTypeName || $search !== ''): ?>
         <div class="alert alert-info mb-3">
             Showing
