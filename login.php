@@ -17,7 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <link rel="manifest" href="manifest.json">
   <title>Login</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
@@ -58,10 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <label for="password" class="form-label">Password</label>
         <input type="password" id="password" name="password" class="form-control">
       </div>
-  <button type="submit" class="btn btn-primary w-100">Login</button>
+      <button type="submit" class="btn btn-primary w-100">Login</button>
     </form>
   </div>
-  <script src="js/pwa.js"></script>
 </body>
 </html>
 
