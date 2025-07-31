@@ -46,6 +46,7 @@ $currentLibrary = getLibraryPath();
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <link rel="manifest" href="manifest.json">
   <title>Preferences</title>
   <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
   <script src="js/theme.js"></script>
@@ -78,5 +79,6 @@ $currentLibrary = getLibraryPath();
     <button type="submit" class="btn btn-primary">Save</button>
     <a href="fix_author_sort.php" class="btn btn-secondary ms-2">Fix Author Sort</a>
   </form>
+  <script src="js/pwa.js"></script>
 </body>
 </html>
