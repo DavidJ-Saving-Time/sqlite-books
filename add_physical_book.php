@@ -172,14 +172,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Move uploaded file
             $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             $baseFileName = safe_filename($title) . ' - ' . safe_filename($firstAuthor);
-            $destFile = $fullBookFolder . '/' . $baseFileName . '.' . $ext;
-            move_uploaded_file($file['tmp_name'], $destFile);
+            $uploadedTmp = sys_get_temp_dir() . '/' . uniqid('upload_', true) . '.' . $ext;
+            move_uploaded_file($file['tmp_name'], $uploadedTmp);
 
-            // If the upload is a PDF, store the file without conversion
+            $finalFile = $uploadedTmp;
+            $finalExt  = $ext;
+
+            // If the upload is an archive, extract first supported ebook file
+            if (in_array($ext, ['zip', 'rar'])) {
+                $tmpDir = sys_get_temp_dir() . '/' . uniqid('extract_', true);
+                mkdir($tmpDir);
+
+                $supported = ['epub','mobi','azw3','pdf','txt'];
+                $found = '';
+
+                if ($ext === 'zip') {
+                    $zip = new ZipArchive();
+                    if ($zip->open($uploadedTmp) === true) {
+                        for ($i = 0; $i < $zip->numFiles; $i++) {
+                            $name = $zip->getNameIndex($i);
+                            $e = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                            if (in_array($e, $supported)) {
+                                $zip->extractTo($tmpDir, $name);
+                                $found = $tmpDir . '/' . $name;
+                                $finalExt = $e;
+                                break;
+                            }
+                        }
+                        $zip->close();
+                    }
+                } else { // rar
+                    if (class_exists('RarArchive')) {
+                        $rar = RarArchive::open($uploadedTmp);
+                        if ($rar) {
+                            foreach ($rar->getEntries() as $entry) {
+                                $name = $entry->getName();
+                                $e = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                                if (in_array($e, $supported)) {
+                                    $entry->extract($tmpDir);
+                                    $found = $tmpDir . '/' . $name;
+                                    $finalExt = $e;
+                                    break;
+                                }
+                            }
+                            $rar->close();
+                        }
+                    } elseif (trim(shell_exec('command -v unrar'))) {
+                        $list = shell_exec('unrar lb ' . escapeshellarg($uploadedTmp));
+                        foreach (preg_split('/\r?\n/', $list) as $name) {
+                            $e = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                            if ($name !== '' && in_array($e, $supported)) {
+                                shell_exec('unrar x -inul ' . escapeshellarg($uploadedTmp) . ' ' . escapeshellarg($name) . ' ' . escapeshellarg($tmpDir));
+                                $found = $tmpDir . '/' . $name;
+                                $finalExt = $e;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ($found !== '') {
+                    $finalFile = $found;
+                }
+            }
+
+            $destFile = $fullBookFolder . '/' . $baseFileName . '.' . $finalExt;
+            rename($finalFile, $destFile);
+            if ($uploadedTmp !== $finalFile && file_exists($uploadedTmp)) {
+                unlink($uploadedTmp);
+            }
+            if (isset($tmpDir) && is_dir($tmpDir)) {
+                array_map('unlink', glob($tmpDir . '/*'));
+                @rmdir($tmpDir);
+            }
 
             // Add entry to 'data' table (linking the book to its file format)
             $stmt = $pdo->prepare('INSERT INTO data (book, format, uncompressed_size, name) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$bookId, strtoupper($ext), filesize($destFile), $baseFileName]);
+            $stmt->execute([$bookId, strtoupper($finalExt), filesize($destFile), $baseFileName]);
             touchLastModified($pdo, $bookId);
 
             if ($publisher !== '') {
