@@ -5,8 +5,9 @@ header('Content-Type: application/json');
 
 require_once 'vendor/autoload.php'; // make sure Meilisearch PHP SDK is loaded
 
-$searchTerm = isset($_POST['q']) ? trim($_POST['q']) : '';
-$requireAllWords = !empty($_POST['requireAllWords']);
+// Accept q via GET or POST so this script can power both search and autocomplete
+$searchTerm = isset($_REQUEST['q']) ? trim((string)$_REQUEST['q']) : '';
+$requireAllWords = !empty($_REQUEST['requireAllWords']);
 $matchLimit = 1000;
 $matches = [];
 
@@ -33,6 +34,25 @@ if ($searchTerm !== '') {
     // Connect to Meilisearch
     $client = new Client('http://localhost:7700', 'pqpv3Qse4V0YQDgfLmpGYt8nmYyKIVb2Mp0XFkUWu3s');
     $index = $client->index('lines');
+
+    // If autocomplete is requested, return a simple array of suggestions
+    if (isset($_REQUEST['autocomplete'])) {
+        $results = $index->search($searchTerm, [
+            'limit' => 10,
+            'attributesToRetrieve' => ['text'],
+        ]);
+
+        $suggestions = [];
+        foreach ($results->getHits() as $hit) {
+            $text = trim($hit['text'] ?? '');
+            if ($text !== '') {
+                $suggestions[] = $text;
+            }
+        }
+
+        echo json_encode($suggestions);
+        exit;
+    }
 
     // Perform the fuzzy search
     $results = $index->search($searchTerm, [
