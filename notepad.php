@@ -13,10 +13,9 @@ function makeClickableLinks(string $text): string {
         function ($m) {
             $url = $m[0];
             $href = preg_match('~^https?://~i', $url) ? $url : 'http://' . $url;
-            return '<a href="' . htmlspecialchars($href, ENT_QUOTES) . '" target="_blank" rel="noopener noreferrer">'
-                . htmlspecialchars($url) . '</a>';
+            return '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">' . $url . '</a>';
         },
-        htmlspecialchars($text)
+        $text
     );
 }
 
@@ -127,8 +126,8 @@ document.addEventListener('DOMContentLoaded', function () {
         <?php if ($action === 'view' && $id > 0): ?>
 
             <div class="bg-white p-4 shadow rounded">
-                <h2><?= htmlspecialchars($title) ?></h2>
-                <div><?= nl2br(makeClickableLinks($text)) ?></div>
+                <h2><?= $title ?></h2>
+                <div><?= makeClickableLinks($text) ?></div>
                 <div class="d-flex justify-content-between mt-3">
                     <a href="notepad.php" class="btn btn-secondary">Back</a>
                     <a href="notepad.php?id=<?= (int)$id ?>" class="btn btn-primary">Edit</a>
@@ -144,12 +143,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 <div class="mb-3">
                     <label for="title" class="form-label">Title</label>
-                    <input type="text" class="form-control" id="title" name="title" value="<?= htmlspecialchars($title ?? '') ?>" required>
+                    <input type="text" class="form-control" id="title" name="title" value="<?= $title ?? '' ?>" required>
                 </div>
 
                 <div class="mb-3">
                     <label for="noteEditor" class="form-label">Note</label>
-                    <textarea id="noteEditor" name="text"><?= htmlspecialchars($text ?? '') ?></textarea>
+                    <textarea id="noteEditor" name="text"><?= $text ?? '' ?></textarea>
                 </div>
 
                 <div class="d-flex justify-content-between">
@@ -181,8 +180,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         <tbody>
                             <?php foreach ($notes as $n): ?>
                                 <tr>
-                                    <td><?= htmlspecialchars($n['title']) ?></td>
-                                    <td><?= htmlspecialchars($n['last_edited']) ?></td>
+                                    <td><?= $n['title'] ?></td>
+                                    <td><?= $n['last_edited'] ?></td>
                                     <td class="text-end">
                                         <a class="btn btn-sm btn-outline-secondary me-1" href="notepad.php?id=<?= (int)$n['id'] ?>&action=view">View</a>
                                         <a class="btn btn-sm btn-outline-primary me-1" href="notepad.php?id=<?= (int)$n['id'] ?>">Edit</a>
@@ -210,8 +209,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             <tbody>
                                 <?php foreach ($bookNotes as $bn): ?>
                                     <tr>
-                                        <td><?= htmlspecialchars($bn['title']) ?></td>
-                                        <td><?= htmlspecialchars(mb_strimwidth(strip_tags($bn['note']), 0, 100, '...')) ?></td>
+                                        <td><?= $bn['title'] ?></td>
+                                        <td><?= mb_strimwidth(strip_tags($bn['note']), 0, 100, '...') ?></td>
                                         <td class="text-end">
                                             <a class="btn btn-sm btn-outline-primary" href="notes.php?id=<?= (int)$bn['id'] ?>">Edit</a>
                                         </td>
