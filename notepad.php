@@ -7,6 +7,19 @@ $pdo = getDatabaseConnection();
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $action = $_GET['action'] ?? '';
 
+function makeClickableLinks(string $text): string {
+    return preg_replace_callback(
+        '~(https?://[^\s<]+|www\.[^\s<]+)~i',
+        function ($m) {
+            $url = $m[0];
+            $href = preg_match('~^https?://~i', $url) ? $url : 'http://' . $url;
+            return '<a href="' . htmlspecialchars($href, ENT_QUOTES) . '" target="_blank" rel="noopener noreferrer">'
+                . htmlspecialchars($url) . '</a>';
+        },
+        htmlspecialchars($text)
+    );
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
     $title = trim($_POST['title'] ?? '');
@@ -23,7 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-if ($id > 0) {
+if ($action === 'view' && $id > 0) {
+    $stmt = $pdo->prepare('SELECT * FROM notepad WHERE id = ?');
+    $stmt->execute([$id]);
+    $note = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$note) {
+        header('Location: notepad.php');
+        exit;
+    }
+    $title = $note['title'];
+    $text  = $note['text'];
+} elseif ($id > 0) {
     $stmt = $pdo->prepare('SELECT * FROM notepad WHERE id = ?');
     $stmt->execute([$id]);
     $note = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -79,7 +102,7 @@ if ($id > 0) {
     }
 
     </style>
-<?php if ($id > 0 || $action === 'new'): ?>
+<?php if (($id > 0 && $action !== 'view') || $action === 'new'): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof tinymce !== 'undefined') {
@@ -101,8 +124,19 @@ document.addEventListener('DOMContentLoaded', function () {
     <?php include 'navbar_other.php'; ?>
 
     <div class="container my-4">
-        <?php if ($id > 0 || $action === 'new'): ?>
-           
+        <?php if ($action === 'view' && $id > 0): ?>
+
+            <div class="bg-white p-4 shadow rounded">
+                <h2><?= htmlspecialchars($title) ?></h2>
+                <div><?= nl2br(makeClickableLinks($text)) ?></div>
+                <div class="d-flex justify-content-between mt-3">
+                    <a href="notepad.php" class="btn btn-secondary">Back</a>
+                    <a href="notepad.php?id=<?= (int)$id ?>" class="btn btn-primary">Edit</a>
+                </div>
+            </div>
+
+        <?php elseif ($id > 0 || $action === 'new'): ?>
+
             <form method="post" class="bg-white p-4 shadow rounded">
                 <?php if ($id > 0): ?>
                     <input type="hidden" name="id" value="<?= (int)$id ?>">
@@ -150,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     <td><?= htmlspecialchars($n['title']) ?></td>
                                     <td><?= htmlspecialchars($n['last_edited']) ?></td>
                                     <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-secondary me-1" href="notepad.php?id=<?= (int)$n['id'] ?>&action=view">View</a>
                                         <a class="btn btn-sm btn-outline-primary me-1" href="notepad.php?id=<?= (int)$n['id'] ?>">Edit</a>
                                         <button type="button" class="btn btn-sm btn-outline-danger delete-note" data-note-id="<?= (int)$n['id'] ?>">Delete</button>
                                     </td>
