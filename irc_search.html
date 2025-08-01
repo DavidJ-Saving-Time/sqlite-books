@@ -32,7 +32,8 @@
 </div>
     
     <form id="searchForm" class="input-group mb-4">
-        <input type="text" id="query" class="form-control" placeholder="e.g. John Doe" required>
+        <input type="text" id="query" class="form-control" placeholder="e.g. John Doe" required list="ircSuggestions">
+        <datalist id="ircSuggestions"></datalist>
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-search"></i> Search
         </button>
@@ -60,6 +61,25 @@ const form = document.getElementById('searchForm');
 const queryInput = document.getElementById('query');
 const resultsDiv = document.getElementById('results');
 const recentList = document.getElementById('recentList');
+const suggestionsList = document.getElementById('ircSuggestions');
+
+queryInput.addEventListener('input', async () => {
+    const term = queryInput.value.trim();
+    suggestionsList.innerHTML = '';
+    if (term.length < 2) return;
+    try {
+        const res = await fetch(`irc_search.php?autocomplete=1&q=${encodeURIComponent(term)}`);
+        const data = await res.json();
+        suggestionsList.innerHTML = '';
+        data.forEach(text => {
+            const opt = document.createElement('option');
+            opt.value = text;
+            suggestionsList.appendChild(opt);
+        });
+    } catch (err) {
+        console.error(err);
+    }
+});
 
 let queue = [];
 let isQueueRunning = false;
