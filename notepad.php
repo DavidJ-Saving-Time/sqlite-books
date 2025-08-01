@@ -9,15 +9,17 @@ $action = $_GET['action'] ?? '';
 
 function makeClickableLinks(string $text): string {
     return preg_replace_callback(
-        '~(https?://[^\s<]+|www\.[^\s<]+)~i',
+        '~(?<!["\'])\b(https?://[^\s<]+|www\.[^\s<]+)~i',
         function ($m) {
             $url = $m[0];
             $href = preg_match('~^https?://~i', $url) ? $url : 'http://' . $url;
-            return '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">' . $url . '</a>';
+            $escapedUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+            return '<a href="' . $href . '" target="_blank">' . $escapedUrl . '</a>';
         },
         $text
     );
 }
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
@@ -127,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             <div class="bg-white p-4 shadow rounded">
                 <h2><?= $title ?></h2>
-                <div><?= makeClickableLinks($text) ?></div>
+                <div><?= $text ?></div>
                 <div class="d-flex justify-content-between mt-3">
                     <a href="notepad.php" class="btn btn-secondary">Back</a>
                     <a href="notepad.php?id=<?= (int)$id ?>" class="btn btn-primary">Edit</a>

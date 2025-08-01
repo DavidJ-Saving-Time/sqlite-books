@@ -105,6 +105,13 @@ $statusNameVal = isset($statusName) ? $statusName : '';
             <i class="fa-solid fa-pen-nib me-1"></i> WordPro
           </a>
         </li>
+        
+                <!-- WordPro Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="/ircdashboard.php">
+            <i class="fa fa-terminal me-1"></i>IRC
+          </a>
+        </li>
 
         <!-- Shelf Selector -->
         <?php if (isset($shelfList) && function_exists('buildBaseUrl')): ?>

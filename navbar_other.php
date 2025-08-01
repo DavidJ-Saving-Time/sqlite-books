@@ -30,7 +30,7 @@
 
         <!-- WordPro Button -->
         <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/wp.html">
+          <a class="btn btn-primary" href="/notepad.php">
             <i class="fa-solid fa-pen-nib me-1"></i> WordPro
           </a>
         </li>

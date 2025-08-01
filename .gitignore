@@ -10,3 +10,7 @@ david_ebooks/
 test_lib/
 foliate-js/
 node_modules/
+data.ms/
+vendor/
+dcc_list/
+downloads/

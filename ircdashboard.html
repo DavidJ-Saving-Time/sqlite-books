@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IRC DCC Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    header {
+      background: #333;
+      color: #fff;
+      padding: 10px 20px;
+      text-align: center;
+    }
+    section {
+      padding: 20px;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    .status, .files, .actions, .logs {
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .files ul {
+      list-style: none;
+      padding: 0;
+    }
+    .files li {
+      padding: 5px 0;
+      border-bottom: 1px solid #ddd;
+    }
+    .files li:last-child {
+      border-bottom: none;
+    }
+    input[type="text"] {
+      padding: 8px;
+      width: 200px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 8px 12px;
+      background: #007BFF;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .logs pre {
+      background: #222;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 5px;
+      max-height: 250px;
+      overflow-y: scroll;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column-reverse; /* Show newest logs on top */
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>IRC DCC Dashboard</h1>
+  </header>
+
+  <section>
+    <div class="status">
+      <h2>Status</h2>
+      <p><strong>Connected:</strong> <span id="connected">Loading...</span></p>
+      <p><strong>Server:</strong> <span id="server">Loading...</span></p>
+      <p><strong>Channel:</strong> <span id="channel">Loading...</span></p>
+    </div>
+
+    <div class="actions">
+      <h2>Request File</h2>
+      <input type="text" id="fileCommand" placeholder="!filename">
+      <button onclick="requestFile()">Send Request</button>
+      <p id="fileRequestStatus"></p>
+    </div>
+
+    <div class="files">
+      <h2>Downloaded Files</h2>
+      <ul id="filesList">Loading...</ul>
+    </div>
+
+    <div class="logs">
+      <h2>Log Viewer (Last 50 Lines)</h2>
+      <pre id="logContent">Loading...</pre>
+    </div>
+  </section>
+
+  <script>
+    const API_BASE = "http://nilla.lan:5001";
+
+    async function loadStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/status`);
+        const data = await res.json();
+        document.getElementById('connected').textContent = data.connected ? 'Yes' : 'No';
+        document.getElementById('server').textContent = data.server;
+        document.getElementById('channel').textContent = data.channel;
+      } catch (e) {
+        console.error("Error loading status:", e);
+      }
+    }
+
+    async function loadFiles() {
+      try {
+        const res = await fetch(`${API_BASE}/downloaded-files`);
+        const files = await res.json();
+        const filesList = document.getElementById('filesList');
+        filesList.innerHTML = "";
+        if (files.length === 0) {
+          filesList.innerHTML = "<li>No files downloaded yet.</li>";
+        } else {
+          files.forEach(file => {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = `/downloads/${encodeURIComponent(file.name)}`;
+            a.textContent = `${file.name} (${file.size} bytes, modified: ${file.modified})`;
+            a.target = "_blank";
+            li.appendChild(a);
+            filesList.appendChild(li);
+          });
+        }
+      } catch (e) {
+        console.error("Error loading files:", e);
+      }
+    }
+
+    async function loadLogs() {
+      try {
+        const res = await fetch(`${API_BASE}/logs`);
+        const logs = await res.json();
+        document.getElementById('logContent').textContent = logs.reverse().join("");
+      } catch (e) {
+        document.getElementById('logContent').textContent = "Error loading log file.";
+        console.error("Error loading logs:", e);
+      }
+    }
+
+    async function requestFile() {
+      const cmd = document.getElementById('fileCommand').value.trim();
+      if (!cmd) {
+        document.getElementById('fileRequestStatus').textContent = "Please enter a command.";
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/request-file?cmd=${encodeURIComponent(cmd)}`);
+        const data = await res.json();
+        document.getElementById('fileRequestStatus').textContent = data.status || data.error;
+      } catch (e) {
+        document.getElementById('fileRequestStatus').textContent = "Error sending request.";
+        console.error("Error sending request:", e);
+      }
+    }
+
+    function refreshData() {
+      loadStatus();
+      loadFiles();
+      loadLogs();
+    }
+
+    refreshData();
+    setInterval(refreshData, 5000);
+  </script>
+</body>
+</html>
