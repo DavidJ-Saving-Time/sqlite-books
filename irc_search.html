@@ -32,8 +32,7 @@
 </div>
     
     <form id="searchForm" class="input-group mb-4">
-        <input type="text" id="query" class="form-control" placeholder="e.g. John Doe" required list="ircSuggestions">
-        <datalist id="ircSuggestions"></datalist>
+        <input type="text" id="query" class="form-control" placeholder="e.g. John Doe" required>
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-search"></i> Search
         </button>
@@ -61,20 +60,70 @@ const form = document.getElementById('searchForm');
 const queryInput = document.getElementById('query');
 const resultsDiv = document.getElementById('results');
 const recentList = document.getElementById('recentList');
-const suggestionsList = document.getElementById('ircSuggestions');
+function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightText(text, term) {
+    let escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const words = term.split(/\s+/).filter(Boolean);
+    words.forEach(word => {
+        const regex = new RegExp(`(${escapeRegExp(word)})`, 'gi');
+        escaped = escaped.replace(regex, '<mark>$1</mark>');
+    });
+    return escaped;
+}
+
+function renderCard(line) {
+    const cleanText = line.replace(/(::HASH::|::INFO::).*/i, '').replace(/<[^>]+>/g, '').trim();
+    const card = document.createElement('div');
+    card.className = 'card mb-3 shadow-sm';
+
+    const cardBody = document.createElement('div');
+    cardBody.className = 'card-body d-flex justify-content-between align-items-start';
+
+    const textDiv = document.createElement('div');
+    textDiv.innerHTML = line;
+
+    const button = document.createElement('button');
+    button.className = 'btn btn-sm btn-outline-primary';
+    button.innerHTML = `<i class="fas fa-download"></i> Request File`;
+    button.onclick = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/request-file?cmd=${encodeURIComponent(cleanText)}`);
+            const data = await res.json();
+            alert(data.status || data.error || "No response");
+        } catch (e) {
+            alert("Error sending request.");
+            console.error("Error:", e);
+        }
+    };
+
+    const queueBtn = document.createElement('button');
+    queueBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+    queueBtn.innerHTML = `<i class="fas fa-clock"></i> Queue`;
+    queueBtn.onclick = () => {
+        addToQueue(cleanText);
+        alert("Command added to queue.");
+    };
+
+    cardBody.appendChild(textDiv);
+    cardBody.appendChild(button);
+    cardBody.appendChild(queueBtn);
+    card.appendChild(cardBody);
+    return card;
+}
 
 queryInput.addEventListener('input', async () => {
     const term = queryInput.value.trim();
-    suggestionsList.innerHTML = '';
+    resultsDiv.innerHTML = '';
     if (term.length < 2) return;
     try {
         const res = await fetch(`irc_search.php?autocomplete=1&q=${encodeURIComponent(term)}`);
         const data = await res.json();
-        suggestionsList.innerHTML = '';
         data.forEach(text => {
-            const opt = document.createElement('option');
-            opt.value = text;
-            suggestionsList.appendChild(opt);
+            const highlighted = highlightText(text, term);
+            resultsDiv.appendChild(renderCard(highlighted));
         });
     } catch (err) {
         console.error(err);
@@ -254,44 +303,7 @@ fetch('irc_search.php', {
         resultsDiv.insertAdjacentHTML('beforeend', countMsg);
 
         data.matches.forEach(line => {
-            const cleanText = line.replace(/(::HASH::|::INFO::).*/i, '').replace(/<[^>]+>/g, '').trim();
-
-            const card = document.createElement('div');
-            card.className = 'card mb-3 shadow-sm';
-
-            const cardBody = document.createElement('div');
-            cardBody.className = 'card-body d-flex justify-content-between align-items-start';
-
-            const text = document.createElement('div');
-            text.innerHTML = line;
-
-            const button = document.createElement('button');
-            button.className = 'btn btn-sm btn-outline-primary';
-            button.innerHTML = `<i class="fas fa-download"></i> Request File`;
-            button.onclick = async () => {
-                try {
-                    const res = await fetch(`${API_BASE}/request-file?cmd=${encodeURIComponent(cleanText)}`);
-                    const data = await res.json();
-                    alert(data.status || data.error || "No response");
-                } catch (e) {
-                    alert("Error sending request.");
-                    console.error("Error:", e);
-                }
-            };
-
-            const queueBtn = document.createElement('button');
-            queueBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
-            queueBtn.innerHTML = `<i class="fas fa-clock"></i> Queue`;
-            queueBtn.onclick = () => {
-                addToQueue(cleanText);
-                alert("Command added to queue.");
-            };
-
-            cardBody.appendChild(text);
-            cardBody.appendChild(button);
-            cardBody.appendChild(queueBtn);
-            card.appendChild(cardBody);
-            resultsDiv.appendChild(card);
+            resultsDiv.appendChild(renderCard(line));
         });
     })
     .catch(err => {
