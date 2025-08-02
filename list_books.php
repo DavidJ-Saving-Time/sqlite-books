@@ -5,7 +5,7 @@ requireLogin();
 $pdo = getDatabaseConnection();
 $genreColumnId = ensureMultiValueColumn($pdo, "#genre", "Genre");
 $genreLinkTable = "books_custom_column_{$genreColumnId}_link";
-
+$totalLibraryBooks = (int)$pdo->query('SELECT COUNT(*) FROM books')->fetchColumn();
 // Ensure shelf table and custom column exist
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
@@ -162,11 +162,19 @@ if ($recommendedOnly) {
     $whereClauses[] = "EXISTS (SELECT 1 FROM $recLinkTable rl JOIN $recTable rt ON rl.value = rt.id WHERE rl.book = b.id AND TRIM(COALESCE(rt.value, '')) <> '')";
 }
 if ($search !== '') {
-    $whereClauses[] = '(b.title LIKE :search OR EXISTS (
-            SELECT 1 FROM books_authors_link bal
-            JOIN authors a ON bal.author = a.id
-            WHERE bal.book = b.id AND a.name LIKE :search))';
-    $params[':search'] = '%' . $search . '%';
+    $searchLower = function_exists('mb_strtolower') ? mb_strtolower($search, 'UTF-8') : strtolower($search);
+    $maxDist = max(1, (int)floor(strlen($searchLower) / 3));
+    $whereClauses[] = '('
+        . 'LOWER(b.title) LIKE :search_like'
+        . ' OR levenshtein(LOWER(b.title), :search_lower) <= :search_dist'
+        . ' OR EXISTS (SELECT 1 FROM books_authors_link bal'
+        . ' JOIN authors a ON bal.author = a.id'
+        . ' WHERE bal.book = b.id'
+        . ' AND (LOWER(a.name) LIKE :search_like OR levenshtein(LOWER(a.name), :search_lower) <= :search_dist))'
+        . ')';
+    $params[':search_like'] = '%' . $searchLower . '%';
+    $params[':search_lower'] = $searchLower;
+    $params[':search_dist'] = $maxDist;
 }
 $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
 
@@ -321,12 +329,13 @@ if ($search !== '') {
 }
 $baseUrl .= '&page=';
 
-function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId): void {
-    foreach ($books as $book) {
+function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId, int $offset = 0): void {
+    foreach ($books as $i => $book) {
+        $index = $offset + $i + 1;
         $missing = !bookHasFile($book['path']);
         $firstFile = $missing ? null : firstBookFile($book['path']);
         ?>
-        <div class="row g-3 py-3 border-bottom" data-book-block-id="<?= htmlspecialchars($book['id']) ?>">
+       <div class="row g-3 py-3 border-bottom" data-book-block-id="<?= htmlspecialchars($book['id']) ?>" data-book-index="<?= $index ?>">
             <!-- Left: Thumbnail -->
             <div class="col-md-2 col-12 text-center cover-wrapper">
                 <?php if (!empty($book['has_cover'])): ?>
@@ -514,7 +523,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
 
 
 if ($isAjax) {
-    render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId);
+    render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset);
     exit;
 }
 
@@ -662,7 +671,7 @@ if (count($breadcrumbs) === 1) {
 }
     </style>
 </head>
-<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>">
+<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>">
 <?php include "navbar.php"; ?>
 <div class="container-fluid my-4">
     <div class="row">
@@ -797,7 +806,7 @@ if (count($breadcrumbs) === 1) {
 
 <div class="container-fluid">      
         <div class="col-md-12">
-            <h1 class="mb-4">Books</h1>
+             <h1 class="mb-4">Books (<?= $totalLibraryBooks ?>)</h1>
             <nav aria-label="breadcrumb" class="mb-3">
                 <ol class="breadcrumb mb-0">
                     <?php foreach ($breadcrumbs as $index => $bc): ?>
@@ -865,7 +874,7 @@ if (count($breadcrumbs) === 1) {
             <!-- Main Content -->
 <div class="col-md-12">
      <div id="book-list">
-    <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId); ?>
+    <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset); ?>
      </div>
 </div>
         </div>

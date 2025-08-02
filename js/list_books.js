@@ -71,41 +71,71 @@ function updateStarUI(container, rating) {
   }
 }
 
+function throttle(fn, delay) {
+  let last = 0;
+  let timer;
+  return function (...args) {
+    const now = Date.now();
+    if (now - last >= delay) {
+      last = now;
+      fn.apply(this, args);
+    } else {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        last = Date.now();
+        fn.apply(this, args);
+      }, delay - (now - last));
+    }
+  };
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
   let currentPage = parseInt(bodyData.page, 10);
   const totalPages = parseInt(bodyData.totalPages, 10);
+  const perPage = parseInt(bodyData.perPage, 10);
   let loading = false;
   const fetchUrlBase = bodyData.baseUrl;
-  const saveState = () => {
-    sessionStorage.setItem('listBooksPage', String(currentPage));
-    sessionStorage.setItem('listBooksScroll', String(window.scrollY));
-  };
+  function updateLastVisible() {
+    const rows = bookList.querySelectorAll('[data-book-index]');
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (rect.bottom > 0) {
+        sessionStorage.setItem('listBooksLastId', row.dataset.bookBlockId);
+        sessionStorage.setItem('listBooksLastIndex', row.dataset.bookIndex);
+        break;
+      }
+    }
+  }
 
+  const throttledUpdate = throttle(updateLastVisible, 200);
+  const saveState = () => updateLastVisible();
+  
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
   const bookList = document.getElementById('book-list');
   initCoverDimensions();
+  updateLastVisible();
 
-  const restorePage = parseInt(sessionStorage.getItem('listBooksPage') || '0', 10);
-  const restoreScroll = parseInt(sessionStorage.getItem('listBooksScroll') || '0', 10);
-  if (!isNaN(restorePage) && restorePage > currentPage) {
+   const restoreId = sessionStorage.getItem('listBooksLastId');
+  const restoreIndex = parseInt(sessionStorage.getItem('listBooksLastIndex') || '0', 10);
+  if (restoreId && !isNaN(restoreIndex) && restoreIndex > 0) {
+    const targetPage = Math.ceil(restoreIndex / perPage);
     const restoreInterval = setInterval(() => {
       if (currentPage < restorePage) {
         loadMore();
       } else {
         clearInterval(restoreInterval);
-        if (!isNaN(restoreScroll)) {
-          window.scrollTo({ top: restoreScroll });
+        const selector = `[data-book-block-id="${CSS.escape(restoreId)}"]`;
+        const el = bookList.querySelector(selector);
+        if (el) {
+          el.scrollIntoView();
         }
-        sessionStorage.removeItem('listBooksPage');
-        sessionStorage.removeItem('listBooksScroll');
+        sessionStorage.removeItem('listBooksLastId');
+        sessionStorage.removeItem('listBooksLastIndex');
       }
     }, 300);
-  } else if (!isNaN(restoreScroll) && restoreScroll > 0) {
-    window.scrollTo({ top: restoreScroll });
-    sessionStorage.removeItem('listBooksPage');
-    sessionStorage.removeItem('listBooksScroll');
   }
 
   async function loadMore() {
@@ -533,6 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('scroll', () => {
+      throttledUpdate();
     if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 100) {
       loadMore();
     }

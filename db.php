@@ -173,7 +173,14 @@ function getDatabaseConnection(?string $path = null) {
             return $authorSorter->sort($author);
         }, 1);
 
+        // Register a Levenshtein distance function so SQL queries can perform
+        // fuzzy matching on strings when searching.
+        $pdo->sqliteCreateFunction('levenshtein', function ($a, $b) {
+            return levenshtein((string)$a, (string)$b);
+        }, 2);
 
+        
+        
         // Provide a uuid4() function used by triggers in the Calibre schema.
         // Generates a version 4 UUID string in the standard 8-4-4-4-12 format.
         $pdo->sqliteCreateFunction('uuid4', function () {

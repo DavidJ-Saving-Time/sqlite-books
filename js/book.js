@@ -251,7 +251,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }).then(r => r.json())
         .then(data => {
           if (data.status === 'ok') {
-            location.reload();
+            if (img) {
+              const base = img.src.split('?')[0];
+              img.src = `${base}?t=${Date.now()}`;
+              img.addEventListener('load', updateDimensions, { once: true });
+            }
           } else {
             alert(data.error || 'Error saving cover');
           }
