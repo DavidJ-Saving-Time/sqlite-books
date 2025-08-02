@@ -873,12 +873,29 @@ if (count($breadcrumbs) === 1) {
             
             <!-- Main Content -->
 <div class="col-md-12">
-  <div id="restoreNotice" class="alert alert-info d-none"></div>
-  <div id="scrollArea" style="max-height:80vh; overflow-y:auto;">
-    <div id="contentArea">
+  <div id="contentArea">
       <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset); ?>
-    </div>
   </div>
+
+  <nav id="paginationNav" aria-label="Page navigation" class="mt-3">
+    <ul class="pagination justify-content-center">
+      <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+        <a class="page-link prev-page" href="<?= htmlspecialchars($baseUrl . max(1, $page - 1)) ?>">Previous</a>
+      </li>
+      <li class="page-item disabled">
+        <span class="page-link page-info">Page <?= $page ?> of <?= $totalPages ?></span>
+      </li>
+      <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>">
+        <a class="page-link next-page" href="<?= htmlspecialchars($baseUrl . min($totalPages, $page + 1)) ?>">Next</a>
+      </li>
+    </ul>
+  </nav>
+
+  <?php if ($page < $totalPages): ?>
+  <div class="d-grid my-3">
+    <button id="loadMoreBtn" class="btn btn-primary">Load More</button>
+  </div>
+  <?php endif; ?>
 </div>
         </div>
 
