@@ -349,6 +349,9 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
     <a href="list_books.php" class="btn btn-secondary mb-3">
         <i class="fa-solid fa-arrow-left me-1"></i> Back to list
     </a>
+    <a href="list_books.php?search=<?= urlencode($book['title'] . ' ' . $book['authors']) ?>&source=local" class="btn btn-secondary mb-3 ms-2">
+        <i class="fa-solid fa-magnifying-glass me-1"></i> Local search
+    </a>
 
     <!-- Book Title and Info -->
     <h1 class="mb-0">
@@ -599,9 +602,14 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
 
                         <!-- Form Actions -->
                         <div class="d-flex justify-content-between mt-4">
-                            <a href="list_books.php" class="btn btn-secondary">
-                                <i class="fa-solid fa-arrow-left me-1"></i> Back to list
-                            </a>
+                            <div>
+                                <a href="list_books.php" class="btn btn-secondary">
+                                    <i class="fa-solid fa-arrow-left me-1"></i> Back to list
+                                </a>
+                                <a href="list_books.php?search=<?= urlencode($book['title'] . ' ' . $book['authors']) ?>&source=local" class="btn btn-secondary ms-2">
+                                    <i class="fa-solid fa-magnifying-glass me-1"></i> Local search
+                                </a>
+                            </div>
                             <button type="submit" class="btn btn-primary">
                                 <i class="fa-solid fa-save me-1"></i> Save
                             </button>
