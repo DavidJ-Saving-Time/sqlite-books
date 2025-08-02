@@ -97,42 +97,40 @@ document.addEventListener('DOMContentLoaded', () => {
   const perPage = parseInt(bodyData.perPage, 10);
   let loading = false;
   const fetchUrlBase = bodyData.baseUrl;
+
+  const scrollArea = document.getElementById('scrollArea');
+  const contentArea = document.getElementById('contentArea');
+
+  let allItems = Array.from(contentArea.children).map(el => el.outerHTML);
+
+  const clusterize = new Clusterize({
+    rows: allItems,
+    scrollId: 'scrollArea',
+    contentId: 'contentArea',
+    callbacks: { clusterChanged: () => initCoverDimensions(contentArea) }
+  });
+
+  initCoverDimensions(contentArea);
+
+  let itemHeight = 0;
+  const calcItemHeight = () => {
+    const first = contentArea.querySelector('.list-item');
+    if (first) itemHeight = first.getBoundingClientRect().height;
+  };
+  calcItemHeight();
+
   function updateLastVisible() {
-    const rows = bookList.querySelectorAll('[data-book-index]');
-    for (const row of rows) {
-      const rect = row.getBoundingClientRect();
-      if (rect.bottom > 0) {
-        sessionStorage.setItem('listBooksLastId', row.dataset.bookBlockId);
-        sessionStorage.setItem('listBooksLastIndex', row.dataset.bookIndex);
-        break;
-      }
-    }
+    if (!itemHeight) return;
+    const index = Math.floor(scrollArea.scrollTop / itemHeight);
+    localStorage.setItem('lastItemIndex', index);
   }
 
   const throttledUpdate = throttle(updateLastVisible, 200);
   const saveState = () => updateLastVisible();
-  
+
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
-  const bookList = document.getElementById('book-list');
-  initCoverDimensions();
-
-  const restoreId = sessionStorage.getItem('listBooksLastId');
-  const restoreIndex = parseInt(sessionStorage.getItem('listBooksLastIndex') || '0', 10);
-  if (restoreId && !isNaN(restoreIndex) && restoreIndex > 0) {
-    loadMoreUntil(restoreIndex).then(() => {
-      const selector = `[data-book-block-id="${CSS.escape(restoreId)}"]`;
-      const el = bookList.querySelector(selector);
-      if (el) {
-        el.scrollIntoView();
-      }
-      sessionStorage.removeItem('listBooksLastId');
-      sessionStorage.removeItem('listBooksLastIndex');
-      updateLastVisible();
-    });
-  } else {
-    updateLastVisible();
-  }
+  updateLastVisible();
 
   async function loadMore() {
     if (loading || currentPage >= totalPages) return;
@@ -142,10 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const html = await res.text();
       const tmp = document.createElement('div');
       tmp.innerHTML = html;
-      while (tmp.firstChild) {
-        bookList.appendChild(tmp.firstChild);
-      }
-      initCoverDimensions(bookList);
+      const newRows = Array.from(tmp.children).map(el => el.outerHTML);
+      allItems = allItems.concat(newRows);
+      clusterize.update(allItems);
+      calcItemHeight();
       currentPage++;
     } catch (err) {
       console.error(err);
@@ -155,12 +153,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadMoreUntil(index) {
-    const targetPage = Math.ceil(index / perPage);
+    const targetPage = Math.floor(index / perPage) + 1;
     while (currentPage < targetPage) {
       await loadMore();
     }
   }
   window.loadMoreUntil = loadMoreUntil;
+
+  const restoreIndex = parseInt(localStorage.getItem('lastItemIndex') || '0', 10);
+  if (!isNaN(restoreIndex) && restoreIndex > 0) {
+    loadMoreUntil(restoreIndex).then(() => {
+      scrollArea.scrollTop = restoreIndex * itemHeight;
+    });
+  }
+
+  scrollArea.addEventListener('scroll', () => {
+    throttledUpdate();
+    if (scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - itemHeight * 5) {
+      loadMore();
+    }
+  });
 
   document.addEventListener('change', async e => {
     if (e.target.classList.contains('shelf-select')) {
@@ -563,13 +575,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const link = e.target.closest('a');
     if (link && link.href && !link.href.startsWith('#')) {
       saveState();
-    }
-  });
-
-  window.addEventListener('scroll', () => {
-      throttledUpdate();
-    if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 100) {
-      loadMore();
     }
   });
 
