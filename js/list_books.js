@@ -118,24 +118,18 @@ document.addEventListener('DOMContentLoaded', () => {
   initCoverDimensions();
   updateLastVisible();
 
-   const restoreId = sessionStorage.getItem('listBooksLastId');
+  const restoreId = sessionStorage.getItem('listBooksLastId');
   const restoreIndex = parseInt(sessionStorage.getItem('listBooksLastIndex') || '0', 10);
   if (restoreId && !isNaN(restoreIndex) && restoreIndex > 0) {
-    const targetPage = Math.ceil(restoreIndex / perPage);
-    const restoreInterval = setInterval(() => {
-      if (currentPage < restorePage) {
-        loadMore();
-      } else {
-        clearInterval(restoreInterval);
-        const selector = `[data-book-block-id="${CSS.escape(restoreId)}"]`;
-        const el = bookList.querySelector(selector);
-        if (el) {
-          el.scrollIntoView();
-        }
-        sessionStorage.removeItem('listBooksLastId');
-        sessionStorage.removeItem('listBooksLastIndex');
+    loadMoreUntil(restoreIndex).then(() => {
+      const selector = `[data-book-block-id="${CSS.escape(restoreId)}"]`;
+      const el = bookList.querySelector(selector);
+      if (el) {
+        el.scrollIntoView();
       }
-    }, 300);
+      sessionStorage.removeItem('listBooksLastId');
+      sessionStorage.removeItem('listBooksLastIndex');
+    });
   }
 
   async function loadMore() {
@@ -157,6 +151,14 @@ document.addEventListener('DOMContentLoaded', () => {
       loading = false;
     }
   }
+
+  async function loadMoreUntil(index) {
+    const targetPage = Math.ceil(index / perPage);
+    while (currentPage < targetPage) {
+      await loadMore();
+    }
+  }
+  window.loadMoreUntil = loadMoreUntil;
 
   document.addEventListener('change', async e => {
     if (e.target.classList.contains('shelf-select')) {
