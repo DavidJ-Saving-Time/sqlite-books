@@ -81,42 +81,20 @@ function updateStarUI(container, rating) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
-  let currentPage = parseInt(bodyData.page, 10);
   const totalPages = parseInt(bodyData.totalPages, 10);
   const fetchUrlBase = bodyData.baseUrl;
 
   const contentArea = document.getElementById('contentArea');
-  const loadMoreBtn = document.getElementById('loadMoreBtn');
-  const paginationNav = document.getElementById('paginationNav');
+  const topSentinel = document.getElementById('topSentinel');
+  const bottomSentinel = document.getElementById('bottomSentinel');
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
 
   initCoverDimensions(contentArea);
-  sessionStorage.setItem('lastPage', currentPage);
 
-  function updatePagination() {
-    if (!paginationNav) return;
-    const prev = paginationNav.querySelector('.prev-page');
-    const next = paginationNav.querySelector('.next-page');
-    const info = paginationNav.querySelector('.page-info');
-    if (info) info.textContent = `Page ${currentPage} of ${totalPages}`;
-    if (prev) {
-      if (currentPage <= 1) {
-        prev.parentElement.classList.add('disabled');
-      } else {
-        prev.parentElement.classList.remove('disabled');
-        prev.href = fetchUrlBase + (currentPage - 1);
-      }
-    }
-    if (next) {
-      if (currentPage >= totalPages) {
-        next.parentElement.classList.add('disabled');
-      } else {
-        next.parentElement.classList.remove('disabled');
-        next.href = fetchUrlBase + (currentPage + 1);
-      }
-    }
-  }
+  let lowestPage = parseInt(bodyData.page, 10);
+  let highestPage = lowestPage;
+  sessionStorage.setItem('lastPage', highestPage);
 
   async function fetchPage(p) {
     const res = await fetch(fetchUrlBase + p + '&ajax=1');
@@ -126,38 +104,56 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(tmp.children);
   }
 
-  async function loadMore() {
-    if (!loadMoreBtn || currentPage >= totalPages) return;
-    loadMoreBtn.disabled = true;
+  async function loadNext() {
+    if (highestPage >= totalPages) return;
     try {
-      const els = await fetchPage(currentPage + 1);
-      els.forEach(el => contentArea.appendChild(el));
+      const els = await fetchPage(highestPage + 1);
+      els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(contentArea);
-      currentPage++;
-      sessionStorage.setItem('lastPage', currentPage);
-      updatePagination();
-      const url = new URL(window.location);
-      url.searchParams.set('page', currentPage);
-      history.replaceState(null, '', url);
-      if (currentPage >= totalPages) {
-        loadMoreBtn.classList.add('d-none');
-      }
+      highestPage++;
+      sessionStorage.setItem('lastPage', highestPage);
     } catch (err) {
       console.error(err);
-    } finally {
-      loadMoreBtn.disabled = false;
     }
   }
 
-  if (loadMoreBtn) {
-    loadMoreBtn.addEventListener('click', loadMore);
-    if (currentPage >= totalPages) loadMoreBtn.classList.add('d-none');
+  async function loadPrevious() {
+    if (lowestPage <= 1) return;
+    try {
+      const prevHeight = document.body.scrollHeight;
+      const els = await fetchPage(lowestPage - 1);
+      const frag = document.createDocumentFragment();
+      els.forEach(el => frag.appendChild(el));
+      contentArea.insertBefore(frag, topSentinel.nextSibling);
+      initCoverDimensions(contentArea);
+      const newHeight = document.body.scrollHeight;
+      window.scrollBy(0, newHeight - prevHeight);
+      lowestPage--;
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  updatePagination();
+  const bottomObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        loadNext();
+      }
+    });
+  });
+  bottomObserver.observe(bottomSentinel);
+
+  const topObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        loadPrevious();
+      }
+    });
+  });
+  topObserver.observe(topSentinel);
 
   function saveState() {
-    sessionStorage.setItem('lastPage', currentPage);
+    sessionStorage.setItem('lastPage', highestPage);
   }
 
   document.addEventListener('change', async e => {
