@@ -331,11 +331,11 @@ $baseUrl .= '&page=';
 
 function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId, int $offset = 0): void {
     foreach ($books as $i => $book) {
-        $index = $offset + $i + 1;
+        $index = $offset + $i;
         $missing = !bookHasFile($book['path']);
         $firstFile = $missing ? null : firstBookFile($book['path']);
         ?>
-       <div class="row g-3 py-3 border-bottom list-item" data-book-block-id="<?= htmlspecialchars($book['id']) ?>" data-book-index="<?= $index ?>">
+       <div id="item-<?= $index ?>" class="row g-3 py-3 border-bottom list-item" data-book-block-id="<?= htmlspecialchars($book['id']) ?>" data-book-index="<?= $index ?>">
             <!-- Left: Thumbnail -->
             <div class="col-md-2 col-12 text-center cover-wrapper">
                 <?php if (!empty($book['has_cover'])): ?>
@@ -671,7 +671,7 @@ if (count($breadcrumbs) === 1) {
 }
     </style>
 </head>
-<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>">
+<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>" data-total-items="<?php echo $totalLibraryBooks; ?>">
 <?php include "navbar.php"; ?>
 <div class="container-fluid my-4">
     <div class="row">
@@ -873,6 +873,7 @@ if (count($breadcrumbs) === 1) {
             
             <!-- Main Content -->
 <div class="col-md-12">
+  <div id="restoreNotice" class="alert alert-info d-none"></div>
   <div id="scrollArea" class="clusterize-scroll" style="max-height:80vh; overflow-y:auto;">
     <div id="contentArea" class="clusterize-content">
       <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset); ?>

@@ -95,13 +95,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPage = parseInt(bodyData.page, 10);
   const totalPages = parseInt(bodyData.totalPages, 10);
   const perPage = parseInt(bodyData.perPage, 10);
+  const totalItems = parseInt(bodyData.totalItems, 10);
   let loading = false;
   const fetchUrlBase = bodyData.baseUrl;
 
   const scrollArea = document.getElementById('scrollArea');
   const contentArea = document.getElementById('contentArea');
+  const noticeBar = document.getElementById('restoreNotice');
 
   let allItems = Array.from(contentArea.children).map(el => el.outerHTML);
+  let partialMode = false;
 
   const clusterize = new Clusterize({
     rows: allItems,
@@ -118,6 +121,57 @@ document.addEventListener('DOMContentLoaded', () => {
     if (first) itemHeight = first.getBoundingClientRect().height;
   };
   calcItemHeight();
+
+  async function fetchPage(p) {
+    const res = await fetch(fetchUrlBase + p + '&ajax=1');
+    const html = await res.text();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return Array.from(tmp.children);
+  }
+
+  async function loadSlice(startIndex, endIndex) {
+    const startPage = Math.floor(startIndex / perPage) + 1;
+    const endPage = Math.floor(endIndex / perPage) + 1;
+    let rows = [];
+    for (let p = startPage; p <= endPage; p++) {
+      const els = await fetchPage(p);
+      els.forEach((el, i) => {
+        const globalIndex = (p - 1) * perPage + i;
+        if (globalIndex >= startIndex && globalIndex <= endIndex) {
+          rows.push(el.outerHTML);
+        }
+      });
+    }
+    allItems = rows;
+    clusterize.update(allItems);
+    calcItemHeight();
+    currentPage = endPage;
+  }
+
+  async function loadFullListFromTop() {
+    partialMode = false;
+    noticeBar.classList.add('d-none');
+    localStorage.removeItem('lastItemIndex');
+    const els = await fetchPage(1);
+    allItems = els.map(el => el.outerHTML);
+    clusterize.update(allItems);
+    calcItemHeight();
+    currentPage = 1;
+    scrollArea.scrollTop = 0;
+  }
+
+  async function jumpToFullListAt(index) {
+    partialMode = false;
+    noticeBar.classList.add('d-none');
+    const els = await fetchPage(1);
+    allItems = els.map(el => el.outerHTML);
+    clusterize.update(allItems);
+    calcItemHeight();
+    currentPage = 1;
+    await loadMoreUntil(index);
+    scrollArea.scrollTop = index * itemHeight;
+  }
 
   function updateLastVisible() {
     if (!itemHeight) return;
@@ -160,16 +214,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   window.loadMoreUntil = loadMoreUntil;
 
-  const restoreIndex = parseInt(localStorage.getItem('lastItemIndex') || '0', 10);
-  if (!isNaN(restoreIndex) && restoreIndex > 0) {
-    loadMoreUntil(restoreIndex).then(() => {
-      scrollArea.scrollTop = restoreIndex * itemHeight;
+  let restoreIndex = parseInt(localStorage.getItem('lastItemIndex') || '0', 10);
+  if (!isNaN(restoreIndex) && restoreIndex > 0 && restoreIndex < totalItems) {
+    partialMode = true;
+    const start = Math.max(0, restoreIndex - 20);
+    const end = Math.min(totalItems - 1, restoreIndex + 20);
+    loadSlice(start, end).then(() => {
+      scrollArea.scrollTop = (restoreIndex - start) * itemHeight;
+      noticeBar.innerHTML = `Showing items ${start + 1}\u2013${end + 1}. <a href="#" id="loadFullTop">Load full list from top</a> | <a href="#" id="jumpFull">Jump to full list at this position</a>`;
+      noticeBar.classList.remove('d-none');
     });
+  } else if (!isNaN(restoreIndex) && restoreIndex >= totalItems) {
+    localStorage.removeItem('lastItemIndex');
+    restoreIndex = 0;
   }
+
+  noticeBar.addEventListener('click', e => {
+    if (e.target.id === 'loadFullTop') {
+      e.preventDefault();
+      loadFullListFromTop();
+    } else if (e.target.id === 'jumpFull') {
+      e.preventDefault();
+      jumpToFullListAt(restoreIndex);
+    }
+  });
 
   scrollArea.addEventListener('scroll', () => {
     throttledUpdate();
-    if (scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - itemHeight * 5) {
+    if (!partialMode && scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - itemHeight * 5) {
       loadMore();
     }
   });
