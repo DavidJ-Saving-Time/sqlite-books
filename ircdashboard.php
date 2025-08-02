@@ -10,8 +10,54 @@
   
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
 </head>
-<body class="bg-light">
+<body class="bg-light" style="padding-top: 80px">
  
+    <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
+  <div class="container-fluid">
+
+    <!-- Left: Brand -->
+    <a class="navbar-brand d-flex align-items-center" href="list_books.php">
+      <i class="fa-solid fa-book-open me-2"></i> Books
+    </a>
+
+    <!-- Mobile Toggler -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Collapsible Content -->
+    <div class="collapse navbar-collapse" id="navbarContent">
+
+      <!-- Spacer to push right-side items -->
+      <div class="flex-grow-1"></div>
+
+      <!-- Right: Buttons + User -->
+      <ul class="navbar-nav align-items-center">
+
+        <!-- Add Book Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="add_physical_book.php">
+            <i class="fa-solid fa-plus me-1"></i> Add Book
+          </a>
+        </li>
+
+        <!-- WordPro Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="/notepad.php">
+            <i class="fa-solid fa-pen-nib me-1"></i> WordPro
+          </a>
+        </li>
+
+
+
+      </ul>
+    </div>
+  </div>
+</nav>
+    
+    
+    
+    
 <div class="container py-5">
   <header class="mb-4 text-center">
     <h1 class="display-5 fw-bold">

@@ -8,7 +8,98 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
         
 </head>
-<body class="bg-light py-4">
+
+    <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
+  <div class="container-fluid">
+
+    <!-- Left: Brand -->
+    <a class="navbar-brand d-flex align-items-center" href="list_books.php">
+      <i class="fa-solid fa-book-open me-2"></i> Books
+    </a>
+
+    <!-- Mobile Toggler -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Collapsible Content -->
+    <div class="collapse navbar-collapse" id="navbarContent">
+
+      <!-- Spacer to push right-side items -->
+      <div class="flex-grow-1"></div>
+
+      <!-- Right: Buttons + User -->
+      <ul class="navbar-nav align-items-center">
+
+        <!-- Add Book Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="add_physical_book.php">
+            <i class="fa-solid fa-plus me-1"></i> Add Book
+          </a>
+        </li>
+
+        <!-- WordPro Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="/notepad.php">
+            <i class="fa-solid fa-pen-nib me-1"></i> WordPro
+          </a>
+        </li>
+
+
+
+      </ul>
+    </div>
+  </div>
+</nav>
+    
+    
+
+<body class="bg-light" style="padding-top: 100px">
+    
+        <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
+  <div class="container-fluid">
+
+    <!-- Left: Brand -->
+    <a class="navbar-brand d-flex align-items-center" href="list_books.php">
+      <i class="fa-solid fa-book-open me-2"></i> Books
+    </a>
+
+    <!-- Mobile Toggler -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Collapsible Content -->
+    <div class="collapse navbar-collapse" id="navbarContent">
+
+      <!-- Spacer to push right-side items -->
+      <div class="flex-grow-1"></div>
+
+      <!-- Right: Buttons + User -->
+      <ul class="navbar-nav align-items-center">
+
+        <!-- Add Book Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="add_physical_book.php">
+            <i class="fa-solid fa-plus me-1"></i> Add Book
+          </a>
+        </li>
+
+        <!-- WordPro Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="/notepad.php">
+            <i class="fa-solid fa-pen-nib me-1"></i> WordPro
+          </a>
+        </li>
+
+
+
+      </ul>
+    </div>
+  </div>
+</nav>
+    
+    
 <div class="container">
     <h1 class="mb-4 text-primary"><i class="fas fa-search"></i> Search Large Text Files</h1>
 
@@ -73,46 +164,52 @@ function highlightText(text, term) {
     });
     return escaped;
 }
-
 function renderCard(line) {
-    const cleanText = line.replace(/(::HASH::|::INFO::).*/i, '').replace(/<[^>]+>/g, '').trim();
-    const card = document.createElement('div');
-    card.className = 'card mb-3 shadow-sm';
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = line;
+  const cleanText = tempDiv.textContent.trim(); // <- this removes all tags including <mark>
 
-    const cardBody = document.createElement('div');
-    cardBody.className = 'card-body d-flex justify-content-between align-items-start';
+  const card = document.createElement('div');
+  card.className = 'card mb-1 shadow-sm';
 
-    const textDiv = document.createElement('div');
-    textDiv.innerHTML = line;
+  const cardBody = document.createElement('div');
+  cardBody.className = 'card-body d-flex align-items-center p-2';
 
-    const button = document.createElement('button');
-    button.className = 'btn btn-sm btn-outline-primary';
-    button.innerHTML = `<i class="fas fa-download"></i> Request File`;
-    button.onclick = async () => {
-        try {
-            const res = await fetch(`${API_BASE}/request-file?cmd=${encodeURIComponent(cleanText)}`);
-            const data = await res.json();
-            alert(data.status || data.error || "No response");
-        } catch (e) {
-            alert("Error sending request.");
-            console.error("Error:", e);
-        }
-    };
+  const textDiv = document.createElement('p');
+  textDiv.className = 'card-text mb-0 flex-grow-1';
+  textDiv.innerHTML = line;
 
-    const queueBtn = document.createElement('button');
-    queueBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
-    queueBtn.innerHTML = `<i class="fas fa-clock"></i> Queue`;
-    queueBtn.onclick = () => {
-        addToQueue(cleanText);
-        alert("Command added to queue.");
-    };
+  const dlBtn = document.createElement('button');
+  dlBtn.className = 'btn btn-sm btn-outline-primary';
+  dlBtn.innerHTML = `<i class="fas fa-download"></i> Request File`;
+  dlBtn.onclick = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/request-file?cmd=${encodeURIComponent(cleanText)}`);
+      const data = await res.json();
+      alert(data.status || data.error || "No response");
+    } catch (e) {
+      alert("Error sending request.");
+      console.error("Error:", e);
+    }
+  };
 
-    cardBody.appendChild(textDiv);
-    cardBody.appendChild(button);
-    cardBody.appendChild(queueBtn);
-    card.appendChild(cardBody);
-    return card;
+  const queueBtn = document.createElement('button');
+  queueBtn.className = 'btn btn-sm btn-outline-secondary';
+  queueBtn.innerHTML = `<i class="fas fa-clock"></i> Queue`;
+  queueBtn.onclick = () => {
+    addToQueue(cleanText);
+    alert("Command added to queue.");
+  };
+
+  const btnGroup = document.createElement('div');
+  btnGroup.className = 'd-flex gap-1';
+  btnGroup.append(dlBtn, queueBtn);
+
+  cardBody.append(textDiv, btnGroup);
+  card.appendChild(cardBody);
+  return card;
 }
+
 
 queryInput.addEventListener('input', async () => {
     const term = queryInput.value.trim();
@@ -295,7 +392,7 @@ fetch('irc_search.php', {
         resultsDiv.innerHTML = '';
 
         if (data.matches.length === 0) {
-            resultsDiv.innerHTML = `<div class="alert alert-warning">No matches found.</div>`;
+            resultsDiv.innerHTML = `<div class="alert alert-warnnnning">No matches found.</div>`;
             return;
         }
 

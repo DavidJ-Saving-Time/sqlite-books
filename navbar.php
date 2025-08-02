@@ -83,6 +83,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
               <option value="series"<?= $sortVal === 'series' ? ' selected' : '' ?>>Series</option>
               <option value="author_series"<?= $sortVal === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
               <option value="author_series_surname"<?= $sortVal === 'author_series_surname' ? ' selected' : '' ?>>Author &amp; Series Surname</option>
+                            <option value="last_modified"<?= $sortVal === 'last_modified' ? ' selected' : '' ?>>Last Updated</option>
               <option value="recommended"<?= $sortVal === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
             </select>
           </div>

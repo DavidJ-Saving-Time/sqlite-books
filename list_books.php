@@ -99,7 +99,7 @@ if ($source === 'openlibrary') {
     header('Location: annas_results.php?' . http_build_query($redirectParams));
     exit;
 }
-$allowedSorts = ['title', 'author', 'series', 'author_series', 'author_series_surname', 'recommended'];
+$allowedSorts = ['title', 'author', 'series', 'author_series', 'author_series_surname', 'recommended', 'last_modified'];
 if (!in_array($sort, $allowedSorts, true)) {
     $sort = 'author_series';
 }
@@ -111,7 +111,8 @@ $orderByMap = [
     'series' => 'series, b.series_index, b.title',
     'author_series' => 'authors, series, b.series_index, b.title',
     'author_series_surname' => 'b.author_sort, series, b.series_index, b.title',
-    'recommended' => 'authors, series, b.series_index, b.title'
+    'recommended' => 'authors, series, b.series_index, b.title',
+    'last_modified' => 'b.last_modified DESC, b.title'
 ];
 $orderBy = $orderByMap[$sort];
 
@@ -350,16 +351,20 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php if ($missing): ?>
                         <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
                     <?php endif; ?>
+                     
                     <a href="book.php?id=<?= urlencode($book['id']) ?>" class="fw-bold book-title me-1"
                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
-                        <?= htmlspecialchars($book['title']) ?>
+                         <?= htmlspecialchars($book['title']) ?>
                     </a>
                     <?php if (!empty($book['has_recs'])): ?>
                         <span class="text-success ms-1">&#10003;</span>
                     <?php endif; ?>
                     <?php if (!empty($book['series'])): ?>
-                        <div class="small mt-1">
-                            <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
+                        <div class=" mt-1">
+                            <i class="fa-duotone fa-solid fa-arrow-turn-down-right"></i>
+
+
+<a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
                                 <?= htmlspecialchars($book['series']) ?>
                             </a>
                             <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
@@ -455,7 +460,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                                 <?php
                             } else {
                                 ?>
-                                <a class="btn btn-sm btn-success me-1" href="reader.php?file=<?= urlencode($firstFile) ?>">Read <?= htmlspecialchars($ftype) ?></a>
+                                <a class="btn btn-sm btn-success me-1" href="reader.php?file=<?= urlencode($firstFile) ?>"> <i class="fa-thumbprint fa-light fa-book-open"></i> Read <?= htmlspecialchars($ftype) ?></a>
                                 <?php
                             }
                         endif; ?>
@@ -589,7 +594,10 @@ if (count($breadcrumbs) === 1) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Book List</title>
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
+    
+    <link rel="stylesheet" href="/css/duotone.css">
+    
     <script src="js/theme.js"></script>
     <script src="js/search.js"></script>
     <!-- Removed jQuery and jQuery UI -->
