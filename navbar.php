@@ -67,7 +67,6 @@ $statusNameVal = isset($statusName) ? $statusName : '';
 
         <!-- Sort Form -->
         <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
-          <input type="hidden" name="page" value="1">
           <?php if ($searchVal !== ''): ?><input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>"><?php endif; ?>
           <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
           <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
