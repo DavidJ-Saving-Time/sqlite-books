@@ -106,12 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let allItems = Array.from(contentArea.children).map(el => el.outerHTML);
   let partialMode = false;
 
-  const clusterize = new Clusterize({
-    rows: allItems,
-    scrollId: 'scrollArea',
-    contentId: 'contentArea',
-    callbacks: { clusterChanged: () => initCoverDimensions(contentArea) }
-  });
+  function renderRows() {
+    contentArea.innerHTML = allItems.join('');
+    initCoverDimensions(contentArea);
+  }
 
   initCoverDimensions(contentArea);
 
@@ -144,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
     allItems = rows;
-    clusterize.update(allItems);
+    renderRows();
     calcItemHeight();
     currentPage = endPage;
   }
@@ -155,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.removeItem('lastItemIndex');
     const els = await fetchPage(1);
     allItems = els.map(el => el.outerHTML);
-    clusterize.update(allItems);
+    renderRows();
     calcItemHeight();
     currentPage = 1;
     scrollArea.scrollTop = 0;
@@ -166,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     noticeBar.classList.add('d-none');
     const els = await fetchPage(1);
     allItems = els.map(el => el.outerHTML);
-    clusterize.update(allItems);
+    renderRows();
     calcItemHeight();
     currentPage = 1;
     await loadMoreUntil(index);
@@ -196,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tmp.innerHTML = html;
       const newRows = Array.from(tmp.children).map(el => el.outerHTML);
       allItems = allItems.concat(newRows);
-      clusterize.update(allItems);
+      renderRows();
       calcItemHeight();
       currentPage++;
     } catch (err) {
