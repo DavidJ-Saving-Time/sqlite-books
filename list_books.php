@@ -874,8 +874,8 @@ if (count($breadcrumbs) === 1) {
             <!-- Main Content -->
 <div class="col-md-12">
   <div id="restoreNotice" class="alert alert-info d-none"></div>
-  <div id="scrollArea" class="clusterize-scroll" style="max-height:80vh; overflow-y:auto;">
-    <div id="contentArea" class="clusterize-content">
+  <div id="scrollArea" style="max-height:80vh; overflow-y:auto;">
+    <div id="contentArea">
       <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset); ?>
     </div>
   </div>
@@ -903,7 +903,6 @@ if (count($breadcrumbs) === 1) {
     
     
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/clusterize.js@0.18.1/clusterize.min.js"></script>
 <script src="js/list_books.js"></script>
 </body>
 </html>
