@@ -82,6 +82,7 @@ $pdo = getDatabaseConnection();
 $libraryPath = getLibraryPath();
 
 $message = '';
+$bookLink = '';
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -303,6 +304,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->commit();
             $message = 'Book added successfully.';
+            $bookLink = 'list_books.php?search=' . urlencode($title);
         } catch (Exception $e) {
             $pdo->rollBack();
             $errors[] = $e->getMessage();
@@ -340,7 +342,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <h1 class="mb-4 text-center">Add a New Book</h1>
     
     <?php if ($message): ?>
-        <div class="alert alert-success"><?= htmlspecialchars($message) ?></div>
+        <div class="alert alert-success">
+            <?= htmlspecialchars($message) ?>
+            <?php if ($bookLink): ?>
+                <a class="alert-link" href="<?= htmlspecialchars($bookLink) ?>">View Book</a>
+            <?php endif; ?>
+        </div>
     <?php elseif ($errors): ?>
         <div class="alert alert-danger"><?= htmlspecialchars(implode(' ', $errors)) ?></div>
     <?php endif; ?>
