@@ -335,7 +335,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
         $missing = !bookHasFile($book['path']);
         $firstFile = $missing ? null : firstBookFile($book['path']);
         ?>
-       <div class="row g-3 py-3 border-bottom" data-book-block-id="<?= htmlspecialchars($book['id']) ?>" data-book-index="<?= $index ?>">
+       <div class="row g-3 py-3 border-bottom list-item" data-book-block-id="<?= htmlspecialchars($book['id']) ?>" data-book-index="<?= $index ?>">
             <!-- Left: Thumbnail -->
             <div class="col-md-2 col-12 text-center cover-wrapper">
                 <?php if (!empty($book['has_cover'])): ?>
@@ -873,9 +873,11 @@ if (count($breadcrumbs) === 1) {
             
             <!-- Main Content -->
 <div class="col-md-12">
-     <div id="book-list">
-    <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset); ?>
-     </div>
+  <div id="scrollArea" class="clusterize-scroll" style="max-height:80vh; overflow-y:auto;">
+    <div id="contentArea" class="clusterize-content">
+      <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset); ?>
+    </div>
+  </div>
 </div>
         </div>
 
@@ -900,6 +902,7 @@ if (count($breadcrumbs) === 1) {
     
     
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/clusterize.js@0.18.1/clusterize.min.js"></script>
 <script src="js/list_books.js"></script>
 </body>
 </html>
