@@ -116,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const googleModal = new bootstrap.Modal(googleModalEl);
   const bookList = document.getElementById('book-list');
   initCoverDimensions();
-  updateLastVisible();
 
   const restoreId = sessionStorage.getItem('listBooksLastId');
   const restoreIndex = parseInt(sessionStorage.getItem('listBooksLastIndex') || '0', 10);
@@ -129,7 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       sessionStorage.removeItem('listBooksLastId');
       sessionStorage.removeItem('listBooksLastIndex');
+      updateLastVisible();
     });
+  } else {
+    updateLastVisible();
   }
 
   async function loadMore() {
