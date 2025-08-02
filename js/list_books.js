@@ -92,31 +92,23 @@ function throttle(fn, delay) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
+  let currentPage = parseInt(bodyData.page, 10);
   const totalPages = parseInt(bodyData.totalPages, 10);
   const perPage = parseInt(bodyData.perPage, 10);
-  const totalBooks = parseInt(bodyData.totalBooks, 10);
+  let loading = false;
   const fetchUrlBase = bodyData.baseUrl;
 
   const scrollArea = document.getElementById('scrollArea');
   const contentArea = document.getElementById('contentArea');
 
   const initialRows = Array.from(contentArea.children).map(el => el.outerHTML);
-  let rows = initialRows.slice();
-  if (totalBooks > rows.length) {
-    const placeholders = Array.from({ length: totalBooks - rows.length }, (_, i) =>
-      `<div class="row g-3 py-3 border-bottom list-item placeholder" data-book-index="${rows.length + i + 1}">Loading item ${rows.length + i + 1}...</div>`
-    );
-    rows = rows.concat(placeholders);
-  }
+
   const clusterize = new Clusterize({
-    rows,
+    rows: initialRows,
     scrollId: 'scrollArea',
     contentId: 'contentArea',
     callbacks: { clusterChanged: () => initCoverDimensions(contentArea) }
   });
-
-  const loadedPages = new Set([1]);
-  const loadingPages = new Set();
 
   initCoverDimensions(contentArea);
 
@@ -144,50 +136,48 @@ document.addEventListener('DOMContentLoaded', () => {
   const restoreIndex = parseInt(localStorage.getItem('lastItemIndex') || '0', 10);
   const restoreScroll = parseInt(localStorage.getItem('lastScrollTop') || '0', 10);
 
-  async function loadPage(page) {
-    if (loadedPages.has(page) || loadingPages.has(page) || page > totalPages || page < 1) return;
-    loadingPages.add(page);
+  async function loadMore() {
+    if (loading || currentPage >= totalPages) return;
+    loading = true;
     try {
-      const res = await fetch(fetchUrlBase + page + '&ajax=1');
+      const res = await fetch(fetchUrlBase + (currentPage + 1) + '&ajax=1');
       const html = await res.text();
       const tmp = document.createElement('div');
       tmp.innerHTML = html;
-      const pageRows = Array.from(tmp.children).map(el => el.outerHTML);
-      pageRows.forEach((row, i) => {
-        rows[(page - 1) * perPage + i] = row;
-      });
-      clusterize.update(rows);
-      loadedPages.add(page);
+      const newRows = Array.from(tmp.children).map(el => el.outerHTML);
+      clusterize.append(newRows);
       calcItemHeight();
+      currentPage++;
     } catch (err) {
       console.error(err);
     } finally {
-      loadingPages.delete(page);
+      loading = false;
     }
   }
 
-  function onScroll() {
-    throttledUpdate();
-    if (!itemHeight) return;
-    const firstIndex = Math.floor(scrollArea.scrollTop / itemHeight);
-    const visibleCount = Math.ceil(scrollArea.clientHeight / itemHeight);
-    const buffer = 20;
-    const start = Math.max(0, firstIndex - buffer);
-    const end = Math.min(totalBooks - 1, firstIndex + visibleCount + buffer);
-    const startPage = Math.floor(start / perPage) + 1;
-    const endPage = Math.floor(end / perPage) + 1;
-    for (let p = startPage; p <= endPage; p++) {
-      loadPage(p);
+  async function loadMoreUntil(index) {
+    const targetPage = Math.floor(index / perPage) + 1;
+    while (currentPage < targetPage) {
+      await loadMore();
     }
   }
+  window.loadMoreUntil = loadMoreUntil;
 
   if (!isNaN(restoreIndex) && restoreIndex > 0) {
-    scrollArea.scrollTop = restoreScroll > 0 ? restoreScroll : restoreIndex * itemHeight;
+    loadMoreUntil(restoreIndex).then(() => {
+      scrollArea.scrollTop = restoreScroll > 0 ? restoreScroll : restoreIndex * itemHeight;
+      updateLastVisible();
+    });
+  } else {
+    updateLastVisible();
   }
-  onScroll();
-  updateLastVisible();
 
-  scrollArea.addEventListener('scroll', onScroll);
+  scrollArea.addEventListener('scroll', () => {
+    throttledUpdate();
+    if (scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - itemHeight * 5) {
+      loadMore();
+    }
+  });
 
   document.addEventListener('click', e => {
     const link = e.target.closest('.book-title');
