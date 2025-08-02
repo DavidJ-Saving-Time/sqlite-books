@@ -671,7 +671,7 @@ if (count($breadcrumbs) === 1) {
 }
     </style>
 </head>
-<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>">
+<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>" data-total-books="<?php echo $totalBooks; ?>">
 <?php include "navbar.php"; ?>
 <div class="container-fluid my-4">
     <div class="row">
