@@ -101,10 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const scrollArea = document.getElementById('scrollArea');
   const contentArea = document.getElementById('contentArea');
 
-  let allItems = Array.from(contentArea.children).map(el => el.outerHTML);
+  const initialRows = Array.from(contentArea.children).map(el => el.outerHTML);
 
   const clusterize = new Clusterize({
-    rows: allItems,
+    rows: initialRows,
     scrollId: 'scrollArea',
     contentId: 'contentArea',
     callbacks: { clusterChanged: () => initCoverDimensions(contentArea) }
@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!itemHeight) return;
     const index = Math.floor(scrollArea.scrollTop / itemHeight);
     localStorage.setItem('lastItemIndex', index);
+    localStorage.setItem('lastScrollTop', scrollArea.scrollTop);
   }
 
   const throttledUpdate = throttle(updateLastVisible, 200);
@@ -130,7 +131,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
-  updateLastVisible();
+  window.addEventListener('beforeunload', saveState);
+
+  const restoreIndex = parseInt(localStorage.getItem('lastItemIndex') || '0', 10);
+  const restoreScroll = parseInt(localStorage.getItem('lastScrollTop') || '0', 10);
 
   async function loadMore() {
     if (loading || currentPage >= totalPages) return;
@@ -141,8 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const tmp = document.createElement('div');
       tmp.innerHTML = html;
       const newRows = Array.from(tmp.children).map(el => el.outerHTML);
-      allItems = allItems.concat(newRows);
-      clusterize.update(allItems);
+      clusterize.append(newRows);
       calcItemHeight();
       currentPage++;
     } catch (err) {
@@ -160,17 +163,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   window.loadMoreUntil = loadMoreUntil;
 
-  const restoreIndex = parseInt(localStorage.getItem('lastItemIndex') || '0', 10);
   if (!isNaN(restoreIndex) && restoreIndex > 0) {
     loadMoreUntil(restoreIndex).then(() => {
-      scrollArea.scrollTop = restoreIndex * itemHeight;
+      scrollArea.scrollTop = restoreScroll > 0 ? restoreScroll : restoreIndex * itemHeight;
+      updateLastVisible();
     });
+  } else {
+    updateLastVisible();
   }
 
   scrollArea.addEventListener('scroll', () => {
     throttledUpdate();
     if (scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - itemHeight * 5) {
       loadMore();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    const link = e.target.closest('.book-title');
+    if (link) {
+      const item = link.closest('.list-item');
+      if (item) {
+        const idx = parseInt(item.dataset.bookIndex, 10);
+        localStorage.setItem('lastItemIndex', idx);
+        localStorage.setItem('lastScrollTop', scrollArea.scrollTop);
+      }
     }
   });
 
