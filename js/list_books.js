@@ -70,55 +70,53 @@ function updateStarUI(container, rating) {
     }
   }
 }
-
-function throttle(fn, delay) {
-  let last = 0;
-  let timer;
-  return function (...args) {
-    const now = Date.now();
-    if (now - last >= delay) {
-      last = now;
-      fn.apply(this, args);
-    } else {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        last = Date.now();
-        fn.apply(this, args);
-      }, delay - (now - last));
-    }
-  };
-}
-
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const last = sessionStorage.getItem('lastPage');
+  if (!params.has('page') && last && parseInt(last, 10) > 1) {
+    params.set('page', last);
+    window.location.search = params.toString();
+  }
+})();
 
 document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
   let currentPage = parseInt(bodyData.page, 10);
   const totalPages = parseInt(bodyData.totalPages, 10);
-  const perPage = parseInt(bodyData.perPage, 10);
-  const totalItems = parseInt(bodyData.totalItems, 10);
-  let loading = false;
   const fetchUrlBase = bodyData.baseUrl;
 
-  const scrollArea = document.getElementById('scrollArea');
   const contentArea = document.getElementById('contentArea');
-  const noticeBar = document.getElementById('restoreNotice');
-
-  let allItems = Array.from(contentArea.children).map(el => el.outerHTML);
-  let partialMode = false;
-
-  function renderRows() {
-    contentArea.innerHTML = allItems.join('');
-    initCoverDimensions(contentArea);
-  }
+  const loadMoreBtn = document.getElementById('loadMoreBtn');
+  const paginationNav = document.getElementById('paginationNav');
+  const googleModalEl = document.getElementById('googleModal');
+  const googleModal = new bootstrap.Modal(googleModalEl);
 
   initCoverDimensions(contentArea);
+  sessionStorage.setItem('lastPage', currentPage);
 
-  let itemHeight = 0;
-  const calcItemHeight = () => {
-    const first = contentArea.querySelector('.list-item');
-    if (first) itemHeight = first.getBoundingClientRect().height;
-  };
-  calcItemHeight();
+  function updatePagination() {
+    if (!paginationNav) return;
+    const prev = paginationNav.querySelector('.prev-page');
+    const next = paginationNav.querySelector('.next-page');
+    const info = paginationNav.querySelector('.page-info');
+    if (info) info.textContent = `Page ${currentPage} of ${totalPages}`;
+    if (prev) {
+      if (currentPage <= 1) {
+        prev.parentElement.classList.add('disabled');
+      } else {
+        prev.parentElement.classList.remove('disabled');
+        prev.href = fetchUrlBase + (currentPage - 1);
+      }
+    }
+    if (next) {
+      if (currentPage >= totalPages) {
+        next.parentElement.classList.add('disabled');
+      } else {
+        next.parentElement.classList.remove('disabled');
+        next.href = fetchUrlBase + (currentPage + 1);
+      }
+    }
+  }
 
   async function fetchPage(p) {
     const res = await fetch(fetchUrlBase + p + '&ajax=1');
@@ -128,121 +126,39 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(tmp.children);
   }
 
-  async function loadSlice(startIndex, endIndex) {
-    const startPage = Math.floor(startIndex / perPage) + 1;
-    const endPage = Math.floor(endIndex / perPage) + 1;
-    let rows = [];
-    for (let p = startPage; p <= endPage; p++) {
-      const els = await fetchPage(p);
-      els.forEach((el, i) => {
-        const globalIndex = (p - 1) * perPage + i;
-        if (globalIndex >= startIndex && globalIndex <= endIndex) {
-          rows.push(el.outerHTML);
-        }
-      });
-    }
-    allItems = rows;
-    renderRows();
-    calcItemHeight();
-    currentPage = endPage;
-  }
-
-  async function loadFullListFromTop() {
-    partialMode = false;
-    noticeBar.classList.add('d-none');
-    localStorage.removeItem('lastItemIndex');
-    const els = await fetchPage(1);
-    allItems = els.map(el => el.outerHTML);
-    renderRows();
-    calcItemHeight();
-    currentPage = 1;
-    scrollArea.scrollTop = 0;
-  }
-
-  async function jumpToFullListAt(index) {
-    partialMode = false;
-    noticeBar.classList.add('d-none');
-    const els = await fetchPage(1);
-    allItems = els.map(el => el.outerHTML);
-    renderRows();
-    calcItemHeight();
-    currentPage = 1;
-    await loadMoreUntil(index);
-    scrollArea.scrollTop = index * itemHeight;
-  }
-
-  function updateLastVisible() {
-    if (!itemHeight) return;
-    const index = Math.floor(scrollArea.scrollTop / itemHeight);
-    localStorage.setItem('lastItemIndex', index);
-  }
-
-  const throttledUpdate = throttle(updateLastVisible, 200);
-  const saveState = () => updateLastVisible();
-
-  const googleModalEl = document.getElementById('googleModal');
-  const googleModal = new bootstrap.Modal(googleModalEl);
-  updateLastVisible();
-
   async function loadMore() {
-    if (loading || currentPage >= totalPages) return;
-    loading = true;
+    if (!loadMoreBtn || currentPage >= totalPages) return;
+    loadMoreBtn.disabled = true;
     try {
-      const res = await fetch(fetchUrlBase + (currentPage + 1) + '&ajax=1');
-      const html = await res.text();
-      const tmp = document.createElement('div');
-      tmp.innerHTML = html;
-      const newRows = Array.from(tmp.children).map(el => el.outerHTML);
-      allItems = allItems.concat(newRows);
-      renderRows();
-      calcItemHeight();
+      const els = await fetchPage(currentPage + 1);
+      els.forEach(el => contentArea.appendChild(el));
+      initCoverDimensions(contentArea);
       currentPage++;
+      sessionStorage.setItem('lastPage', currentPage);
+      updatePagination();
+      const url = new URL(window.location);
+      url.searchParams.set('page', currentPage);
+      history.replaceState(null, '', url);
+      if (currentPage >= totalPages) {
+        loadMoreBtn.classList.add('d-none');
+      }
     } catch (err) {
       console.error(err);
     } finally {
-      loading = false;
+      loadMoreBtn.disabled = false;
     }
   }
 
-  async function loadMoreUntil(index) {
-    const targetPage = Math.floor(index / perPage) + 1;
-    while (currentPage < targetPage) {
-      await loadMore();
-    }
-  }
-  window.loadMoreUntil = loadMoreUntil;
-
-  let restoreIndex = parseInt(localStorage.getItem('lastItemIndex') || '0', 10);
-  if (!isNaN(restoreIndex) && restoreIndex > 0 && restoreIndex < totalItems) {
-    partialMode = true;
-    const start = Math.max(0, restoreIndex - 20);
-    const end = Math.min(totalItems - 1, restoreIndex + 20);
-    loadSlice(start, end).then(() => {
-      scrollArea.scrollTop = (restoreIndex - start) * itemHeight;
-      noticeBar.innerHTML = `Showing items ${start + 1}\u2013${end + 1}. <a href="#" id="loadFullTop">Load full list from top</a> | <a href="#" id="jumpFull">Jump to full list at this position</a>`;
-      noticeBar.classList.remove('d-none');
-    });
-  } else if (!isNaN(restoreIndex) && restoreIndex >= totalItems) {
-    localStorage.removeItem('lastItemIndex');
-    restoreIndex = 0;
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', loadMore);
+    if (currentPage >= totalPages) loadMoreBtn.classList.add('d-none');
   }
 
-  noticeBar.addEventListener('click', e => {
-    if (e.target.id === 'loadFullTop') {
-      e.preventDefault();
-      loadFullListFromTop();
-    } else if (e.target.id === 'jumpFull') {
-      e.preventDefault();
-      jumpToFullListAt(restoreIndex);
-    }
-  });
+  updatePagination();
 
-  scrollArea.addEventListener('scroll', () => {
-    throttledUpdate();
-    if (!partialMode && scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - itemHeight * 5) {
-      loadMore();
-    }
-  });
+  function saveState() {
+    sessionStorage.setItem('lastPage', currentPage);
+  }
 
   document.addEventListener('change', async e => {
     if (e.target.classList.contains('shelf-select')) {
