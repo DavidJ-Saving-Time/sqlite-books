@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
   const totalPages = parseInt(bodyData.totalPages, 10);
   const fetchUrlBase = bodyData.baseUrl;
+  const perPage = parseInt(bodyData.perPage, 10);
 
   const contentArea = document.getElementById('contentArea');
   const topSentinel = document.getElementById('topSentinel');
@@ -106,8 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let lowestPage = parseInt(bodyData.page, 10);
   let highestPage = lowestPage;
 
-  let nextCache = null;
-  let prevCache = null;
+  let nextCache = new Map();
+  let prevCache = new Map();
 
   async function fetchPage(p) {
     const res = await fetch(fetchUrlBase + p + '&ajax=1');
@@ -118,35 +119,39 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function prefetchNext() {
-    if (highestPage >= totalPages || nextCache) return;
-    try {
-      nextCache = await fetchPage(highestPage + 1);
-    } catch (err) {
-      console.error(err);
-      nextCache = null;
+    for (let p = highestPage + 1; p <= Math.min(highestPage + 2, totalPages); p++) {
+      if (nextCache.has(p)) continue;
+      try {
+        nextCache.set(p, await fetchPage(p));
+      } catch (err) {
+        console.error(err);
+      }
     }
   }
 
   async function prefetchPrevious() {
-    if (lowestPage <= 1 || prevCache) return;
-    try {
-      prevCache = await fetchPage(lowestPage - 1);
-    } catch (err) {
-      console.error(err);
-      prevCache = null;
+    for (let p = lowestPage - 1; p >= Math.max(lowestPage - 2, 1); p--) {
+      if (prevCache.has(p)) continue;
+      try {
+        prevCache.set(p, await fetchPage(p));
+      } catch (err) {
+        console.error(err);
+      }
     }
   }
 
   async function loadNext() {
     if (highestPage >= totalPages) return;
     try {
-      const els = nextCache || await fetchPage(highestPage + 1);
-      nextCache = null;
+      const p = highestPage + 1;
+      const els = nextCache.get(p) || await fetchPage(p);
+      nextCache.delete(p);
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(els);
-      highestPage++;
+      highestPage = p;
       prefetchNext();
       prefetchPrevious();
+      trimPages();
     } catch (err) {
       console.error(err);
     }
@@ -156,17 +161,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lowestPage <= 1) return;
     try {
       const prevHeight = document.body.scrollHeight;
-      const els = prevCache || await fetchPage(lowestPage - 1);
-      prevCache = null;
+      const p = lowestPage - 1;
+      const els = prevCache.get(p) || await fetchPage(p);
+      prevCache.delete(p);
       const frag = document.createDocumentFragment();
       els.forEach(el => frag.appendChild(el));
       contentArea.insertBefore(frag, topSentinel.nextSibling);
       initCoverDimensions(els);
       const newHeight = document.body.scrollHeight;
       window.scrollBy(0, newHeight - prevHeight);
-      lowestPage--;
+      lowestPage = p;
       prefetchPrevious();
       prefetchNext();
+      trimPages();
     } catch (err) {
       console.error(err);
     }
@@ -204,6 +211,40 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
+  function trimPages() {
+    const idx = currentItemIndex();
+    if (idx === null) return;
+    const currentPage = Math.floor(idx / perPage) + 1;
+    const minPage = Math.max(1, currentPage - 2);
+    const maxPage = Math.min(totalPages, currentPage + 2);
+
+    while (lowestPage < minPage) {
+      const start = (lowestPage - 1) * perPage;
+      const end = start + perPage;
+      const prevHeight = document.body.scrollHeight;
+      contentArea.querySelectorAll('.list-item').forEach(item => {
+        const i = parseInt(item.dataset.bookIndex, 10);
+        if (i >= start && i < end) item.remove();
+      });
+      const newHeight = document.body.scrollHeight;
+      window.scrollBy(0, newHeight - prevHeight);
+      lowestPage++;
+    }
+
+    while (highestPage > maxPage) {
+      const start = (highestPage - 1) * perPage;
+      const end = start + perPage;
+      contentArea.querySelectorAll('.list-item').forEach(item => {
+        const i = parseInt(item.dataset.bookIndex, 10);
+        if (i >= start && i < end) item.remove();
+      });
+      highestPage--;
+    }
+
+    prefetchNext();
+    prefetchPrevious();
+  }
+
   function saveState() {
     if (skipSave) return;
     const idx = currentItemIndex();
@@ -217,6 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', () => {
     if (scrollTimer) return;
     scrollTimer = setTimeout(() => {
+      trimPages();
       saveState();
       scrollTimer = null;
     }, 200);
