@@ -70,12 +70,19 @@ function updateStarUI(container, rating) {
     }
   }
 }
+
+let skipSave = false;
+window.listBooksSkipSave = () => { skipSave = true; };
 (() => {
   const params = new URLSearchParams(window.location.search);
-  const last = sessionStorage.getItem('lastPage');
-  if (!params.has('page') && last && parseInt(last, 10) > 1) {
-    params.set('page', last);
-    window.location.search = params.toString();
+  const last = sessionStorage.getItem('lastItem');
+  const perPage = parseInt(document.body.dataset.perPage || '20', 10);
+  if (!params.has('page') && last !== null && parseInt(last, 10) >= 0) {
+    const page = Math.floor(parseInt(last, 10) / perPage) + 1;
+    params.set('page', page);
+    window.location.replace(`${window.location.pathname}?${params.toString()}#item-${last}`);
+  } else if (last !== null && !window.location.hash) {
+    window.location.hash = `item-${last}`;
   }
 })();
 
@@ -94,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let lowestPage = parseInt(bodyData.page, 10);
   let highestPage = lowestPage;
-  sessionStorage.setItem('lastPage', highestPage);
 
   async function fetchPage(p) {
     const res = await fetch(fetchUrlBase + p + '&ajax=1');
@@ -111,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(contentArea);
       highestPage++;
-      sessionStorage.setItem('lastPage', highestPage);
     } catch (err) {
       console.error(err);
     }
@@ -152,9 +157,34 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   topObserver.observe(topSentinel);
 
-  function saveState() {
-    sessionStorage.setItem('lastPage', highestPage);
+  function currentItemIndex() {
+    const items = document.querySelectorAll('.list-item');
+    for (const item of items) {
+      const rect = item.getBoundingClientRect();
+      if (rect.bottom > 0) {
+        return item.dataset.bookIndex;
+      }
+    }
+    return null;
   }
+
+  function saveState() {
+    if (skipSave) return;
+    const idx = currentItemIndex();
+    if (idx !== null) {
+      sessionStorage.setItem('lastItem', idx);
+      history.replaceState(null, '', `${window.location.pathname}${window.location.search}#item-${idx}`);
+    }
+  }
+
+  let scrollTimer = null;
+  window.addEventListener('scroll', () => {
+    if (scrollTimer) return;
+    scrollTimer = setTimeout(() => {
+      saveState();
+      scrollTimer = null;
+    }, 200);
+  }, { passive: true });
 
   document.addEventListener('change', async e => {
     if (e.target.classList.contains('shelf-select')) {
@@ -555,8 +585,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const link = e.target.closest('a');
-    if (link && link.href && !link.href.startsWith('#')) {
-      saveState();
+    if (link) {
+      const href = link.getAttribute('href') || '';
+      if (link.id === 'backToTop') {
+        listBooksSkipSave();
+      } else if (href && !href.startsWith('#')) {
+        saveState();
+      }
     }
   });
 
