@@ -91,6 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
   const totalPages = parseInt(bodyData.totalPages, 10);
   const fetchUrlBase = bodyData.baseUrl;
+  const perPage = parseInt(bodyData.perPage, 10);
+  const libraryPath = bodyData.libraryPath;
+  const currentSort = new URLSearchParams(window.location.search).get('sort') || 'author_series';
 
   const contentArea = document.getElementById('contentArea');
   const topSentinel = document.getElementById('topSentinel');
@@ -103,21 +106,139 @@ document.addEventListener('DOMContentLoaded', () => {
   let lowestPage = parseInt(bodyData.page, 10);
   let highestPage = lowestPage;
 
-  async function fetchPage(p) {
-    const res = await fetch(fetchUrlBase + p + '&ajax=1');
-    const html = await res.text();
+  function renderBook(book, index, lists) {
+    const missing = book.missing;
+    const firstFile = book.first_file;
+    const authorLinks = [];
+    if (book.author_ids && book.authors) {
+      const ids = book.author_ids.split('|').filter(Boolean);
+      const names = book.authors.split('|').filter(Boolean);
+      for (let i = 0; i < Math.min(ids.length, 3); i++) {
+        const url = `list_books.php?sort=${encodeURIComponent(currentSort)}&author_id=${encodeURIComponent(ids[i])}`;
+        authorLinks.push(`<a href="${escapeHTML(url)}">${escapeHTML(names[i])}</a>`);
+      }
+      if (ids.length > 3) authorLinks.push('...');
+    }
+
+    const firstGenreVal = book.genres ? book.genres.split('|')[0] : '';
+    const genreOptions = lists.genre_list.map(g => `<option value="${escapeHTML(g.value)}"${g.value === firstGenreVal ? ' selected' : ''}>${escapeHTML(g.value)}</option>`).join('');
+    const shelfOptions = lists.shelf_list.map(s => `<option value="${escapeHTML(s)}"${book.shelf === s ? ' selected' : ''}>${escapeHTML(s)}</option>`).join('');
+    const statusOptions = (() => {
+      const opts = [];
+      opts.push(`<option value="Want to Read"${(!book.status || book.status === '') ? ' selected' : ''}>Want to Read</option>`);
+      lists.status_options.forEach(s => {
+        if (s === 'Want to Read') return;
+        opts.push(`<option value="${escapeHTML(s)}"${book.status === s ? ' selected' : ''}>${escapeHTML(s)}</option>`);
+      });
+      if (book.status && book.status !== '' && !lists.status_options.includes(book.status)) {
+        opts.push(`<option value="${escapeHTML(book.status)}" selected>${escapeHTML(book.status)}</option>`);
+      }
+      return opts.join('');
+    })();
+
+    const ratingStars = [];
+    for (let i = 1; i <= 5; i++) {
+      const filled = (book.rating >= i);
+      ratingStars.push(`<i class="rating-star me-1 ${filled ? 'fa-solid fa-star text-warning' : 'fa-regular fa-star text-muted'}" data-value="${i}"></i>`);
+    }
+
+    let readBtn = '';
+    if (firstFile) {
+      const ext = firstFile.split('.').pop().toUpperCase();
+      if (ext === 'PDF') {
+        const fileUrl = `${libraryPath}/${firstFile}`;
+        readBtn = `<a class="btn btn-sm btn-success me-1" target="_blank" href="${escapeHTML(fileUrl)}">Read ${escapeHTML(ext)}</a>`;
+      } else {
+        readBtn = `<a class="btn btn-sm btn-success me-1" href="reader.php?file=${encodeURIComponent(firstFile)}"><i class=\"fa-thumbprint fa-light fa-book-open\"></i> Read ${escapeHTML(ext)}</a>`;
+      }
+    }
+
+    const seriesHtml = book.series ? `<div class=" mt-1"><i class=\"fa-duotone fa-solid fa-arrow-turn-down-right\"></i>
+      <a href="list_books.php?sort=${encodeURIComponent(currentSort)}&series_id=${encodeURIComponent(book.series_id)}">${escapeHTML(book.series)}</a>
+      ${book.series_index !== null && book.series_index !== '' ? `(${escapeHTML(book.series_index)})` : ''}
+    </div>` : '';
+
+    const html = `
+       <div id="item-${index}" class="row g-3 py-3 border-bottom list-item" data-book-block-id="${escapeHTML(String(book.id))}" data-book-index="${index}">
+        <div class="col-md-2 col-12 text-center cover-wrapper">
+          ${book.has_cover ? `<a href="book.php?id=${encodeURIComponent(book.id)}">
+            <div class="position-relative d-inline-block">
+              <img id="coverImage${book.id}" src="${escapeHTML(libraryPath + '/' + book.path + '/cover.jpg')}" alt="Cover" class="img-thumbnail img-fluid book-cover" style="width: 100%; max-width:150px; height:auto;">
+              <div id="coverDimensions${book.id}" class="cover-dimensions position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 0.8rem;">Loading...</div>
+            </div>
+          </a>` : '&mdash;'}
+        </div>
+        <div class="col-md-10 col-12">
+          <div class="mb-2">
+            ${missing ? '<i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>' : ''}
+            <a href="book.php?id=${encodeURIComponent(book.id)}" class="fw-bold book-title me-1" data-book-id="${escapeHTML(String(book.id))}">${escapeHTML(book.title)}</a>
+            ${book.has_recs ? '<span class="text-success ms-1">&#10003;</span>' : ''}
+            ${seriesHtml}
+            <div class="text-muted small book-authors">${authorLinks.length ? authorLinks.join(', ') : '&mdash;'}</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <div>
+              <label class="small text-muted mb-1 d-block">Genre</label>
+              <select class="form-select form-select-sm genre-select" data-book-id="${escapeHTML(String(book.id))}">
+                <option value=""${firstGenreVal === '' ? ' selected' : ''}>None</option>
+                ${genreOptions}
+              </select>
+            </div>
+            <div>
+              <label class="small text-muted mb-1 d-block">Shelf</label>
+              <select class="form-select form-select-sm shelf-select" data-book-id="${escapeHTML(String(book.id))}">
+                ${shelfOptions}
+              </select>
+            </div>
+            <div>
+              <label class="small text-muted mb-1 d-block">Status</label>
+              <select class="form-select form-select-sm status-select" data-book-id="${escapeHTML(String(book.id))}">
+                ${statusOptions}
+              </select>
+            </div>
+            <div>
+              <label class="small text-muted mb-1 d-block">Rating</label>
+              <div class="star-rating" data-book-id="${escapeHTML(String(book.id))}">
+                ${ratingStars.join('')}
+                <i class="fa-solid fa-xmark rating-clear ms-1${(book.rating > 0) ? '' : ' d-none'}" data-value="0" title="Clear rating"></i>
+              </div>
+            </div>
+            <div class="ms-auto d-flex align-items-end">
+              ${readBtn}
+              <button type="button" class="btn btn-sm btn-secondary google-meta me-1" data-book-id="${escapeHTML(String(book.id))}" data-search="${escapeHTML((book.title || '') + ' ' + (book.authors || ''))}">Metadata Google</button>
+              <a class="btn btn-sm btn-primary me-1" href="notes.php?id=${encodeURIComponent(book.id)}">Notes</a>
+              <button type="button" class="btn btn-sm btn-danger delete-book" data-book-id="${escapeHTML(String(book.id))}">Delete</button>
+            </div>
+          </div>
+          <div class="small text-muted book-description"></div>
+        </div>
+      </div>`;
+
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
-    return Array.from(tmp.children);
+    const el = tmp.firstElementChild;
+    setDescription(el.querySelector('.book-description'), book.description || '');
+    return el;
+  }
+
+  async function fetchPage(p) {
+    const res = await fetch(fetchUrlBase + p);
+    return res.json();
   }
 
   async function loadNext() {
     if (highestPage >= totalPages) return;
     try {
-      const els = await fetchPage(highestPage + 1);
-      els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
-      initCoverDimensions(contentArea);
+      const data = await fetchPage(highestPage + 1);
+      const frag = document.createDocumentFragment();
+      data.books.forEach((b, i) => {
+        const idx = (highestPage * perPage) + i;
+        frag.appendChild(renderBook(b, idx, data));
+      });
+      contentArea.insertBefore(frag, bottomSentinel);
+      initCoverDimensions(frag);
       highestPage++;
+      pruneDom();
     } catch (err) {
       console.error(err);
     }
@@ -127,14 +248,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lowestPage <= 1) return;
     try {
       const prevHeight = document.body.scrollHeight;
-      const els = await fetchPage(lowestPage - 1);
+      const data = await fetchPage(lowestPage - 1);
       const frag = document.createDocumentFragment();
-      els.forEach(el => frag.appendChild(el));
+      data.books.forEach((b, i) => {
+        const idx = ((lowestPage - 2) * perPage) + i;
+        frag.appendChild(renderBook(b, idx, data));
+      });
       contentArea.insertBefore(frag, topSentinel.nextSibling);
-      initCoverDimensions(contentArea);
+      initCoverDimensions(frag);
       const newHeight = document.body.scrollHeight;
       window.scrollBy(0, newHeight - prevHeight);
       lowestPage--;
+      pruneDom();
     } catch (err) {
       console.error(err);
     }
@@ -178,11 +303,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function pruneDom() {
+    const items = contentArea.querySelectorAll('.list-item');
+    if (!items.length) return;
+    const current = parseInt(currentItemIndex() || '0', 10);
+    const buffer = perPage * 5;
+    const min = current - buffer;
+    const max = current + buffer;
+    let removedHeight = 0;
+    items.forEach(item => {
+      const idx = parseInt(item.dataset.bookIndex, 10);
+      if (idx < min) {
+        removedHeight += item.getBoundingClientRect().height;
+        item.remove();
+      } else if (idx > max) {
+        item.remove();
+      }
+    });
+    if (removedHeight) {
+      window.scrollBy(0, -removedHeight);
+    }
+    const remaining = contentArea.querySelectorAll('.list-item');
+    if (remaining.length) {
+      const firstIdx = parseInt(remaining[0].dataset.bookIndex, 10);
+      const lastIdx = parseInt(remaining[remaining.length - 1].dataset.bookIndex, 10);
+      lowestPage = Math.floor(firstIdx / perPage) + 1;
+      highestPage = Math.floor(lastIdx / perPage) + 1;
+    }
+  }
+
   let scrollTimer = null;
   window.addEventListener('scroll', () => {
     if (scrollTimer) return;
     scrollTimer = setTimeout(() => {
       saveState();
+      pruneDom();
       scrollTimer = null;
     }, 200);
   }, { passive: true });
