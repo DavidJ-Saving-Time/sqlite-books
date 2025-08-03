@@ -317,6 +317,7 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                             <img id="coverImage<?= (int)$book['id'] ?>" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
                                  alt="Cover"
                                  class="img-thumbnail img-fluid book-cover"
+                                 loading="lazy"
                                  style="width: 100%; max-width:150px; height:auto;">
                             <div id="coverDimensions<?= (int)$book['id'] ?>" class="cover-dimensions position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 0.8rem;">Loading...</div>
                         </div>
