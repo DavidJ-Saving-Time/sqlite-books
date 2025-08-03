@@ -3,13 +3,7 @@ require_once '../db.php';
 requireLogin();
 header('Content-Type: application/json');
 
-try {
-    $pdo = getDatabaseConnection(null, true);
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Connection failed: ' . $e->getMessage()]);
-    exit;
-}
+$pdo = getDatabaseConnection();
 
 // Locate custom columns
 $genreColumnId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'genre'")->fetchColumn();
