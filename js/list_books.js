@@ -106,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let lowestPage = parseInt(bodyData.page, 10);
   let highestPage = lowestPage;
 
+  let nextCache = null;
+  let prevCache = null;
+
   async function fetchPage(p) {
     const res = await fetch(fetchUrlBase + p + '&ajax=1');
     const html = await res.text();
@@ -114,13 +117,36 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(tmp.children);
   }
 
+  async function prefetchNext() {
+    if (highestPage >= totalPages || nextCache) return;
+    try {
+      nextCache = await fetchPage(highestPage + 1);
+    } catch (err) {
+      console.error(err);
+      nextCache = null;
+    }
+  }
+
+  async function prefetchPrevious() {
+    if (lowestPage <= 1 || prevCache) return;
+    try {
+      prevCache = await fetchPage(lowestPage - 1);
+    } catch (err) {
+      console.error(err);
+      prevCache = null;
+    }
+  }
+
   async function loadNext() {
     if (highestPage >= totalPages) return;
     try {
-      const els = await fetchPage(highestPage + 1);
+      const els = nextCache || await fetchPage(highestPage + 1);
+      nextCache = null;
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(els);
       highestPage++;
+      prefetchNext();
+      prefetchPrevious();
     } catch (err) {
       console.error(err);
     }
@@ -130,7 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lowestPage <= 1) return;
     try {
       const prevHeight = document.body.scrollHeight;
-      const els = await fetchPage(lowestPage - 1);
+      const els = prevCache || await fetchPage(lowestPage - 1);
+      prevCache = null;
       const frag = document.createDocumentFragment();
       els.forEach(el => frag.appendChild(el));
       contentArea.insertBefore(frag, topSentinel.nextSibling);
@@ -138,10 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const newHeight = document.body.scrollHeight;
       window.scrollBy(0, newHeight - prevHeight);
       lowestPage--;
+      prefetchPrevious();
+      prefetchNext();
     } catch (err) {
       console.error(err);
     }
   }
+
+  prefetchNext();
+  prefetchPrevious();
 
   const bottomObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
