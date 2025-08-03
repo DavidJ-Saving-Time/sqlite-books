@@ -334,6 +334,9 @@ if ($fileType !== '') {
 if ($search !== '') {
     $baseUrl .= '&search=' . urlencode($search);
 }
+if ($authorInitial !== '') {
+    $baseUrl .= '&author_initial=' . urlencode($authorInitial);
+}
 $baseUrl .= '&page=';
 
 function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId, int $offset = 0): void {
