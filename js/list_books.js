@@ -1,5 +1,4 @@
 function escapeHTML(str) {
-  str = str === null || str === undefined ? '' : String(str);
   return str.replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
