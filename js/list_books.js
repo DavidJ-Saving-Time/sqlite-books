@@ -52,6 +52,16 @@ function initCoverDimensions(scope = document) {
   });
 }
 
+let coverObserver;
+function initLazyCovers(scope = document) {
+  const roots = scope instanceof Node ? [scope] : Array.from(scope);
+  roots.forEach(root => {
+    root.querySelectorAll('img.book-cover[data-src]').forEach(img => {
+      coverObserver.observe(img);
+    });
+  });
+}
+
 function updateStarUI(container, rating) {
   if (!container) return;
   container.querySelectorAll('.rating-star').forEach(star => {
@@ -100,8 +110,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const bottomSentinel = document.getElementById('bottomSentinel');
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
+  coverObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        img.src = img.dataset.src;
+        img.removeAttribute('data-src');
+        coverObserver.unobserve(img);
+      }
+    });
+  }, { rootMargin: '200px 0px' });
 
   initCoverDimensions(contentArea);
+  initLazyCovers(contentArea);
 
   let lowestPage = parseInt(bodyData.page, 10);
   let highestPage = lowestPage;
@@ -120,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const els = await fetchPage(highestPage + 1);
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(els);
+      initLazyCovers(els);
       highestPage++;
     } catch (err) {
       console.error(err);
@@ -135,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
       els.forEach(el => frag.appendChild(el));
       contentArea.insertBefore(frag, topSentinel.nextSibling);
       initCoverDimensions(els);
+      initLazyCovers(els);
       const newHeight = document.body.scrollHeight;
       window.scrollBy(0, newHeight - prevHeight);
       lowestPage--;
@@ -558,6 +581,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgElem = bookBlock.querySelector('.book-cover');
             if (imgElem) {
               imgElem.src = img;
+              imgElem.removeAttribute('data-src');
+              coverObserver.unobserve(imgElem);
               initCoverDimensions(bookBlock);
             } else {
               const wrapper = bookBlock.querySelector('.cover-wrapper');
