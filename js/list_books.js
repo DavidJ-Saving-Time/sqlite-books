@@ -223,17 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchPage(p) {
     const res = await fetch(fetchUrlBase + p);
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (err) {
-      throw new Error(`Invalid JSON: ${text}`);
-    }
-    if (!res.ok || data.error) {
-      throw new Error(data.error || `HTTP ${res.status}`);
-    }
-    return data;
+    return res.json();
   }
 
   async function loadNext() {

@@ -147,7 +147,7 @@ function firstBookFile(string $relativePath): ?string {
     return null;
 }
 
-function getDatabaseConnection(?string $path = null, bool $throw = false) {
+function getDatabaseConnection(?string $path = null) {
     $path = $path ?? currentDatabasePath();
     try {
         $pdo = new PDO('sqlite:' . $path);
@@ -207,9 +207,6 @@ function getDatabaseConnection(?string $path = null, bool $throw = false) {
 
         return $pdo;
     } catch (PDOException $e) {
-        if ($throw) {
-            throw $e;
-        }
         die('Connection failed: ' . $e->getMessage());
     }
 }
