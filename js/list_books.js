@@ -218,6 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const minPage = Math.max(1, currentPage - 2);
     const maxPage = Math.min(totalPages, currentPage + 2);
 
+    // Modifying the DOM while intersection observers are active can trigger
+    // unwanted page loads, causing the viewport to jump around. Temporarily
+    // stop observing the sentinels so trimming doesn't fire additional fetches.
+    topObserver.unobserve(topSentinel);
+    bottomObserver.unobserve(bottomSentinel);
+
     while (lowestPage < minPage) {
       const start = (lowestPage - 1) * perPage;
       const end = start + perPage;
@@ -244,6 +250,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       highestPage--;
     }
+
+    // Resume observing now that DOM adjustments are complete.
+    bottomObserver.observe(bottomSentinel);
+    topObserver.observe(topSentinel);
 
     prefetchNext();
     prefetchPrevious();
