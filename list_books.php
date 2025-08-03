@@ -85,6 +85,9 @@ $allowedFileTypes = ['epub','mobi','azw3','txt','pdf','docx','none'];
 if ($fileType !== '' && !in_array($fileType, $allowedFileTypes, true)) {
     $fileType = '';
 }
+$authorInitial = isset($_GET['author_initial'])
+    ? strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $_GET['author_initial']), 0, 1))
+    : '';
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $source = $_GET['source'] ?? 'local';
 $redirectParams = $_GET;
@@ -141,6 +144,10 @@ if ($fileType !== '') {
         $whereClauses[] = 'EXISTS (SELECT 1 FROM data d WHERE d.book = b.id AND lower(d.format) = :file_type)';
         $params[':file_type'] = $fileType;
     }
+}
+if ($authorInitial !== '') {
+    $whereClauses[] = 'EXISTS (SELECT 1 FROM books_authors_link bal JOIN authors a ON bal.author = a.id WHERE bal.book = b.id AND UPPER(a.sort) LIKE :author_initial)';
+    $params[':author_initial'] = $authorInitial . '%';
 }
 if ($statusName !== '' && $statusTable) {
     if ($statusIsLink) {
@@ -669,6 +676,15 @@ if (count($breadcrumbs) === 1) {
 .star-rating .fa-xmark {
     cursor: pointer;
 }
+body {
+    padding-bottom: 3rem;
+}
+#alphabetBar {
+    z-index: 1030;
+}
+#backToTop {
+    bottom: 3.5rem;
+}
     </style>
 </head>
 <body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>" data-total-items="<?php echo $totalLibraryBooks; ?>">
@@ -897,7 +913,19 @@ if (count($breadcrumbs) === 1) {
     </div>
         </div>
     </div>
-    <a href="#" id="backToTop" class="btn btn-primary position-fixed bottom-0 end-0 m-3 d-none"><i class="fa-solid fa-arrow-up"></i></a>
+    <div id="alphabetBar" class="position-fixed bottom-0 start-0 end-0 bg-light text-center py-2">
+        <?php
+        $letterParams = $_GET;
+        unset($letterParams['author_initial'], $letterParams['page']);
+        foreach (range('A', 'Z') as $letter) {
+            $letterParams['author_initial'] = $letter;
+            $url = 'list_books.php?' . http_build_query($letterParams);
+            $active = ($authorInitial === $letter) ? 'fw-bold' : '';
+            echo '<a href="' . htmlspecialchars($url) . '" class="mx-1 ' . $active . '">' . $letter . '</a>';
+        }
+        ?>
+    </div>
+    <a href="#" id="backToTop" class="btn btn-primary position-fixed end-0 m-3 d-none"><i class="fa-solid fa-arrow-up"></i></a>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <script src="js/list_books.js"></script>
