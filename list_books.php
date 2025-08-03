@@ -314,7 +314,9 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <?php if (!empty($book['has_cover'])): ?>
                     <a href="book.php?id=<?= urlencode($book['id']) ?>">
                         <div class="position-relative d-inline-block">
-                            <img id="coverImage<?= (int)$book['id'] ?>" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
+                            <img id="coverImage<?= (int)$book['id'] ?>"
+                                 data-src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
+                                 src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
                                  alt="Cover"
                                  class="img-thumbnail img-fluid book-cover"
                                  loading="lazy"
