@@ -89,14 +89,25 @@ function setUserPreference(string $username, string $key, $value): bool {
 }
 
 function currentDatabasePath(): string {
+    $path = null;
+
     $user = currentUser();
     if ($user) {
         $path = getUserPreference($user, 'db_path');
-        if ($path) {
-            return $path;
-        }
     }
-    return getPreference('db_path', 'metadata.old.db');
+
+    if (!$path) {
+        $path = getPreference('db_path', 'metadata.old.db');
+    }
+
+    // If the path is relative, resolve it relative to this directory so
+    // connections work regardless of the current working directory of the
+    // executing script (e.g. when calling from api/).
+    if (!preg_match('#^(?:/|[A-Za-z]:[\\/])#', $path)) {
+        $path = __DIR__ . '/' . $path;
+    }
+
+    return $path;
 }
 
 function getLibraryPath(): string {
