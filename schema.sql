@@ -800,3 +800,92 @@ CREATE TABLE notepad (
     time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_edited TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE VIRTUAL TABLE books_fts USING fts5(title, author);
+
+CREATE TRIGGER books_ai AFTER INSERT ON books BEGIN
+    INSERT INTO books_fts(rowid, title, author)
+    VALUES (
+        NEW.id,
+        NEW.title,
+        COALESCE((SELECT GROUP_CONCAT(a.name, ' ')
+                  FROM authors a
+                  JOIN books_authors_link bal ON a.id = bal.author
+                  WHERE bal.book = NEW.id), '')
+    );
+END;
+
+CREATE TRIGGER books_au AFTER UPDATE ON books BEGIN
+    DELETE FROM books_fts WHERE rowid = OLD.id;
+    INSERT INTO books_fts(rowid, title, author)
+    VALUES (
+        NEW.id,
+        NEW.title,
+        COALESCE((SELECT GROUP_CONCAT(a.name, ' ')
+                  FROM authors a
+                  JOIN books_authors_link bal ON a.id = bal.author
+                  WHERE bal.book = NEW.id), '')
+    );
+END;
+
+CREATE TRIGGER books_ad AFTER DELETE ON books BEGIN
+    DELETE FROM books_fts WHERE rowid = OLD.id;
+END;
+
+CREATE TRIGGER bal_ai AFTER INSERT ON books_authors_link BEGIN
+    DELETE FROM books_fts WHERE rowid = NEW.book;
+    INSERT INTO books_fts(rowid, title, author)
+    VALUES (
+        NEW.book,
+        (SELECT title FROM books WHERE id = NEW.book),
+        COALESCE((SELECT GROUP_CONCAT(a.name, ' ')
+                  FROM authors a
+                  JOIN books_authors_link bal2 ON a.id = bal2.author
+                  WHERE bal2.book = NEW.book), '')
+    );
+END;
+
+CREATE TRIGGER bal_au AFTER UPDATE ON books_authors_link BEGIN
+    DELETE FROM books_fts WHERE rowid = OLD.book;
+    INSERT INTO books_fts(rowid, title, author)
+    SELECT b.id, b.title, COALESCE((
+        SELECT GROUP_CONCAT(a.name, ' ')
+        FROM authors a
+        JOIN books_authors_link bal2 ON a.id = bal2.author
+        WHERE bal2.book = b.id), '')
+    FROM books b WHERE b.id = NEW.book;
+END;
+
+CREATE TRIGGER bal_ad AFTER DELETE ON books_authors_link BEGIN
+    DELETE FROM books_fts WHERE rowid = OLD.book;
+    INSERT INTO books_fts(rowid, title, author)
+    SELECT b.id, b.title, COALESCE((
+        SELECT GROUP_CONCAT(a.name, ' ')
+        FROM authors a
+        JOIN books_authors_link bal2 ON a.id = bal2.author
+        WHERE bal2.book = b.id), '')
+    FROM books b WHERE b.id = OLD.book;
+END;
+
+CREATE TRIGGER authors_au AFTER UPDATE OF name ON authors BEGIN
+    DELETE FROM books_fts WHERE rowid IN (
+        SELECT book FROM books_authors_link WHERE author = NEW.id
+    );
+    INSERT INTO books_fts(rowid, title, author)
+    SELECT b.id, b.title, COALESCE((
+        SELECT GROUP_CONCAT(a.name, ' ')
+        FROM authors a
+        JOIN books_authors_link bal ON a.id = bal.author
+        WHERE bal.book = b.id), '')
+    FROM books b WHERE b.id IN (
+        SELECT book FROM books_authors_link WHERE author = NEW.id
+    );
+END;
+
+INSERT INTO books_fts(rowid, title, author)
+SELECT b.id, b.title, COALESCE((
+    SELECT GROUP_CONCAT(a.name, ' ')
+    FROM authors a
+    JOIN books_authors_link bal ON a.id = bal.author
+    WHERE bal.book = b.id), '')
+FROM books b;
