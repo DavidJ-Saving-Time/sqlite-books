@@ -77,11 +77,12 @@ window.listBooksSkipSave = () => { skipSave = true; };
   const params = new URLSearchParams(window.location.search);
   const last = sessionStorage.getItem('lastItem');
   const perPage = parseInt(document.body.dataset.perPage || '20', 10);
-  if (!params.has('page') && last !== null && parseInt(last, 10) >= 0) {
+  const hasFilters = [...params.keys()].some(k => k !== 'page');
+  if (!params.has('page') && !hasFilters && last !== null && parseInt(last, 10) >= 0) {
     const page = Math.floor(parseInt(last, 10) / perPage) + 1;
     params.set('page', page);
     window.location.replace(`${window.location.pathname}?${params.toString()}#item-${last}`);
-  } else if (last !== null && !window.location.hash) {
+  } else if (!hasFilters && last !== null && !window.location.hash) {
     window.location.hash = `item-${last}`;
   }
 })();
