@@ -315,25 +315,44 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function pruneDom() {
-    const items = contentArea.querySelectorAll('.list-item');
+    let items = contentArea.querySelectorAll('.list-item');
     if (!items.length) return;
     const current = parseInt(currentItemIndex() || '0', 10);
     const buffer = perPage * 5;
     const min = current - buffer;
     const max = current + buffer;
     let removedHeight = 0;
-    items.forEach(item => {
+
+    // Remove items below the minimum index
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const idx = parseInt(item.dataset.bookIndex, 10);
       if (idx < min) {
-        removedHeight += item.getBoundingClientRect().height;
+        removedHeight += item.offsetHeight;
         item.remove();
-      } else if (idx > max) {
-        item.remove();
+      } else {
+        break;
       }
-    });
+    }
+
+    // Re-query items after removing from the start
+    items = contentArea.querySelectorAll('.list-item');
+
+    // Remove items above the maximum index
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      const idx = parseInt(item.dataset.bookIndex, 10);
+      if (idx > max) {
+        item.remove();
+      } else {
+        break;
+      }
+    }
+
     if (removedHeight) {
       window.scrollBy(0, -removedHeight);
     }
+
     const remaining = contentArea.querySelectorAll('.list-item');
     if (remaining.length) {
       const firstIdx = parseInt(remaining[0].dataset.bookIndex, 10);
