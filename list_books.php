@@ -272,7 +272,7 @@ $books = [];
     }
 
 $totalPages = max(1, ceil($totalBooks / $perPage));
-$baseUrl = 'api/books.php?sort=' . urlencode($sort);
+$baseUrl = '?sort=' . urlencode($sort);
 if ($source !== '') {
     $baseUrl .= '&source=' . urlencode($source);
 }
@@ -652,7 +652,7 @@ body {
 }
     </style>
 </head>
-<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>" data-total-items="<?php echo $totalLibraryBooks; ?>" data-library-path="<?php echo htmlspecialchars(getLibraryPath(), ENT_QUOTES); ?>">
+<body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>" data-total-items="<?php echo $totalLibraryBooks; ?>">
 <?php include "navbar.php"; ?>
 <div class="container-fluid my-4">
     <div class="row">
