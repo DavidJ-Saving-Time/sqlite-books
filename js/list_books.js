@@ -76,19 +76,6 @@ function updateStarUI(container, rating) {
 
 let skipSave = false;
 window.listBooksSkipSave = () => { skipSave = true; };
-(() => {
-  const params = new URLSearchParams(window.location.search);
-  const last = sessionStorage.getItem('lastItem');
-  const perPage = parseInt(document.body.dataset.perPage || '20', 10);
-  const hasFilters = [...params.keys()].some(k => k !== 'page');
-  if (!params.has('page') && !hasFilters && last !== null && parseInt(last, 10) >= 0) {
-    const page = Math.floor(parseInt(last, 10) / perPage) + 1;
-    params.set('page', page);
-    window.location.replace(`${window.location.pathname}?${params.toString()}#item-${last}`);
-  } else if (!hasFilters && last !== null && !window.location.hash) {
-    window.location.hash = `item-${last}`;
-  }
-})();
 
 document.addEventListener('DOMContentLoaded', () => {
   const bodyData = document.body.dataset;
@@ -160,7 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadPrevious() {
     if (lowestPage <= 1) return;
     try {
-      const prevHeight = document.body.scrollHeight;
       const p = lowestPage - 1;
       const els = prevCache.get(p) || await fetchPage(p);
       prevCache.delete(p);
@@ -168,8 +154,6 @@ document.addEventListener('DOMContentLoaded', () => {
       els.forEach(el => frag.appendChild(el));
       contentArea.insertBefore(frag, topSentinel.nextSibling);
       initCoverDimensions(els);
-      const newHeight = document.body.scrollHeight;
-      window.scrollBy(0, newHeight - prevHeight);
       lowestPage = p;
       prefetchPrevious();
       prefetchNext();
@@ -227,17 +211,10 @@ document.addEventListener('DOMContentLoaded', () => {
     while (lowestPage < minPage) {
       const start = (lowestPage - 1) * perPage;
       const end = start + perPage;
-      const prevHeight = document.body.scrollHeight;
       contentArea.querySelectorAll('.list-item').forEach(item => {
         const i = parseInt(item.dataset.bookIndex, 10);
         if (i >= start && i < end) item.remove();
       });
-      const newHeight = document.body.scrollHeight;
-      // When removing items from the top, the browser automatically adjusts the
-      // scroll position upward by the height of the removed content. We need to
-      // compensate by scrolling back down by that difference so that the user
-      // remains at the same logical position in the list.
-      window.scrollBy(0, prevHeight - newHeight);
       lowestPage++;
     }
 
@@ -264,7 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const idx = currentItemIndex();
     if (idx !== null) {
       sessionStorage.setItem('lastItem', idx);
-      history.replaceState(null, '', `${window.location.pathname}${window.location.search}#item-${idx}`);
     }
   }
 
