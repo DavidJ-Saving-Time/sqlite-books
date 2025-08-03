@@ -86,6 +86,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const contentArea = document.getElementById('contentArea');
   const topSentinel = document.getElementById('topSentinel');
   const bottomSentinel = document.getElementById('bottomSentinel');
+  const pageNav = document.getElementById('pageNav');
+  if (pageNav) {
+    pageNav.classList.add('d-none');
+  }
   const googleModalEl = document.getElementById('googleModal');
   const googleModal = new bootstrap.Modal(googleModalEl);
 

@@ -302,6 +302,9 @@ if ($authorInitial !== '') {
 }
 $baseUrl .= '&page=';
 
+$prevUrl = $baseUrl . max(1, $page - 1);
+$nextUrl = $baseUrl . min($totalPages, $page + 1);
+
 function render_book_rows(array $books, array $shelfList, array $statusOptions, array $genreList, string $sort, ?int $authorId, ?int $seriesId, int $offset = 0): void {
     foreach ($books as $i => $book) {
         $index = $offset + $i;
@@ -859,6 +862,16 @@ body {
       <div id="topSentinel"></div>
       <?php render_book_rows($books, $shelfList, $statusOptions, $genreList, $sort, $authorId, $seriesId, $offset); ?>
       <div id="bottomSentinel"></div>
+      <nav id="pageNav" aria-label="Page navigation" class="mt-3">
+        <ul class="pagination justify-content-center">
+          <li class="page-item <?php if ($page <= 1) echo 'disabled'; ?>">
+            <a class="page-link" href="<?php echo $page > 1 ? htmlspecialchars($prevUrl, ENT_QUOTES) : '#'; ?>">Previous</a>
+          </li>
+          <li class="page-item <?php if ($page >= $totalPages) echo 'disabled'; ?>">
+            <a class="page-link" href="<?php echo $page < $totalPages ? htmlspecialchars($nextUrl, ENT_QUOTES) : '#'; ?>">Next</a>
+          </li>
+        </ul>
+      </nav>
   </div>
 </div>
         </div>
