@@ -140,19 +140,10 @@ if ($recommendedOnly) {
     $whereClauses[] = "EXISTS (SELECT 1 FROM $recLinkTable rl JOIN $recTable rt ON rl.value = rt.id WHERE rl.book = b.id AND TRIM(COALESCE(rt.value, '')) <> '')";
 }
 if ($search !== '') {
-    $searchLower = function_exists('mb_strtolower') ? mb_strtolower($search, 'UTF-8') : strtolower($search);
-    $maxDist = max(1, (int)floor(strlen($searchLower) / 3));
-    $whereClauses[] = '('
-        . 'LOWER(b.title) LIKE :search_like'
-        . ' OR levenshtein(LOWER(b.title), :search_lower) <= :search_dist'
-        . ' OR EXISTS (SELECT 1 FROM books_authors_link bal'
-        . ' JOIN authors a ON bal.author = a.id'
-        . ' WHERE bal.book = b.id'
-        . ' AND (LOWER(a.name) LIKE :search_like OR levenshtein(LOWER(a.name), :search_lower) <= :search_dist))'
-        . ')';
-    $params[':search_like'] = '%' . $searchLower . '%';
-    $params[':search_lower'] = $searchLower;
-    $params[':search_dist'] = $maxDist;
+    $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
+    $ftsQuery = implode(' ', array_map(fn($t) => $t . '*', $tokens));
+    $whereClauses[] = 'b.id IN (SELECT rowid FROM books_fts WHERE books_fts MATCH :fts_query)';
+    $params[':fts_query'] = $ftsQuery;
 }
 $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
 

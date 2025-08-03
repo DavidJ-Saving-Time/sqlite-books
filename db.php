@@ -191,6 +191,7 @@ function getDatabaseConnection(?string $path = null) {
         }, 0);
 
         initializeCustomColumns($pdo);
+        initializeFts($pdo);
 
         return $pdo;
     } catch (PDOException $e) {
@@ -235,6 +236,118 @@ function initializeCustomColumns(PDO $pdo): void {
 
     } catch (PDOException $e) {
         error_log("initializeCustomColumns error: " . $e->getMessage());
+    }
+}
+
+function initializeFts(PDO $pdo): void {
+    try {
+        $pdo->exec('CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(title, author)');
+
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN
+    INSERT INTO books_fts(rowid, title, author)
+    VALUES (
+        new.id,
+        new.title,
+        COALESCE((SELECT GROUP_CONCAT(a.name, ' ')
+                  FROM authors a
+                  JOIN books_authors_link bal ON a.id = bal.author
+                  WHERE bal.book = new.id), '')
+    );
+END;
+SQL);
+
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN
+    DELETE FROM books_fts WHERE rowid = old.id;
+    INSERT INTO books_fts(rowid, title, author)
+    VALUES (
+        new.id,
+        new.title,
+        COALESCE((SELECT GROUP_CONCAT(a.name, ' ')
+                  FROM authors a
+                  JOIN books_authors_link bal ON a.id = bal.author
+                  WHERE bal.book = new.id), '')
+    );
+END;
+SQL);
+
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
+    DELETE FROM books_fts WHERE rowid = old.id;
+END;
+SQL);
+
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER IF NOT EXISTS bal_ai AFTER INSERT ON books_authors_link BEGIN
+    DELETE FROM books_fts WHERE rowid = new.book;
+    INSERT INTO books_fts(rowid, title, author)
+    VALUES (
+        new.book,
+        (SELECT title FROM books WHERE id = new.book),
+        COALESCE((SELECT GROUP_CONCAT(a.name, ' ')
+                  FROM authors a
+                  JOIN books_authors_link bal2 ON a.id = bal2.author
+                  WHERE bal2.book = new.book), '')
+    );
+END;
+SQL);
+
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER IF NOT EXISTS bal_au AFTER UPDATE ON books_authors_link BEGIN
+    DELETE FROM books_fts WHERE rowid = old.book;
+    INSERT INTO books_fts(rowid, title, author)
+    SELECT b.id, b.title, COALESCE((
+        SELECT GROUP_CONCAT(a.name, ' ')
+        FROM authors a
+        JOIN books_authors_link bal2 ON a.id = bal2.author
+        WHERE bal2.book = b.id), '')
+    FROM books b WHERE b.id = new.book;
+END;
+SQL);
+
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER IF NOT EXISTS bal_ad AFTER DELETE ON books_authors_link BEGIN
+    DELETE FROM books_fts WHERE rowid = old.book;
+    INSERT INTO books_fts(rowid, title, author)
+    SELECT b.id, b.title, COALESCE((
+        SELECT GROUP_CONCAT(a.name, ' ')
+        FROM authors a
+        JOIN books_authors_link bal2 ON a.id = bal2.author
+        WHERE bal2.book = b.id), '')
+    FROM books b WHERE b.id = old.book;
+END;
+SQL);
+
+        $pdo->exec(<<<'SQL'
+CREATE TRIGGER IF NOT EXISTS authors_au AFTER UPDATE OF name ON authors BEGIN
+    DELETE FROM books_fts WHERE rowid IN (
+        SELECT book FROM books_authors_link WHERE author = new.id
+    );
+    INSERT INTO books_fts(rowid, title, author)
+    SELECT b.id, b.title, COALESCE((
+        SELECT GROUP_CONCAT(a.name, ' ')
+        FROM authors a
+        JOIN books_authors_link bal ON a.id = bal.author
+        WHERE bal.book = b.id), '')
+    FROM books b WHERE b.id IN (
+        SELECT book FROM books_authors_link WHERE author = new.id
+    );
+END;
+SQL);
+
+        $pdo->exec(<<<'SQL'
+INSERT INTO books_fts(rowid, title, author)
+SELECT b.id, b.title, COALESCE((
+    SELECT GROUP_CONCAT(a.name, ' ')
+    FROM authors a
+    JOIN books_authors_link bal ON a.id = bal.author
+    WHERE bal.book = b.id), '')
+FROM books b
+WHERE b.id NOT IN (SELECT rowid FROM books_fts);
+SQL);
+    } catch (PDOException $e) {
+        error_log('initializeFts error: ' . $e->getMessage());
     }
 }
 
