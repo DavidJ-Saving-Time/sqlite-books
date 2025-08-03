@@ -3,68 +3,29 @@ require_once 'db.php';
 requireLogin();
 
 $pdo = getDatabaseConnection();
-$genreColumnId = ensureMultiValueColumn($pdo, "#genre", "Genre");
+$genreColumnId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'genre'")->fetchColumn();
 $genreLinkTable = "books_custom_column_{$genreColumnId}_link";
 $totalLibraryBooks = (int)$pdo->query('SELECT COUNT(*) FROM books')->fetchColumn();
-// Ensure shelf table and custom column exist
-try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS shelves (name TEXT PRIMARY KEY)");
-    foreach (['Physical','Ebook Calibre'] as $def) {
-        $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (?)')->execute([$def]);
-    }
-
-    $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-    $shelfValueTable = "custom_column_{$shelfId}";
-    $shelfLinkTable  = "books_custom_column_{$shelfId}_link";
-    insertDefaultSingleValue($pdo, $shelfId, 'Ebook Calibre');
-} catch (PDOException $e) {
-    // Ignore errors if the table cannot be created
-}
 
 // Fetch shelves list
-$shelfList = [];
-try {
-    $shelfList = $pdo->query('SELECT name FROM shelves ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
-} catch (PDOException $e) {
-    $shelfList = ['Ebook Calibre','Physical'];
-}
+$shelfList = $pdo->query('SELECT name FROM shelves ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
 $shelfName = isset($_GET['shelf']) ? trim((string)$_GET['shelf']) : '';
 if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
     $shelfName = '';
 }
 
 // Locate custom column for reading status
-$statusOptions = [];
-$statusId = null;
+$statusId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'status'")->fetchColumn();
+$statusTable = 'books_custom_column_' . $statusId . '_link';
+$statusOptions = $pdo->query("SELECT value FROM custom_column_{$statusId} ORDER BY value COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 $statusIsLink = true;
-$statusTable = null;
-try {
-    $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
-    $statusTable = 'books_custom_column_' . (int)$statusId . '_link';
-    $valueTable = 'custom_column_' . (int)$statusId;
-    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Want to Read')")->execute();
-    $defaultId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Want to Read'")->fetchColumn();
-    $pdo->exec("INSERT INTO $statusTable (book, value)
-                SELECT id, $defaultId FROM books
-                WHERE id NOT IN (SELECT book FROM $statusTable)");
-    $statusOptions = $pdo->query("SELECT value FROM $valueTable ORDER BY value COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
-} catch (PDOException $e) {
-    $statusTable = null;
-    $statusOptions = [];
-    $statusIsLink = false;
-}
 
-// Ensure shelf column exists for recommendations block
-try {
-    $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
-    $shelfValueTable = "custom_column_{$shelfId}";
-    $shelfLinkTable  = "books_custom_column_{$shelfId}_link";
-    insertDefaultSingleValue($pdo, $shelfId, 'Ebook Calibre');
-} catch (PDOException $e) {
-    // Ignore errors if the table cannot be created
-}
+// Shelf column for recommendations block
+$shelfId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'shelf'")->fetchColumn();
+$shelfValueTable = "custom_column_{$shelfId}";
+$shelfLinkTable  = "books_custom_column_{$shelfId}_link";
 
-$recId = ensureSingleValueColumn($pdo, '#recommendation', 'Recommendation');
+$recId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'recommendation'")->fetchColumn();
 $recTable = "custom_column_{$recId}";
 $recLinkTable = "books_custom_column_{$recId}_link";
 $recColumnExists = true;

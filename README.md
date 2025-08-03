@@ -1,8 +1,16 @@
 # SQLite Books
 
-This project is a small PHP application for browsing and editing an eBook database. It now includes a PHP-based function for getting book recommendations from the OpenRouter API. Recommendations returned from the API are saved to the Calibre database in the custom column labeled `#recommendation`. If the underlying table for this column is missing it will be created automatically the first time a recommendation is saved.
+This project is a small PHP application for browsing and editing an eBook database. It now includes a PHP-based function for getting book recommendations from the OpenRouter API. Recommendations returned from the API are saved to the Calibre database in the custom column labeled `#recommendation`.
 
-When a different Calibre library is selected, the application ensures that all required custom tables (for genres, reading status, shelves and recommendations) are present in that database. Missing tables are created on the fly so the interface works with a fresh database without manual setup.
+Before using the application with a new Calibre library, run `php scripts/init_schema.php` to create the required custom columns (for genres, reading status, shelves and recommendations) along with default values. The app expects these tables to exist and does not create them on the fly.
+
+## Setup
+
+Run the schema initialization script once for each Calibre library:
+
+```
+php scripts/init_schema.php
+```
 
 Each book also has a "Shelf" value stored in the custom column labeled `#shelf`. Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar and click a shelf name to filter the list. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
 
