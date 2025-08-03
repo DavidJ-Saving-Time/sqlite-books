@@ -913,7 +913,14 @@ if (count($breadcrumbs) === 1) {
         });
         btn.addEventListener('click', e => {
             e.preventDefault();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (window.listBooksSkipSave) {
+                window.listBooksSkipSave();
+            }
+            sessionStorage.removeItem('lastItem');
+            const params = new URLSearchParams(window.location.search);
+            params.delete('page');
+            const url = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.location.href = url;
         });
     });
     </script>
