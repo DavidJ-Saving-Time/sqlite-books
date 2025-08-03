@@ -191,6 +191,18 @@ function getDatabaseConnection(?string $path = null) {
         }, 0);
 
         initializeCustomColumns($pdo);
+
+        // Ensure indexes used by book list queries
+        try {
+            $pdo->exec('CREATE INDEX IF NOT EXISTS books_authors_link_bidx ON books_authors_link (book)');
+            $genreId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'genre'")->fetchColumn();
+            if ($genreId) {
+                $pdo->exec("CREATE INDEX IF NOT EXISTS books_custom_column_{$genreId}_link_bidx ON books_custom_column_{$genreId}_link (book)");
+            }
+        } catch (PDOException $e) {
+            error_log('Index creation failed: ' . $e->getMessage());
+        }
+
         initializeFts($pdo);
 
         return $pdo;
