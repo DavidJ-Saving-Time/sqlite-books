@@ -227,7 +227,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (i >= start && i < end) item.remove();
       });
       const newHeight = document.body.scrollHeight;
-      window.scrollBy(0, newHeight - prevHeight);
+      // When removing items from the top, the browser automatically adjusts the
+      // scroll position upward by the height of the removed content. We need to
+      // compensate by scrolling back down by that difference so that the user
+      // remains at the same logical position in the list.
+      window.scrollBy(0, prevHeight - newHeight);
       lowestPage++;
     }
 
