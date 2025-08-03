@@ -156,6 +156,17 @@ $statusNameVal = isset($statusName) ? $statusName : '';
                 <i class="fa-solid fa-gear me-1"></i> Prefs
               </a>
             </li>
+                        <li>
+              <a class="dropdown-item" href="authors.php" target="_blank">
+                <i class="fa-solid fa-gear me-1"></i> Author List 
+              </a>
+            </li>
+                        <li>
+              <a class="dropdown-item" href="series.php" target="_blank">
+                <i class="fa-solid fa-gear me-1"></i> Series List
+              </a>
+            </li>
+            
             <li><hr class="dropdown-divider"></li>
             <li>
               <a class="dropdown-item" href="logout.php">

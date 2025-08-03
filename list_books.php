@@ -900,7 +900,7 @@ body {
             $letterParams = $baseLetterParams;
             $letterParams['author_initial'] = $letter;
             $url = 'list_books.php?' . http_build_query($letterParams);
-            $active = ($authorInitial === $letter) ? 'fw-bold' : '';
+            $active = ($authorInitial === $letter) ? 'fw-bold h4' : '';
             echo '<a href="' . htmlspecialchars($url) . '" class="mx-1 ' . $active . '">' . $letter . '</a>';
         }
         if ($authorInitial !== '') {
