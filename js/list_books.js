@@ -29,23 +29,26 @@ function setDescription(el, text) {
   el.innerHTML = html;
 }
 
-function initCoverDimensions(root = document) {
-  root.querySelectorAll('.cover-wrapper img.book-cover').forEach(img => {
-    const label = img.parentElement.querySelector('.cover-dimensions');
-    if (!label) return;
-    const update = () => {
-      if (img.naturalWidth && img.naturalHeight) {
-        label.textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
+function initCoverDimensions(scope = document) {
+  const roots = scope instanceof Node ? [scope] : Array.from(scope);
+  roots.forEach(root => {
+    root.querySelectorAll('.cover-wrapper img.book-cover').forEach(img => {
+      const label = img.parentElement.querySelector('.cover-dimensions');
+      if (!label) return;
+      const update = () => {
+        if (img.naturalWidth && img.naturalHeight) {
+          label.textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
+        } else {
+          label.textContent = 'No image data';
+        }
+      };
+      if (img.complete) {
+        update();
       } else {
-        label.textContent = 'No image data';
+        img.addEventListener('load', update, { once: true });
+        img.addEventListener('error', () => { label.textContent = 'Image not found'; }, { once: true });
       }
-    };
-    if (img.complete) {
-      update();
-    } else {
-      img.addEventListener('load', update, { once: true });
-      img.addEventListener('error', () => { label.textContent = 'Image not found'; }, { once: true });
-    }
+    });
   });
 }
 
@@ -116,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const els = await fetchPage(highestPage + 1);
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
-      initCoverDimensions(contentArea);
+      initCoverDimensions(els);
       highestPage++;
     } catch (err) {
       console.error(err);
@@ -131,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const frag = document.createDocumentFragment();
       els.forEach(el => frag.appendChild(el));
       contentArea.insertBefore(frag, topSentinel.nextSibling);
-      initCoverDimensions(contentArea);
+      initCoverDimensions(els);
       const newHeight = document.body.scrollHeight;
       window.scrollBy(0, newHeight - prevHeight);
       lowestPage--;
