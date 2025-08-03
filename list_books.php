@@ -188,24 +188,10 @@ $books = [];
         $offset = ($page - 1) * $perPage;
 
         $selectFields = "b.id, b.title, b.path, b.has_cover, b.series_index,
-                       (SELECT GROUP_CONCAT(a.name, ', ')
-                            FROM books_authors_link bal
-                            JOIN authors a ON bal.author = a.id
-                            WHERE bal.book = b.id) AS authors,
-                       (SELECT GROUP_CONCAT(a.id || ':' || a.name, '|')
-                            FROM books_authors_link bal
-                            JOIN authors a ON bal.author = a.id
-                            WHERE bal.book = b.id) AS author_data,
+                       au.authors, au.author_ids,
                        s.id AS series_id,
                        s.name AS series,
-                       (SELECT GROUP_CONCAT(gv.value, ', ')
-                            FROM $genreLinkTable bcc
-                            JOIN custom_column_{$genreColumnId} gv ON bcc.value = gv.id
-                            WHERE bcc.book = b.id) AS genres,
-                       (SELECT GROUP_CONCAT(gv.id || ':' || gv.value, '|')
-                            FROM $genreLinkTable bcc
-                            JOIN custom_column_{$genreColumnId} gv ON bcc.value = gv.id
-                            WHERE bcc.book = b.id) AS genre_data,
+                       ge.genres,
                        bc11.value AS shelf,
                        com.text AS description,
                        r.rating AS rating";
@@ -222,8 +208,23 @@ $books = [];
 
         $sql = "SELECT $selectFields
                 FROM books b
+                LEFT JOIN (
+                    SELECT bal.book,
+                           GROUP_CONCAT(a.name, '|') AS authors,
+                           GROUP_CONCAT(a.id, '|') AS author_ids
+                    FROM books_authors_link bal
+                    JOIN authors a ON bal.author = a.id
+                    GROUP BY bal.book
+                ) au ON au.book = b.id
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id
+                LEFT JOIN (
+                    SELECT bcc.book,
+                           GROUP_CONCAT(gv.value, '|') AS genres
+                    FROM $genreLinkTable bcc
+                    JOIN custom_column_{$genreColumnId} gv ON bcc.value = gv.id
+                    GROUP BY bcc.book
+                ) ge ON ge.book = b.id
                 LEFT JOIN $shelfLinkTable bc11l ON bc11l.book = b.id
                 LEFT JOIN $shelfValueTable bc11 ON bc11l.value = bc11.id
                 LEFT JOIN comments com ON com.book = b.id
@@ -354,17 +355,17 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                         </div>
                     <?php endif; ?>
                     <div class="text-muted small book-authors">
-                        <?php if (!empty($book['author_data'])): ?>
+                        <?php if (!empty($book['author_ids']) && !empty($book['authors'])): ?>
                             <?php
-                                $pairs = array_filter(explode('|', $book['author_data']), 'strlen');
+                                $ids = array_filter(explode('|', $book['author_ids']), 'strlen');
+                                $names = array_filter(explode('|', $book['authors']), 'strlen');
                                 $links = [];
-                                foreach (array_slice($pairs, 0, 3) as $pair) {
-                                    list($aid, $aname) = explode(':', $pair, 2);
+                                foreach (array_slice(array_map(null, $ids, $names), 0, 3) as [$aid, $aname]) {
                                     $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
                                     $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
                                 }
                                 echo implode(', ', $links);
-                                if (count($pairs) > 3) echo '...';
+                                if (count($ids) > 3) echo '...';
                             ?>
                         <?php else: ?>
                             &mdash;
@@ -376,11 +377,10 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                 <div class="d-flex flex-wrap gap-2 mb-2">
                     <?php
                         $firstGenreVal = '';
-                        if (!empty($book['genre_data'])) {
-                            $first = explode('|', $book['genre_data'])[0];
+                        if (!empty($book['genres'])) {
+                            $first = explode('|', $book['genres'])[0];
                             if ($first !== '') {
-                                [, $gval] = explode(':', $first, 2);
-                                $firstGenreVal = $gval;
+                                $firstGenreVal = $first;
                             }
                         }
                     ?>
