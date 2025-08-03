@@ -540,31 +540,31 @@ function linkTextColor(string $current, string $compare): string {
 
 // Build breadcrumb items for navigation
 $breadcrumbs = [
-    ['label' => 'Books', 'url' => buildBaseUrl([], ['author_id','series_id','genre','shelf','status','filetype','search'])]
+    ['label' => 'Books', 'url' => buildBaseUrl([], ['author_id','series_id','genre','shelf','status','filetype','search','sort'])]
 ];
 if ($filterAuthorName !== null) {
-    $breadcrumbs[] = ['label' => $filterAuthorName];
+    $breadcrumbs[] = ['label' => $filterAuthorName, 'url' => buildBaseUrl([], ['author_id'])];
 }
 if ($filterSeriesName !== null) {
-    $breadcrumbs[] = ['label' => $filterSeriesName];
+    $breadcrumbs[] = ['label' => $filterSeriesName, 'url' => buildBaseUrl([], ['series_id'])];
 }
 if ($filterGenreName !== null) {
-    $breadcrumbs[] = ['label' => $filterGenreName];
+    $breadcrumbs[] = ['label' => $filterGenreName, 'url' => buildBaseUrl([], ['genre'])];
 }
 if ($filterShelfName !== null) {
-    $breadcrumbs[] = ['label' => $filterShelfName];
+    $breadcrumbs[] = ['label' => $filterShelfName, 'url' => buildBaseUrl([], ['shelf'])];
 }
 if ($filterStatusName !== null) {
-    $breadcrumbs[] = ['label' => $filterStatusName];
+    $breadcrumbs[] = ['label' => $filterStatusName, 'url' => buildBaseUrl([], ['status'])];
 }
 if ($filterFileTypeName !== null) {
-    $breadcrumbs[] = ['label' => strtoupper($filterFileTypeName)];
+    $breadcrumbs[] = ['label' => strtoupper($filterFileTypeName), 'url' => buildBaseUrl([], ['filetype'])];
 }
 if ($recommendedOnly) {
-    $breadcrumbs[] = ['label' => 'Recommended'];
+    $breadcrumbs[] = ['label' => 'Recommended', 'url' => buildBaseUrl([], ['sort'])];
 }
 if ($search !== '') {
-    $breadcrumbs[] = ['label' => 'Search: ' . $search];
+    $breadcrumbs[] = ['label' => 'Search: ' . $search, 'url' => buildBaseUrl([], ['search'])];
 }
 if (count($breadcrumbs) === 1) {
     // No filters active, show Books as current page without link
@@ -800,6 +800,7 @@ body {
                             <?php if (!$isLast && !empty($bc['url'])): ?>
                                 <a href="<?= htmlspecialchars($bc['url']) ?>">
                                     <?= htmlspecialchars($bc['label']) ?>
+                                    <span class="ms-1" aria-hidden="true">&times;</span>
                                 </a>
                             <?php else: ?>
                                 <?= htmlspecialchars($bc['label']) ?>
