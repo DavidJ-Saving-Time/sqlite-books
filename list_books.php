@@ -145,8 +145,18 @@ if ($fileType !== '') {
         $params[':file_type'] = $fileType;
     }
 }
+// Apply A-Z filtering based on the current sort field
 if ($authorInitial !== '') {
-    $whereClauses[] = 'EXISTS (SELECT 1 FROM books_authors_link bal JOIN authors a ON bal.author = a.id WHERE bal.book = b.id AND UPPER(a.sort) LIKE :author_initial)';
+    switch ($sort) {
+        case 'title':
+            $whereClauses[] = 'UPPER(b.title) LIKE :author_initial';
+            break;
+        case 'series':
+            $whereClauses[] = 'EXISTS (SELECT 1 FROM books_series_link bsl JOIN series s ON bsl.series = s.id WHERE bsl.book = b.id AND UPPER(s.name) LIKE :author_initial)';
+            break;
+        default:
+            $whereClauses[] = 'EXISTS (SELECT 1 FROM books_authors_link bal JOIN authors a ON bal.author = a.id WHERE bal.book = b.id AND UPPER(a.sort) LIKE :author_initial)';
+    }
     $params[':author_initial'] = $authorInitial . '%';
 }
 if ($statusName !== '' && $statusTable) {
@@ -918,13 +928,18 @@ body {
     </div>
     <div id="alphabetBar" class="position-fixed bottom-0 start-0 end-0 bg-light text-center py-2">
         <?php
-        $letterParams = $_GET;
-        unset($letterParams['author_initial'], $letterParams['page']);
+        $baseLetterParams = $_GET;
+        unset($baseLetterParams['author_initial'], $baseLetterParams['page']);
         foreach (range('A', 'Z') as $letter) {
+            $letterParams = $baseLetterParams;
             $letterParams['author_initial'] = $letter;
             $url = 'list_books.php?' . http_build_query($letterParams);
             $active = ($authorInitial === $letter) ? 'fw-bold' : '';
             echo '<a href="' . htmlspecialchars($url) . '" class="mx-1 ' . $active . '">' . $letter . '</a>';
+        }
+        if ($authorInitial !== '') {
+            $url = 'list_books.php?' . http_build_query($baseLetterParams);
+            echo '<a href="' . htmlspecialchars($url) . '" class="mx-1">Clear</a>';
         }
         ?>
     </div>
