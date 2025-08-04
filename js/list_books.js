@@ -90,8 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (pageNav) {
     pageNav.classList.add('d-none');
   }
-  const amazonModalEl = document.getElementById('amazonModal');
-  const amazonModal = new bootstrap.Modal(amazonModalEl);
+  const openLibraryModalEl = document.getElementById('openLibraryModal');
+  const openLibraryModal = new bootstrap.Modal(openLibraryModalEl);
 
   initCoverDimensions(contentArea);
 
@@ -543,15 +543,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('click', async ev => {
-    const metaBtn = ev.target.closest('.amazon-meta');
-    const resultsEl = document.getElementById('amazonResults');
+    const metaBtn = ev.target.closest('.openlibrary-meta');
+    const resultsEl = document.getElementById('openLibraryResults');
     if (metaBtn) {
       const bookId = metaBtn.dataset.bookId;
       const query = metaBtn.dataset.search;
       if (resultsEl) resultsEl.textContent = 'Loading...';
-      amazonModal.show();
+      openLibraryModal.show();
       try {
-        fetch(`amazon_search.php?q=${encodeURIComponent(query)}`)
+        fetch(`openlibrary_search.php?q=${encodeURIComponent(query)}`)
           .then(response => response.json())
           .then(data => {
             if (!data.books || data.books.length === 0) {
@@ -572,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${year ? ` (${year})` : ''}
                             ${description ? `<br><em>${description}</em>` : ''}
                             <div>
-                                <button type="button" class="btn btn-sm btn-primary mt-2 amazon-use"
+                                <button type="button" class="btn btn-sm btn-primary mt-2 openlibrary-use"
                                     data-book-id="${bookId}"
                                     data-title="${title.replace(/"/g, '&quot;')}"
                                     data-authors="${author.replace(/"/g, '&quot;')}"
@@ -597,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return;
     }
-    const useBtn = ev.target.closest('.amazon-use');
+    const useBtn = ev.target.closest('.openlibrary-use');
     if (!useBtn) return;
     const bookId = useBtn.dataset.bookId;
     const t = useBtn.dataset.title;
@@ -613,7 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await response.json();
       if (data.status === 'ok') {
-        amazonModal.hide();
+        openLibraryModal.hide();
         const bookBlock = document.querySelector(`[data-book-block-id="${bookId}"]`);
         if (bookBlock) {
           const titleEl = bookBlock.querySelector('.book-title');
