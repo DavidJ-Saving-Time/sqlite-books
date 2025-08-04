@@ -180,14 +180,35 @@ function search_openlibrary(string $query, int $limit = 20): array {
     $results = [];
     foreach ($data['docs'] as $doc) {
         $cover = '';
-        if (!empty($doc['cover_i'])) {
-            $cover = 'https://covers.openlibrary.org/b/id/' . $doc['cover_i'] . '-L.jpg';
+        $coverId = $doc['cover_i'] ?? null;
+        if ($coverId) {
+            $cover = 'https://covers.openlibrary.org/b/id/' . $coverId . '-L.jpg';
         }
+
         $description = '';
-        if (!empty($doc['subtitle'])) {
-            $description = $doc['subtitle'];
-        } elseif (!empty($doc['first_sentence'])) {
-            $description = is_array($doc['first_sentence']) ? $doc['first_sentence'][0] : $doc['first_sentence'];
+        $subjects = [];
+        $key = $doc['key'] ?? '';
+        if ($key !== '') {
+            $work = fetch_openlibrary_json('https://openlibrary.org' . $key . '.json');
+            if ($work !== null) {
+                if (isset($work['description'])) {
+                    if (is_array($work['description'])) {
+                        $description = $work['description']['value'] ?? '';
+                    } elseif (is_string($work['description'])) {
+                        $description = $work['description'];
+                    }
+                }
+                if (!empty($work['subjects']) && is_array($work['subjects'])) {
+                    $subjects = $work['subjects'];
+                }
+            }
+        }
+        if ($description === '') {
+            if (!empty($doc['subtitle'])) {
+                $description = $doc['subtitle'];
+            } elseif (!empty($doc['first_sentence'])) {
+                $description = is_array($doc['first_sentence']) ? $doc['first_sentence'][0] : $doc['first_sentence'];
+            }
         }
 
         $results[] = [
@@ -195,9 +216,12 @@ function search_openlibrary(string $query, int $limit = 20): array {
             'authors' => isset($doc['author_name']) ? implode(', ', (array)$doc['author_name']) : '',
             'year' => $doc['first_publish_year'] ?? '',
             'description' => $description,
+            'subjects' => $subjects,
             'cover' => $cover,
+            'cover_id' => $coverId,
+            'key' => $key,
             'source_id' => 'openlibrary',
-            'source_link' => isset($doc['key']) ? 'https://openlibrary.org' . $doc['key'] : '',
+            'source_link' => $key !== '' ? 'https://openlibrary.org' . $key : '',
             'isbn' => isset($doc['isbn'][0]) ? $doc['isbn'][0] : '',
             'publisher' => isset($doc['publisher'][0]) ? $doc['publisher'][0] : '',
             'series' => isset($doc['series'][0]) ? $doc['series'][0] : '',

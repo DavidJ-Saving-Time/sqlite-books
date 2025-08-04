@@ -1,7 +1,7 @@
 <?php
 require_once 'db.php';
 requireLogin();
-require_once 'openlibrary.php';
+require_once 'metadata/metadata_sources.php';
 
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $sort = $_GET['sort'] ?? 'author_series';
@@ -9,17 +9,6 @@ $source = 'openlibrary';
 $books = [];
 if ($search !== '') {
     $books = search_openlibrary($search);
-    // Fetch additional details like description for each work
-    foreach ($books as &$b) {
-        $b['description'] = '';
-        if (!empty($b['key'])) {
-            $work = get_openlibrary_work($b['key']);
-            if (!empty($work['description'])) {
-                $b['description'] = $work['description'];
-            }
-        }
-    }
-    unset($b);
 }
 ?>
 <!DOCTYPE html>
