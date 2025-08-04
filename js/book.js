@@ -62,18 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const bodyData = document.body.dataset;
   const currentBookId = parseInt(bodyData.bookId, 10);
-  const annasSearchQuery = bodyData.searchQuery;
-  const googleSearchQuery = bodyData.searchQuery;
 
-  const annasBtn = document.getElementById('annasMetaBtn');
-  const annasResults = document.getElementById('annasResults');
-  const annasModalEl = document.getElementById('annasModal');
-  const annasModal = new bootstrap.Modal(annasModalEl);
-
-  const googleBtn = document.getElementById('googleMetaBtn');
-  const googleResults = document.getElementById('googleResults');
-  const googleModalEl = document.getElementById('googleModal');
-  const googleModal = new bootstrap.Modal(googleModalEl);
+  const metadataBtn = document.getElementById('metadataBtn');
+  const metadataResults = document.getElementById('metadataResults');
+  const metadataModalEl = document.getElementById('metadataModal');
+  const metadataModal = metadataModalEl ? new bootstrap.Modal(metadataModalEl) : null;
 
   const ebookBtn = document.getElementById('ebookMetaBtn');
   const ebookFile = bodyData.ebookFile;
@@ -124,66 +117,44 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 
-  annasBtn.addEventListener('click', () => {
-    annasResults.textContent = 'Loading...';
-    fetch('annas_search.php?q=' + encodeURIComponent(annasSearchQuery))
-      .then(r => r.json())
-      .then(data => {
-        if (!data.books || data.books.length === 0) {
-          annasResults.textContent = 'No results';
-          return;
-        }
-        let html = '';
-        data.books.forEach(b => {
-          html += '<div class="mb-2">';
-          if (b.imgUrl) html += '<img src="' + escapeHTML(b.imgUrl) + '" style="height:100px" class="me-2">';
-          html += '<strong>' + escapeHTML(b.title) + '</strong>';
-          if (b.author) html += ' by ' + escapeHTML(b.author);
-          if (b.year) html += ' (' + escapeHTML(b.year) + ')';
-          html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 annas-use" '
-                    + 'data-title="' + b.title.replace(/"/g,'&quot;') + '" '
-                    + 'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" '
-                    + 'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" '
-                    + 'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '" '
-                    + 'data-md5="' + (b.md5 || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
-          html += '</div>';
-        });
-        annasResults.innerHTML = html;
-      })
-      .catch(() => { annasResults.textContent = 'Error fetching results'; });
-    annasModal.show();
-  });
-
-  googleBtn.addEventListener('click', () => {
-    googleResults.textContent = 'Loading...';
-    fetch('google_search.php?q=' + encodeURIComponent(googleSearchQuery))
-      .then(r => r.json())
-      .then(data => {
-        if (!data.books || data.books.length === 0) {
-          googleResults.textContent = 'No results';
-          return;
-        }
-        let html = '';
-        data.books.forEach(b => {
-          html += '<div class="mb-2">';
-          if (b.imgUrl) html += '<img src="' + escapeHTML(b.imgUrl) + '" style="height:100px" class="me-2">';
-          html += '<strong>' + escapeHTML(b.title) + '</strong>';
-          if (b.author) html += ' by ' + escapeHTML(b.author);
-          if (b.year) html += ' (' + escapeHTML(b.year) + ')';
-          if (b.description) html += '<br><em>' + escapeHTML(b.description) + '</em>';
-          html += '<div><button type="button" class="btn btn-sm btn-primary mt-1 google-use" '
-                    + 'data-title="' + b.title.replace(/"/g,'&quot;') + '" '
-                    + 'data-authors="' + (b.author || '').replace(/"/g,'&quot;') + '" '
-                    + 'data-year="' + (b.year || '').replace(/"/g,'&quot;') + '" '
-                    + 'data-imgurl="' + (b.imgUrl || '').replace(/"/g,'&quot;') + '" '
-                    + 'data-description="' + (b.description || '').replace(/"/g,'&quot;') + '">Use This</button></div>';
-          html += '</div>';
-        });
-        googleResults.innerHTML = html;
-      })
-      .catch(() => { googleResults.textContent = 'Error fetching results'; });
-    googleModal.show();
-  });
+  if (metadataBtn && metadataModal && metadataResults) {
+    metadataBtn.addEventListener('click', () => {
+      metadataResults.textContent = 'Loading...';
+      fetch('metadata/metadata.php?q=' + encodeURIComponent(bodyData.searchQuery))
+        .then(r => r.json())
+        .then(items => {
+          if (!Array.isArray(items) || items.length === 0) {
+            metadataResults.textContent = 'No results';
+            return;
+          }
+          const groups = {};
+          for (const item of items) {
+            const src = item.source_id || item.source || 'Unknown';
+            (groups[src] = groups[src] || []).push(item);
+          }
+          let html = '';
+          for (const [src, arr] of Object.entries(groups)) {
+            html += `<h5 class="mt-3">${escapeHTML(src.replace(/_/g, ' '))}</h5>`;
+            for (const it of arr) {
+              html += '<div class="mb-3">';
+              if (it.cover) html += `<img src="${escapeHTML(it.cover)}" style="height:100px" class="me-2 mb-2">`;
+              html += `<strong>${escapeHTML(it.title || '')}</strong>`;
+              if (it.authors) html += ' by ' + escapeHTML(it.authors);
+              if (it.year) html += ` (${escapeHTML(String(it.year))})`;
+              if (it.description) html += `<div><em>${escapeHTML(it.description)}</em></div>`;
+              html += '<div class="mt-1">';
+              if (it.cover) html += `<button type="button" class="btn btn-sm btn-primary me-1 meta-use-cover" data-imgurl="${encodeURIComponent(it.cover)}">Use Cover</button>`;
+              if (it.description) html += `<button type="button" class="btn btn-sm btn-secondary me-1 meta-use-desc" data-description="${encodeURIComponent(it.description)}">Use Description</button>`;
+              if (it.cover && it.description) html += `<button type="button" class="btn btn-sm btn-success me-1 meta-use-both" data-imgurl="${encodeURIComponent(it.cover)}" data-description="${encodeURIComponent(it.description)}">Use Both</button>`;
+              html += '</div></div>';
+            }
+          }
+          metadataResults.innerHTML = html;
+        })
+        .catch(() => { metadataResults.textContent = 'Error fetching results'; });
+      metadataModal.show();
+    });
+  }
 
   if (ebookBtn && ebookFile) {
     ebookBtn.addEventListener('click', () => {
@@ -208,33 +179,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.addEventListener('click', e => {
-    if (e.target.classList.contains('annas-use')) {
-      const { title, authors, year, imgurl, md5 = '' } = e.target.dataset;
+    if (
+      e.target.classList.contains('meta-use-cover') ||
+      e.target.classList.contains('meta-use-desc') ||
+      e.target.classList.contains('meta-use-both')
+    ) {
+      const imgurl = e.target.dataset.imgurl ? decodeURIComponent(e.target.dataset.imgurl) : '';
+      const description = e.target.dataset.description ? decodeURIComponent(e.target.dataset.description) : '';
+      const params = new URLSearchParams({ book_id: currentBookId });
+      if (imgurl) params.append('imgurl', imgurl);
+      if (description) params.append('description', description);
       fetch('update_metadata.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ book_id: currentBookId, title, authors, year, imgurl, md5 })
+        body: params
       }).then(r => r.json())
         .then(data => {
           if (data.status === 'ok') {
-            annasModal.hide();
-            location.reload();
-          } else {
-            alert(data.error || 'Error updating metadata');
-          }
-        }).catch(() => {
-          alert('Error updating metadata');
-        });
-    } else if (e.target.classList.contains('google-use')) {
-      const { title, authors, year, imgurl, description = '' } = e.target.dataset;
-      fetch('update_metadata.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ book_id: currentBookId, title, authors, year, imgurl, description })
-      }).then(r => r.json())
-        .then(data => {
-          if (data.status === 'ok') {
-            googleModal.hide();
+            if (metadataModal) metadataModal.hide();
             location.reload();
           } else {
             alert(data.error || 'Error updating metadata');
