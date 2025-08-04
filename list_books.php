@@ -449,10 +449,10 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                                 <?php
                             }
                         endif; ?>
-                        <button type="button" class="btn btn-sm btn-secondary amazon-meta me-1"
+                        <button type="button" class="btn btn-sm btn-secondary openlibrary-meta me-1"
                                 data-book-id="<?= htmlspecialchars($book['id']) ?>"
                                 data-search="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>">
-                            Metadata Amazon
+                            Metadata Open Library
                         </button>
                         <a class="btn btn-sm btn-primary me-1" href="notes.php?id=<?= urlencode($book['id']) ?>">
                             Notes
@@ -877,16 +877,16 @@ body {
 </div>
         </div>
 
-    <!-- Amazon Metadata Modal -->
-    <div class="modal fade" id="amazonModal" tabindex="-1" aria-hidden="true">
+    <!-- Open Library Metadata Modal -->
+    <div class="modal fade" id="openLibraryModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Amazon Results</h5>
+            <h5 class="modal-title">Open Library Results</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <div id="amazonResults">Loading...</div>
+            <div id="openLibraryResults">Loading...</div>
           </div>
         </div>
       </div>
