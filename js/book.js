@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const metadataBtn = document.getElementById('metadataBtn');
   const metadataResults = document.getElementById('metadataResults');
   const metadataModalEl = document.getElementById('metadataModal');
-  const metadataModal = metadataModalEl ? new bootstrap.Modal(metadataModalEl) : null;
+  let metadataModal = null;
 
   const ebookBtn = document.getElementById('ebookMetaBtn');
   const ebookFile = bodyData.ebookFile;
@@ -117,9 +117,18 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 
-  if (metadataBtn && metadataModal && metadataResults) {
+  if (metadataBtn && metadataModalEl && metadataResults) {
     metadataBtn.addEventListener('click', () => {
       metadataResults.textContent = 'Loading...';
+      if (!metadataModal && window.bootstrap?.Modal) {
+        try {
+          metadataModal = new bootstrap.Modal(metadataModalEl);
+        } catch (err) {
+          console.error('Failed to init modal', err);
+          metadataResults.textContent = 'Error loading modal';
+          return;
+        }
+      }
       fetch('metadata/metadata.php?q=' + encodeURIComponent(bodyData.searchQuery))
         .then(r => r.json())
         .then(items => {
@@ -152,7 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
           metadataResults.innerHTML = html;
         })
         .catch(() => { metadataResults.textContent = 'Error fetching results'; });
-      metadataModal.show();
+      if (metadataModal) {
+        metadataModal.show();
+      }
     });
   }
 
