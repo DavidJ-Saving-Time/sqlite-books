@@ -14,7 +14,7 @@ function search_annas_archive(string $query): array {
     }
 
     $url = 'https://annas-archive-api.p.rapidapi.com/search?q=' . urlencode($query)
-        . '&skip=0&limit=20&source=libgenLi,libgenRs,zLibrary,sciHub';
+        . '&skip=0&limit=5&source=libgenLi,libgenRs,zLibrary,sciHub';
 
     $curl = curl_init();
     curl_setopt_array($curl, [
@@ -43,7 +43,7 @@ function search_annas_archive(string $query): array {
     }
 
     $results = [];
-    foreach ($data['books'] as $book) {
+    foreach (array_slice($data['books'], 0, 5) as $book) {
         $md5 = $book['md5'] ?? '';
         $results[] = [
             'title' => $book['title'] ?? '',
@@ -75,7 +75,7 @@ function search_google_books(string $query): array {
     }
 
     $url = 'https://www.googleapis.com/books/v1/volumes?q=' . urlencode($query)
-        . '&maxResults=20&key=' . urlencode($apiKey);
+        . '&maxResults=20&langRestrict=en&key=' . urlencode($apiKey);
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,

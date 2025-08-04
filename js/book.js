@@ -146,7 +146,10 @@ document.addEventListener('DOMContentLoaded', () => {
             html += `<h5 class="mt-3">${escapeHTML(src.replace(/_/g, ' '))}</h5>`;
             for (const it of arr) {
               html += '<div class="mb-3">';
-              if (it.cover) html += `<img src="${escapeHTML(it.cover)}" style="height:100px" class="me-2 mb-2">`;
+              if (it.cover) {
+                html += `<img src="${escapeHTML(it.cover)}" style="height:100px" class="me-2 mb-1 meta-cover">`;
+                html += '<div class="text-muted small mb-2 meta-cover-dim"></div>';
+              }
               html += `<strong>${escapeHTML(it.title || '')}</strong>`;
               if (it.authors) html += ' by ' + escapeHTML(it.authors);
               if (it.year) html += ` (${escapeHTML(String(it.year))})`;
@@ -159,6 +162,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
           metadataResults.innerHTML = html;
+          metadataResults.querySelectorAll('.meta-cover').forEach(imgEl => {
+            const dimEl = imgEl.nextElementSibling;
+            function setDim() {
+              if (dimEl) {
+                dimEl.textContent = `${imgEl.naturalWidth} × ${imgEl.naturalHeight}px`;
+              }
+            }
+            if (imgEl.complete) {
+              setDim();
+            } else {
+              imgEl.addEventListener('load', setDim, { once: true });
+            }
+            imgEl.addEventListener('error', () => {
+              if (dimEl) dimEl.textContent = 'Image not found';
+            }, { once: true });
+          });
         })
         .catch(() => { metadataResults.textContent = 'Error fetching results'; });
       if (metadataModal) {
