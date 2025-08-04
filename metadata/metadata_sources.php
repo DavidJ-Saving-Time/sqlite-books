@@ -210,7 +210,7 @@ function search_openlibrary(string $query, int $limit = 20): array {
 /**
  * Helper to fetch Amazon HTML.
  */
-function fetch_amazon_html(string $url, array $headers) {
+function fetch_amazon_html(string $url, array $headers, ?array &$error = null) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -222,6 +222,26 @@ function fetch_amazon_html(string $url, array $headers) {
         CURLOPT_TIMEOUT => 10,
     ]);
     $html = curl_exec($ch);
+    if ($html === false) {
+        $error = [
+            'type' => 'curl',
+            'code' => curl_errno($ch),
+            'message' => curl_error($ch),
+        ];
+    } else {
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($status >= 400) {
+            $error = [
+                'type' => 'http',
+                'code' => $status,
+            ];
+        } elseif (stripos($html, 'cloudflare') !== false) {
+            $error = [
+                'type' => 'cloudflare',
+                'code' => $status,
+            ];
+        }
+    }
     curl_close($ch);
     return $html;
 }
@@ -232,7 +252,7 @@ function fetch_amazon_html(string $url, array $headers) {
  * @param string $query
  * @return array
  */
-function search_amazon_books(string $query): array {
+function search_amazon_books(string $query, ?array &$error = null): array {
     $query = trim($query);
     if ($query === '') {
         return [];
@@ -247,8 +267,8 @@ function search_amazon_books(string $query): array {
 
     $searchUrl = 'https://www.amazon.com/s?k=' . urlencode($query)
         . '&i=digital-text&sprefix=' . urlencode($query) . '%2Cdigital-text&ref=nb_sb_noss';
-    $searchHtml = fetch_amazon_html($searchUrl, $headers);
-    if ($searchHtml === false) {
+    $searchHtml = fetch_amazon_html($searchUrl, $headers, $error);
+    if ($searchHtml === false || $error !== null) {
         return [];
     }
 
@@ -268,8 +288,11 @@ function search_amazon_books(string $query): array {
             continue;
         }
         $link = $linkNode->getAttribute('href');
-        $itemHtml = fetch_amazon_html('https://www.amazon.com' . $link, $headers);
-        if ($itemHtml === false) {
+        $itemHtml = fetch_amazon_html('https://www.amazon.com' . $link, $headers, $itemError);
+        if ($itemHtml === false || $itemError !== null) {
+            if ($error === null && $itemError !== null) {
+                $error = $itemError;
+            }
             continue;
         }
 
