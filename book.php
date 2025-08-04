@@ -393,8 +393,7 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
         </div>
         <div class="btn-group me-2 mb-2">
             <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary">Anna's Archive</a>
-            <button type="button" id="annasMetaBtn" class="btn btn-secondary">Get Metadata</button>
-            <button type="button" id="googleMetaBtn" class="btn btn-secondary">Google Metadata</button>
+            <button type="button" id="metadataBtn" class="btn btn-secondary">Get Metadata</button>
             <?php if (!$missingFile && $ebookFileRel): ?>
             <button type="button" id="ebookMetaBtn" class="btn btn-secondary">File Metadata</button>
             <?php endif; ?>
@@ -622,36 +621,8 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
 
 
 
-    <!-- Anna's Archive Metadata Modal -->
-    <div class="modal fade" id="annasModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Anna's Archive Results</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div id="annasResults">Loading...</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Google Books Metadata Modal -->
-    <div class="modal fade" id="googleModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Google Books Results</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div id="googleResults">Loading...</div>
-          </div>
-        </div>
-      </div>
-    </div>
-</div>
+    <?php include 'metadata_modal.php'; ?>
+  </div>
     
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script src="js/book.js"></script>
