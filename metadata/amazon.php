@@ -8,6 +8,10 @@ if ($query === '') {
     exit;
 }
 
-$results = search_amazon_books($query);
-echo json_encode($results, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+$results = search_amazon_books($query, $error);
+$response = ['books' => $results];
+if ($error !== null) {
+    $response['error'] = $error;
+}
+echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 ?>

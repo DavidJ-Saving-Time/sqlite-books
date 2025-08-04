@@ -8,5 +8,9 @@ if ($q === '') {
     exit;
 }
 
-$books = search_amazon_books($q);
-echo json_encode(['books' => $books]);
+$books = search_amazon_books($q, $error);
+$response = ['books' => $books];
+if ($error !== null) {
+    $response['error'] = $error;
+}
+echo json_encode($response);
