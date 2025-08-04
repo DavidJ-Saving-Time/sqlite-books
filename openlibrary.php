@@ -1,39 +1,5 @@
 <?php
-function fetch_openlibrary_json(string $url): ?array {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-        CURLOPT_USERAGENT      => 'sqlite-books/1.0'
-    ]);
-    $resp = curl_exec($ch);
-    curl_close($ch);
-    if ($resp === false) {
-        return null;
-    }
-    $data = json_decode($resp, true);
-    return is_array($data) ? $data : null;
-}
-
-function search_openlibrary(string $query, int $limit = 5): array {
-    $url = 'https://openlibrary.org/search.json?q=' . urlencode($query) . '&limit=' . $limit;
-    $data = fetch_openlibrary_json($url);
-    if ($data === null || !isset($data['docs'])) {
-        return [];
-    }
-    $results = [];
-    foreach (array_slice($data['docs'], 0, $limit) as $doc) {
-        $results[] = [
-            'title' => $doc['title'] ?? '',
-            'authors' => isset($doc['author_name']) ? implode(', ', (array)$doc['author_name']) : '',
-            'cover_id' => $doc['cover_i'] ?? null,
-            'key' => $doc['key'] ?? '',
-            'year' => $doc['first_publish_year'] ?? null
-        ];
-    }
-    return $results;
-}
+require_once __DIR__ . '/metadata/metadata_sources.php';
 
 function get_openlibrary_work(string $key): array {
     $key = trim($key);
