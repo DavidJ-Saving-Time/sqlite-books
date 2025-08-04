@@ -9,21 +9,39 @@ if ($query === '') {
     exit;
 }
 
+// Basic headers mimicking a modern browser. Amazon sometimes prefers a wider
+// set, but these work for simple scraping as long as we use curl and force
+// IPv4 resolution.
 $headers = [
     'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0',
     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8',
-    'Accept-Language: en-US,en;q=0.9'
+    'Accept-Language: en-US,en;q=0.9',
+    'Accept-Encoding: gzip, deflate, br'
 ];
 
-$context = stream_context_create([
-    'http' => [
-        'method' => 'GET',
-        'header' => implode("\r\n", $headers)
-    ]
-]);
+// Helper to fetch a URL using curl. Using file_get_contents() failed in some
+// environments with "Network is unreachable" because it attempted an IPv6
+// connection. Curl allows us to force IPv4 and to automatically handle
+// compression.
+function fetch($url, $headers)
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0',
+        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4, // avoid IPv6 "Network unreachable"
+        CURLOPT_ENCODING => '', // handle gzip/deflate
+        CURLOPT_TIMEOUT => 10
+    ]);
+    $html = curl_exec($ch);
+    curl_close($ch);
+    return $html;
+}
 
 $searchUrl = 'https://www.amazon.com/s?k='.urlencode($query).'&i=digital-text&sprefix='.urlencode($query).'%2Cdigital-text&ref=nb_sb_noss';
-$searchHtml = @file_get_contents($searchUrl, false, $context);
+$searchHtml = fetch($searchUrl, $headers);
 if ($searchHtml === false) {
     echo json_encode([]);
     exit;
@@ -43,7 +61,7 @@ for ($i = 0; $i < $max; $i++) {
     $linkNode = $xpath->query(".//a[contains(@href,'digital-text')]", $div)->item(0);
     if (!$linkNode) continue;
     $link = $linkNode->getAttribute('href');
-    $itemHtml = @file_get_contents('https://www.amazon.com'.$link, false, $context);
+    $itemHtml = fetch('https://www.amazon.com'.$link, $headers);
     if ($itemHtml === false) continue;
 
     $itemDom = new DOMDocument();
