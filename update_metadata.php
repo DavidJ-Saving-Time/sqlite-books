@@ -11,6 +11,7 @@ $year = trim($_POST['year'] ?? '');
 $imgUrl = trim($_POST['imgurl'] ?? '');
 $descriptionPost = trim($_POST['description'] ?? '');
 $md5 = trim($_POST['md5'] ?? '');
+$bookPath = null; // track path for returning updated cover url
 
 if ($bookId <= 0) {
     http_response_code(400);
@@ -106,7 +107,30 @@ try {
     }
 
     $pdo->commit();
-    echo json_encode(['status' => 'ok']);
+
+    // Prepare data for AJAX refresh
+    $coverUrl = '';
+    if ($bookPath !== null) {
+        $coverUrl = getLibraryPath() . '/' . $bookPath . '/cover.jpg';
+    }
+
+    $authorsHtml = '';
+    $authorRows = $pdo->prepare('SELECT a.id, a.name FROM authors a JOIN books_authors_link l ON a.id = l.author WHERE l.book = :book ORDER BY l.id');
+    $authorRows->execute([':book' => $bookId]);
+    $authorLinks = [];
+    foreach ($authorRows as $row) {
+        $url = 'list_books.php?author_id=' . urlencode((string)$row['id']);
+        $authorLinks[] = '<a href="' . htmlspecialchars($url, ENT_QUOTES) . '">' . htmlspecialchars($row['name']) . '</a>';
+    }
+    if ($authorLinks) {
+        $authorsHtml = implode(', ', $authorLinks);
+    }
+
+    echo json_encode([
+        'status' => 'ok',
+        'cover_url' => $coverUrl,
+        'authors_html' => $authorsHtml,
+    ]);
 } catch (PDOException $e) {
     $pdo->rollBack();
     http_response_code(500);

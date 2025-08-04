@@ -619,18 +619,25 @@ document.addEventListener('DOMContentLoaded', () => {
           const titleEl = bookBlock.querySelector('.book-title');
           if (titleEl) titleEl.textContent = t;
           const authorsEl = bookBlock.querySelector('.book-authors');
-          if (authorsEl) authorsEl.textContent = a || '—';
+          if (authorsEl) {
+            if (data.authors_html) {
+              authorsEl.innerHTML = data.authors_html;
+            } else {
+              authorsEl.textContent = a || '—';
+            }
+          }
           const descEl = bookBlock.querySelector('.book-description');
           if (descEl) setDescription(descEl, desc);
-          if (img) {
+          const coverSrc = data.cover_url || img;
+          if (coverSrc) {
             const imgElem = bookBlock.querySelector('.book-cover');
             if (imgElem) {
-              imgElem.src = img;
+              imgElem.src = `${coverSrc}?t=${Date.now()}`;
               initCoverDimensions(bookBlock);
             } else {
               const wrapper = bookBlock.querySelector('.cover-wrapper');
               if (wrapper) {
-                wrapper.innerHTML = `<div class="position-relative d-inline-block"><img src="${img}" class="img-thumbnail img-fluid book-cover" alt="Cover" style="width: 100%; max-width:150px; height:auto;"><div class="cover-dimensions position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 0.8rem;">Loading...</div></div>`;
+                wrapper.innerHTML = `<div class="position-relative d-inline-block"><img src="${coverSrc}" class="img-thumbnail img-fluid book-cover" alt="Cover" style="width: 100%; max-width:150px; height:auto;"><div class="cover-dimensions position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 0.8rem;">Loading...</div></div>`;
                 initCoverDimensions(wrapper);
               }
             }
