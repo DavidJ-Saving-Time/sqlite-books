@@ -90,8 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (pageNav) {
     pageNav.classList.add('d-none');
   }
-  const googleModalEl = document.getElementById('googleModal');
-  const googleModal = new bootstrap.Modal(googleModalEl);
+  const amazonModalEl = document.getElementById('amazonModal');
+  const amazonModal = new bootstrap.Modal(amazonModalEl);
 
   initCoverDimensions(contentArea);
 
@@ -543,15 +543,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.addEventListener('click', async ev => {
-    const metaBtn = ev.target.closest('.google-meta');
-    const resultsEl = document.getElementById('googleResults');
+    const metaBtn = ev.target.closest('.amazon-meta');
+    const resultsEl = document.getElementById('amazonResults');
     if (metaBtn) {
       const bookId = metaBtn.dataset.bookId;
       const query = metaBtn.dataset.search;
       if (resultsEl) resultsEl.textContent = 'Loading...';
-      googleModal.show();
+      amazonModal.show();
       try {
-        fetch(`google_search.php?q=${encodeURIComponent(query)}`)
+        fetch(`amazon_search.php?q=${encodeURIComponent(query)}`)
           .then(response => response.json())
           .then(data => {
             if (!data.books || data.books.length === 0) {
@@ -560,9 +560,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const resultsHTML = data.books.map(b => {
               const title = escapeHTML(b.title || '');
-              const author = escapeHTML(b.author || '');
+              const author = escapeHTML(b.authors || '');
               const year = escapeHTML(b.year || '');
-              const imgUrl = escapeHTML(b.imgUrl || '');
+              const imgUrl = escapeHTML(b.cover || '');
               const description = escapeHTML(b.description || '');
               return `
                         <div class="mb-3 p-2 border rounded bg-light">
@@ -572,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${year ? ` (${year})` : ''}
                             ${description ? `<br><em>${description}</em>` : ''}
                             <div>
-                                <button type="button" class="btn btn-sm btn-primary mt-2 google-use"
+                                <button type="button" class="btn btn-sm btn-primary mt-2 amazon-use"
                                     data-book-id="${bookId}"
                                     data-title="${title.replace(/"/g, '&quot;')}"
                                     data-authors="${author.replace(/"/g, '&quot;')}"
@@ -597,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return;
     }
-    const useBtn = ev.target.closest('.google-use');
+    const useBtn = ev.target.closest('.amazon-use');
     if (!useBtn) return;
     const bookId = useBtn.dataset.bookId;
     const t = useBtn.dataset.title;
@@ -613,7 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await response.json();
       if (data.status === 'ok') {
-        googleModal.hide();
+        amazonModal.hide();
         const bookBlock = document.querySelector(`[data-book-block-id="${bookId}"]`);
         if (bookBlock) {
           const titleEl = bookBlock.querySelector('.book-title');
