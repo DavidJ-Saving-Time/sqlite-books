@@ -353,10 +353,20 @@ if ($sendRequested) {
         $author = trim(explode(',', $book['authors'])[0] ?? '');
         if ($author === '') { $author = 'Unknown'; }
 
-        $remotePath = rtrim($remoteDir, '/') . '/'
-            . safe_filename($genre) . '/'
-            . safe_filename($author) . '/'
-            . safe_filename($book['title']);
+        $genreDir  = safe_filename($genre);
+        if ($genreDir === '') { $genreDir = 'Unknown'; }
+        $authorDir = safe_filename($author);
+        if ($authorDir === '') { $authorDir = 'Unknown'; }
+        $remotePath = rtrim($remoteDir, '/') . '/' . $genreDir . '/' . $authorDir;
+
+        $localFile = getLibraryPath() . '/' . $ebookFileRel;
+        $baseName  = basename($ebookFileRel);
+        $nameOnly  = pathinfo($baseName, PATHINFO_FILENAME);
+        $ext       = pathinfo($baseName, PATHINFO_EXTENSION);
+        $remoteFileName = safe_filename($nameOnly);
+        if ($remoteFileName === '') { $remoteFileName = 'book'; }
+        if ($ext !== '') { $remoteFileName .= '.' . $ext; }
+
         $identity  = '/home/david/.ssh/id_rsa';
         $sshTarget = 'root@' . $device;
 
@@ -368,13 +378,12 @@ if ($sendRequested) {
         );
         exec($mkdirCmd, $out1, $ret1);
 
-        $localFile = getLibraryPath() . '/' . $ebookFileRel;
         $scpCmd = sprintf(
             'scp -i %s %s %s:%s',
             escapeshellarg($identity),
             escapeshellarg($localFile),
             escapeshellarg($sshTarget),
-            escapeshellarg($remotePath . '/')
+            escapeshellarg($remotePath . '/' . $remoteFileName)
         );
         exec($scpCmd, $out2, $ret2);
 
