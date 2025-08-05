@@ -370,6 +370,20 @@ if ($sendRequested) {
         $ext       = pathinfo($baseName, PATHINFO_EXTENSION);
         $remoteFileName = safe_filename($nameOnly);
         if ($remoteFileName === '') { $remoteFileName = 'book'; }
+        if ($series !== '' && $book['series_index'] !== null && $book['series_index'] !== '') {
+            $seriesIdxStr = (string)$book['series_index'];
+            if (strpos($seriesIdxStr, '.') !== false) {
+                [$whole, $decimal] = explode('.', $seriesIdxStr, 2);
+                $seriesIdxStr = str_pad($whole, 2, '0', STR_PAD_LEFT);
+                $decimal = rtrim($decimal, '0');
+                if ($decimal !== '') {
+                    $seriesIdxStr .= '.' . $decimal;
+                }
+            } else {
+                $seriesIdxStr = str_pad($seriesIdxStr, 2, '0', STR_PAD_LEFT);
+            }
+            $remoteFileName = $seriesIdxStr . ' - ' . $remoteFileName;
+        }
         if ($ext !== '') { $remoteFileName .= '.' . $ext; }
 
         $identity  = '/home/david/.ssh/id_rsa';
