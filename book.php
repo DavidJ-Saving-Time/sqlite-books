@@ -357,7 +357,12 @@ if ($sendRequested) {
         if ($genreDir === '') { $genreDir = 'Unknown'; }
         $authorDir = safe_filename($author);
         if ($authorDir === '') { $authorDir = 'Unknown'; }
-        $remotePath = rtrim($remoteDir, '/') . '/' . $genreDir . '/' . $authorDir;
+        $seriesDir = '';
+        $series = trim($book['series'] ?? '');
+        if ($series !== '') {
+            $seriesDir = '/' . safe_filename($series);
+        }
+        $remotePath = rtrim($remoteDir, '/') . '/' . $genreDir . '/' . $authorDir . $seriesDir;
 
         $localFile = getLibraryPath() . '/' . $ebookFileRel;
         $baseName  = basename($ebookFileRel);
