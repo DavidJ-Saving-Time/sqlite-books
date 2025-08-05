@@ -34,6 +34,8 @@ $description = $commentStmt->fetchColumn() ?: '';
 $notes = '';
 
 $updated = false;
+$sendMessage = null;
+$sendRequested = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_to_device']));
 
 // Handle updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -329,6 +331,54 @@ if (!empty($book['path'])) {
     $libraryDirPath .= '/' . $authorFolderName . '/' . $bookFolderName;
 }
 $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
+
+if ($sendRequested) {
+    $remoteDir = getUserPreference(currentUser(), 'REMOTE_DIR', getPreference('REMOTE_DIR', ''));
+    $device    = getUserPreference(currentUser(), 'DEVICE', getPreference('DEVICE', ''));
+    if ($remoteDir === '' || $device === '') {
+        $sendMessage = ['type' => 'danger', 'text' => 'Remote device not configured.'];
+    } elseif ($ebookFileRel === '') {
+        $sendMessage = ['type' => 'danger', 'text' => 'No book file to send.'];
+    } else {
+        try {
+            $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
+            $valTable = "custom_column_{$genreId}";
+            $linkTable = "books_custom_column_{$genreId}_link";
+            $gstmt = $pdo->prepare("SELECT gv.value FROM $linkTable l JOIN $valTable gv ON l.value = gv.id WHERE l.book = ? LIMIT 1");
+            $gstmt->execute([$id]);
+            $genre = $gstmt->fetchColumn() ?: 'Unknown';
+        } catch (PDOException $e) {
+            $genre = 'Unknown';
+        }
+        $author = trim(explode(',', $book['authors'])[0] ?? '');
+        if ($author === '') { $author = 'Unknown'; }
+
+        $remotePath = rtrim($remoteDir, '/') . '/' . safe_filename($genre) . '/' . safe_filename($author) . '/' . safe_filename($book['title']);
+        $identity   = '/home/david/.ssh/id_rsa';
+        $sshTarget  = 'root@' . $device;
+
+        $mkdirCmd = sprintf('ssh -i %s %s mkdir -p %s',
+            escapeshellarg($identity),
+            escapeshellarg($sshTarget),
+            escapeshellarg($remotePath)
+        );
+        exec($mkdirCmd, $out1, $ret1);
+
+        $localFile = getLibraryPath() . '/' . $ebookFileRel;
+        $scpCmd = sprintf('scp -i %s %s %s',
+            escapeshellarg($identity),
+            escapeshellarg($localFile),
+            escapeshellarg($sshTarget . ':' . $remotePath . '/')
+        );
+        exec($scpCmd, $out2, $ret2);
+
+        if ($ret1 === 0 && $ret2 === 0) {
+            $sendMessage = ['type' => 'success', 'text' => 'Book sent to device.'];
+        } else {
+            $sendMessage = ['type' => 'danger', 'text' => 'Failed to send book to device.'];
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -470,6 +520,12 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                             <i class="fa-solid fa-circle-check me-2"></i> Book updated successfully
                         </div>
                     <?php endif; ?>
+                    <?php if ($sendMessage): ?>
+                        <div class="alert alert-<?= htmlspecialchars($sendMessage['type']) ?>">
+                            <i class="fa-solid <?= $sendMessage['type'] === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' ?> me-2"></i>
+                            <?= htmlspecialchars($sendMessage['text']) ?>
+                        </div>
+                    <?php endif; ?>
 
                     <!-- Tabbed Form -->
                     <ul class="nav nav-tabs mb-3" id="editBookTabs" role="tablist">
@@ -609,9 +665,16 @@ $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
                                     <i class="fa-solid fa-magnifying-glass me-1"></i> Back to book
                                 </a>
                             </div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fa-solid fa-save me-1"></i> Save
-                            </button>
+                            <div>
+                                <?php if ($ebookFileRel): ?>
+                                    <button type="submit" name="send_to_device" value="1" class="btn btn-outline-success me-2">
+                                        <i class="fa-solid fa-paper-plane me-1"></i> Send to device
+                                    </button>
+                                <?php endif; ?>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa-solid fa-save me-1"></i> Save
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
