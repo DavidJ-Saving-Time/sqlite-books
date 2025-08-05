@@ -353,29 +353,39 @@ if ($sendRequested) {
         $author = trim(explode(',', $book['authors'])[0] ?? '');
         if ($author === '') { $author = 'Unknown'; }
 
-        $remotePath = rtrim($remoteDir, '/') . '/' . safe_filename($genre) . '/' . safe_filename($author) . '/' . safe_filename($book['title']);
-        $identity   = '/home/david/.ssh/id_rsa';
-        $sshTarget  = 'root@' . $device;
+        $remotePath = rtrim($remoteDir, '/') . '/'
+            . safe_filename($genre) . '/'
+            . safe_filename($author) . '/'
+            . safe_filename($book['title']);
+        $identity  = '/home/david/.ssh/id_rsa';
+        $sshTarget = 'root@' . $device;
 
-        $mkdirCmd = sprintf('ssh -i %s %s mkdir -p %s',
+        $mkdirCmd = sprintf(
+            'ssh -i %s %s %s',
             escapeshellarg($identity),
             escapeshellarg($sshTarget),
-            escapeshellarg($remotePath)
+            escapeshellarg('mkdir -p ' . escapeshellarg($remotePath))
         );
         exec($mkdirCmd, $out1, $ret1);
 
         $localFile = getLibraryPath() . '/' . $ebookFileRel;
-        $scpCmd = sprintf('scp -i %s %s %s',
+        $scpCmd = sprintf(
+            'scp -i %s %s %s:%s',
             escapeshellarg($identity),
             escapeshellarg($localFile),
-            escapeshellarg($sshTarget . ':' . $remotePath . '/')
+            escapeshellarg($sshTarget),
+            escapeshellarg($remotePath . '/')
         );
         exec($scpCmd, $out2, $ret2);
 
         if ($ret1 === 0 && $ret2 === 0) {
             $sendMessage = ['type' => 'success', 'text' => 'Book sent to device.'];
         } else {
-            $sendMessage = ['type' => 'danger', 'text' => 'Failed to send book to device.'];
+            $cmds = $mkdirCmd . '; ' . $scpCmd;
+            $sendMessage = [
+                'type' => 'danger',
+                'text' => 'Failed to send book to device. Commands: ' . $cmds,
+            ];
         }
     }
 }
