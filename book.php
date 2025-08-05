@@ -359,12 +359,25 @@ if ($sendRequested) {
         if ($authorDir === '') { $authorDir = 'Unknown'; }
         $remotePath = rtrim($remoteDir, '/') . '/' . $genreDir . '/' . $authorDir;
 
+        $seriesPrefix = '';
+        if (!empty($book['series'])) {
+            $seriesDir = safe_filename($book['series']);
+            if ($seriesDir !== '') {
+                $remotePath .= '/' . $seriesDir;
+            }
+            if ($book['series_index'] !== null && $book['series_index'] !== '') {
+                $seriesNum = (int)floor((float)$book['series_index']);
+                $seriesPrefix = str_pad((string)$seriesNum, 3, '0', STR_PAD_LEFT) . '_';
+            }
+        }
+
         $localFile = getLibraryPath() . '/' . $ebookFileRel;
         $baseName  = basename($ebookFileRel);
         $nameOnly  = pathinfo($baseName, PATHINFO_FILENAME);
         $ext       = pathinfo($baseName, PATHINFO_EXTENSION);
         $remoteFileName = safe_filename($nameOnly);
         if ($remoteFileName === '') { $remoteFileName = 'book'; }
+        if ($seriesPrefix !== '') { $remoteFileName = $seriesPrefix . $remoteFileName; }
         if ($ext !== '') { $remoteFileName .= '.' . $ext; }
 
         $identity  = '/home/david/.ssh/id_rsa';
