@@ -3,7 +3,9 @@
         "password": "nilla",
         "prefs": {
             "db_path": "ebooks\/metadata.db",
-            "library_path": "ebooks"
+            "library_path": "ebooks",
+            "REMOTE_DIR": "",
+            "DEVICE": ""
         }
     },
     "david": {
@@ -11,14 +13,18 @@
         "prefs": {
             "db_path": "david_ebooks\/metadata.db",
             "library_path": "david_ebooks",
-            "reading_goal_2025": 40
+            "reading_goal_2025": 40,
+            "REMOTE_DIR": "",
+            "DEVICE": ""
         }
     },
     "test": {
         "password": "test",
         "prefs": {
             "db_path": "test_lib\/metadata.db",
-            "library_path": "test_lib"
+            "library_path": "test_lib",
+            "REMOTE_DIR": "",
+            "DEVICE": ""
         }
     }
 }
