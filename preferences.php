@@ -7,6 +7,8 @@ $alertClass = 'success';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbPath = trim($_POST['db_path'] ?? '');
     $libPath = trim($_POST['library_path'] ?? '');
+    $remoteDir = trim($_POST['REMOTE_DIR'] ?? '');
+    $device = trim($_POST['DEVICE'] ?? '');
 
     if ($dbPath !== '') {
         setUserPreference(currentUser(), 'db_path', $dbPath);
@@ -19,6 +21,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setUserPreference(currentUser(), 'library_path', $libPath);
         if (isset($_POST['save_global'])) {
             setPreference('library_path', $libPath);
+        }
+    }
+
+    if ($remoteDir !== '') {
+        setUserPreference(currentUser(), 'REMOTE_DIR', $remoteDir);
+        if (isset($_POST['save_global'])) {
+            setPreference('REMOTE_DIR', $remoteDir);
+        }
+    }
+
+    if ($device !== '') {
+        setUserPreference(currentUser(), 'DEVICE', $device);
+        if (isset($_POST['save_global'])) {
+            setPreference('DEVICE', $device);
         }
     }
 
@@ -41,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $currentPath = currentDatabasePath();
 $currentLibrary = getLibraryPath();
+$currentRemoteDir = getUserPreference(currentUser(), 'REMOTE_DIR', getPreference('REMOTE_DIR', ''));
+$currentDevice = getUserPreference(currentUser(), 'DEVICE', getPreference('DEVICE', ''));
 ?>
 <!doctype html>
 <html lang="en">
@@ -63,6 +81,14 @@ $currentLibrary = getLibraryPath();
   <div class="mb-3">
     <label for="library_path" class="form-label">Calibre library path</label>
     <input type="text" id="library_path" name="library_path" class="form-control" value="<?php echo htmlspecialchars($currentLibrary); ?>">
+  </div>
+  <div class="mb-3">
+    <label for="REMOTE_DIR" class="form-label">Remote directory</label>
+    <input type="text" id="REMOTE_DIR" name="REMOTE_DIR" class="form-control" value="<?php echo htmlspecialchars($currentRemoteDir); ?>">
+  </div>
+  <div class="mb-3">
+    <label for="DEVICE" class="form-label">Device</label>
+    <input type="text" id="DEVICE" name="DEVICE" class="form-control" value="<?php echo htmlspecialchars($currentDevice); ?>">
   </div>
   <div class="mb-3">
     <label for="themeSelect" class="form-label">Theme</label>
