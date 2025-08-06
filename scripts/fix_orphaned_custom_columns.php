@@ -1,23 +1,60 @@
 <?php
 // One-time cleanup script to remove orphaned entries from Calibre
-// book custom column tables. Orphaned rows can appear if books or
-// custom column values were deleted without cleaning up their links.
+// book custom column tables across all user databases. Orphaned rows
+// can appear if books or custom column values were deleted without
+// cleaning up their links.
 //
 // Run this script once as an admin to tidy existing databases:
 //   php scripts/fix_orphaned_custom_columns.php
 //
-// The script connects to the configured database and scans all tables
-// named books_custom_column_*. For each table it removes rows whose
-// book id no longer exists in the books table or whose value id no
+// The script reads users.json to locate each user's database and scans
+// all tables named books_custom_column_*. For each table it removes rows
+// whose book id no longer exists in the books table or whose value id no
 // longer exists in the corresponding custom_column_X table.
 
-require_once __DIR__ . '/../db.php';
+/**
+ * Return a list of unique database paths from users.json.
+ */
+function getDatabasePaths(): array {
+    $file = __DIR__ . '/../users.json';
+    if (!file_exists($file)) {
+        return [];
+    }
+    $data = json_decode(file_get_contents($file), true);
+    if (!is_array($data)) {
+        return [];
+    }
+    $paths = [];
+    foreach ($data as $user) {
+        $path = $user['prefs']['db_path'] ?? null;
+        if ($path) {
+            $paths[$path] = true; // use keys to deduplicate
+        }
+    }
+    return array_keys($paths);
+}
 
-$pdo = getDatabaseConnection();
+/**
+ * Open a PDO connection to the given SQLite database.
+ */
+function connect(string $path): ?PDO {
+    try {
+        $pdo = new PDO('sqlite:' . $path);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        return $pdo;
+    } catch (PDOException $e) {
+        fwrite(STDERR, "Failed to connect to {$path}: " . $e->getMessage() . "\n");
+        return null;
+    }
+}
 
-$totalRemoved = 0;
+/**
+ * Remove orphaned custom column entries for the provided connection.
+ */
+function cleanupDatabase(PDO $pdo): int {
+    $totalRemoved = 0;
 
-try {
     // Fetch all book custom column tables
     $stmt = $pdo->query(
         "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'books_custom_column_%'"
@@ -65,8 +102,30 @@ try {
         );
     }
 
-    echo "Total orphaned rows removed: {$totalRemoved}\n";
-} catch (PDOException $e) {
-    fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    return $totalRemoved;
+}
+
+$paths = getDatabasePaths();
+if (!$paths) {
+    fwrite(STDERR, "No database paths found in users.json\n");
     exit(1);
 }
+
+$grandTotal = 0;
+foreach ($paths as $dbPath) {
+    $fullPath = __DIR__ . '/../' . $dbPath;
+    echo "Processing {$dbPath}\n";
+    $pdo = connect($fullPath);
+    if (!$pdo) {
+        continue;
+    }
+    try {
+        $removed = cleanupDatabase($pdo);
+        $grandTotal += $removed;
+        echo "Total orphaned rows removed from {$dbPath}: {$removed}\n";
+    } catch (PDOException $e) {
+        fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    }
+}
+
+echo "Grand total orphaned rows removed: {$grandTotal}\n";
