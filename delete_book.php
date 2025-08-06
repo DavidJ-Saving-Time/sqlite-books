@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $bookId = isset($_POST['book_id']) ? (int)$_POST['book_id'] : 0;
@@ -30,6 +31,10 @@ try {
     }
 
     $pdo->commit();
+    invalidateCache('total_books');
+    invalidateCache('shelves');
+    invalidateCache('statuses');
+    invalidateCache('genres');
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     $pdo->rollBack();
