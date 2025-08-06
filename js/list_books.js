@@ -95,9 +95,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const loadingSpinner = document.getElementById('loadingSpinner');
   let activeLoads = 0;
-  function showSpinner() {
+  async function showSpinner() {
     if (loadingSpinner && activeLoads++ === 0) {
       loadingSpinner.classList.remove('d-none');
+      // Allow the browser a paint cycle so the spinner becomes visible
+      await new Promise(requestAnimationFrame);
     }
   }
   function hideSpinner() {
@@ -147,10 +149,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadNext() {
     if (highestPage >= totalPages) return;
-    showSpinner();
+    const p = highestPage + 1;
+    const cached = nextCache.get(p);
+    if (!cached) await showSpinner();
     try {
-      const p = highestPage + 1;
-      const els = nextCache.get(p) || await fetchPage(p);
+      const els = cached || await fetchPage(p);
       nextCache.delete(p);
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(els);
@@ -161,16 +164,17 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error(err);
     } finally {
-      hideSpinner();
+      if (!cached) hideSpinner();
     }
   }
 
   async function loadPrevious() {
     if (lowestPage <= 1) return;
-    showSpinner();
+    const p = lowestPage - 1;
+    const cached = prevCache.get(p);
+    if (!cached) await showSpinner();
     try {
-      const p = lowestPage - 1;
-      const els = prevCache.get(p) || await fetchPage(p);
+      const els = cached || await fetchPage(p);
       prevCache.delete(p);
       const frag = document.createDocumentFragment();
       els.forEach(el => frag.appendChild(el));
@@ -183,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error(err);
     } finally {
-      hideSpinner();
+      if (!cached) hideSpinner();
     }
   }
 
