@@ -247,6 +247,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 @rmdir($tmpDir);
             }
 
+            // Extract and save cover image if available
+            $coverFile = $fullBookFolder . '/cover.jpg';
+            shell_exec('LANG=C ebook-meta --get-cover=' . escapeshellarg($coverFile) . ' ' . escapeshellarg($destFile) . ' 2>/dev/null');
+            if (file_exists($coverFile) && filesize($coverFile) > 0) {
+                $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = ?')->execute([$bookId]);
+                touchLastModified($pdo, $bookId);
+            } else {
+                @unlink($coverFile);
+            }
+
             // Add entry to 'data' table (linking the book to its file format)
             $stmt = $pdo->prepare('INSERT INTO data (book, format, uncompressed_size, name) VALUES (?, ?, ?, ?)');
             $stmt->execute([$bookId, strtoupper($finalExt), filesize($destFile), $baseFileName]);
@@ -375,6 +385,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- Book Details (hidden until file upload) -->
             <div id="bookDetails" style="display:none;">
+                <div class="mb-3 text-center">
+                    <img id="coverPreview" src="" alt="Cover" class="img-fluid" style="max-height:300px; display:none;">
+                </div>
                 <div class="mb-3">
                     <label for="title" class="form-label">Title</label>
                     <input type="text" name="title" id="title" class="form-control" required>
@@ -401,6 +414,7 @@ const titleInput = document.getElementById('title');
 const authorsInput = document.getElementById('authors');
 const bookDetails = document.getElementById('bookDetails');
 const metadataProgress = document.getElementById('metadataProgress');
+const coverPreview = document.getElementById('coverPreview');
 
 fileInput.addEventListener('change', () => {
     if (!fileInput.files.length) return;
@@ -418,6 +432,10 @@ fileInput.addEventListener('change', () => {
                 authorsInput.value = Array.isArray(data.authors)
                     ? data.authors.join(', ')
                     : String(data.authors).replace(/ and /g, ', ');
+            }
+            if (data.cover) {
+                coverPreview.src = 'data:image/jpeg;base64,' + data.cover;
+                coverPreview.style.display = 'block';
             }
         })
         .catch(() => {})
