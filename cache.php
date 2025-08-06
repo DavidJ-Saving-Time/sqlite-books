@@ -1,6 +1,8 @@
 <?php
 // Lightweight file-based cache utility
-// Stores JSON-encoded results with a TTL in the cache/ directory.
+// Stores JSON-encoded results with a TTL in a per-user subdirectory under cache/.
+
+require_once __DIR__ . '/db.php';
 
 const CACHE_DIR = __DIR__ . '/cache';
 const CACHE_TTL = 3600; // default TTL in seconds
@@ -15,7 +17,9 @@ const CACHE_TTL = 3600; // default TTL in seconds
  * @return mixed The cached or freshly generated value
  */
 function getCachedData(string $key, callable $create, int $ttl = CACHE_TTL) {
-    $file = CACHE_DIR . '/' . $key . '.json';
+    $user = currentUser() ?: 'global';
+    $dir = CACHE_DIR . '/' . $user;
+    $file = $dir . '/' . $key . '.json';
     if (is_file($file) && (time() - filemtime($file) < $ttl)) {
         $data = json_decode((string)file_get_contents($file), true);
         if ($data !== null) {
@@ -23,8 +27,8 @@ function getCachedData(string $key, callable $create, int $ttl = CACHE_TTL) {
         }
     }
     $value = $create();
-    if (!is_dir(CACHE_DIR)) {
-        mkdir(CACHE_DIR, 0777, true);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
     }
     file_put_contents($file, json_encode($value));
     return $value;
@@ -34,7 +38,11 @@ function getCachedData(string $key, callable $create, int $ttl = CACHE_TTL) {
  * Remove a cached file by key.
  */
 function invalidateCache(string $key): void {
-    $file = CACHE_DIR . '/' . $key . '.json';
+    $user = currentUser();
+    if (!$user) {
+        return;
+    }
+    $file = CACHE_DIR . '/' . $user . '/' . $key . '.json';
     if (is_file($file)) {
         unlink($file);
     }
