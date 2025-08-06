@@ -18,6 +18,11 @@ try {
     $stmt->execute([':id' => $bookId]);
     $authorIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
+    $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
+    $linkTable = "books_custom_column_{$statusId}_link";
+    $delStatus = $pdo->prepare("DELETE FROM $linkTable WHERE book = :id");
+    $delStatus->execute([':id' => $bookId]);
+
     $delBook = $pdo->prepare('DELETE FROM books WHERE id = :id');
     $delBook->execute([':id' => $bookId]);
 
