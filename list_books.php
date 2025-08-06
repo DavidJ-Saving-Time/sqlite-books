@@ -30,6 +30,23 @@ $recTable = "custom_column_{$recId}";
 $recLinkTable = "books_custom_column_{$recId}_link";
 $recColumnExists = true;
 
+$hasSubseries = false;
+try {
+    $subTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='subseries'")->fetchColumn();
+    $subLinkTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_subseries_link'")->fetchColumn();
+    if ($subTable && $subLinkTable) {
+        $cols = $pdo->query('PRAGMA table_info(books)')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($cols as $col) {
+            if ($col['name'] === 'subseries_index') {
+                $hasSubseries = true;
+                break;
+            }
+        }
+    }
+} catch (PDOException $e) {
+    $hasSubseries = false;
+}
+
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
@@ -69,13 +86,15 @@ if (!in_array($sort, $allowedSorts, true)) {
 }
 $recommendedOnly = ($sort === 'recommended');
 
+$subseriesOrder = $hasSubseries ? ', subseries, b.subseries_index' : '';
+
 $orderByMap = [
     'title' => 'b.title',
     'author' => 'authors, b.title',
-    'series' => 'series, b.series_index, b.title',
-    'author_series' => 'authors, series, b.series_index, b.title',
-    'author_series_surname' => 'b.author_sort, series, b.series_index, b.title',
-    'recommended' => 'authors, series, b.series_index, b.title',
+    'series' => 'series, b.series_index' . $subseriesOrder . ', b.title',
+    'author_series' => 'authors, series, b.series_index' . $subseriesOrder . ', b.title',
+    'author_series_surname' => 'b.author_sort, series, b.series_index' . $subseriesOrder . ', b.title',
+    'recommended' => 'authors, series, b.series_index' . $subseriesOrder . ', b.title',
     'last_modified' => 'b.last_modified DESC, b.title'
 ];
 $orderBy = $orderByMap[$sort];
@@ -195,6 +214,9 @@ $books = [];
                        bc11.value AS shelf,
                        com.text AS description,
                        r.rating AS rating";
+        if ($hasSubseries) {
+            $selectFields .= ", b.subseries_index, ss.id AS subseries_id, ss.name AS subseries";
+        }
         if ($statusTable) {
             if ($statusIsLink) {
                 $selectFields .= ", scv.value AS status";
@@ -217,7 +239,13 @@ $books = [];
                     GROUP BY bal.book
                 ) au ON au.book = b.id
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
-                LEFT JOIN series s ON bsl.series = s.id
+                LEFT JOIN series s ON bsl.series = s.id";
+        if ($hasSubseries) {
+            $sql .= "
+                LEFT JOIN books_subseries_link bssl ON bssl.book = b.id
+                LEFT JOIN subseries ss ON bssl.subseries = ss.id";
+        }
+        $sql .= "
                 LEFT JOIN (
                     SELECT bcc.book,
                            GROUP_CONCAT(gv.value, '|') AS genres
@@ -345,16 +373,23 @@ function render_book_rows(array $books, array $shelfList, array $statusOptions, 
                     <?php if (!empty($book['has_recs'])): ?>
                         <span class="text-success ms-1">&#10003;</span>
                     <?php endif; ?>
-                    <?php if (!empty($book['series'])): ?>
+                    <?php if (!empty($book['series']) || !empty($book['subseries'])): ?>
                         <div class=" mt-1">
                             <i class="fa-duotone fa-solid fa-arrow-turn-down-right"></i>
-
-
-<a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
-                                <?= htmlspecialchars($book['series']) ?>
-                            </a>
-                            <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
-                                (<?= htmlspecialchars($book['series_index']) ?>)
+                            <?php if (!empty($book['series'])): ?>
+                                <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
+                                    <?= htmlspecialchars($book['series']) ?>
+                                </a>
+                                <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
+                                    (<?= htmlspecialchars($book['series_index']) ?>)
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            <?php if (!empty($book['subseries'])): ?>
+                                &gt;
+                                <?= htmlspecialchars($book['subseries']) ?>
+                                <?php if ($book['subseries_index'] !== null && $book['subseries_index'] !== ''): ?>
+                                    (<?= htmlspecialchars($book['subseries_index']) ?>)
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
