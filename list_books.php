@@ -7,23 +7,48 @@ $genreColumnId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = '
 $genreLinkTable = "books_custom_column_{$genreColumnId}_link";
 $totalLibraryBooks = (int)$pdo->query('SELECT COUNT(*) FROM books')->fetchColumn();
 
-// Fetch shelves list
-$shelfList = $pdo->query('SELECT name FROM shelves ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
+// Shelf column and list with counts
+$shelfId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'shelf'")->fetchColumn();
+$shelfValueTable = "custom_column_{$shelfId}";
+$shelfLinkTable  = "books_custom_column_{$shelfId}_link";
+$shelves = [];
+try {
+    $stmt = $pdo->query(
+        "SELECT s.name AS value, COUNT(bsl.book) AS book_count\n" .
+        "FROM shelves s\n" .
+        "LEFT JOIN $shelfValueTable sv ON sv.value = s.name\n" .
+        "LEFT JOIN $shelfLinkTable bsl ON bsl.value = sv.id\n" .
+        "GROUP BY s.name\n" .
+        "ORDER BY s.name"
+    );
+    $shelves = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $shelves = [];
+}
+$shelfList = array_column($shelves, 'value');
 $shelfName = isset($_GET['shelf']) ? trim((string)$_GET['shelf']) : '';
 if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
     $shelfName = '';
 }
 
-// Locate custom column for reading status
+// Locate custom column for reading status and fetch counts
 $statusId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'status'")->fetchColumn();
 $statusTable = 'books_custom_column_' . $statusId . '_link';
-$statusOptions = $pdo->query("SELECT value FROM custom_column_{$statusId} ORDER BY value COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 $statusIsLink = true;
-
-// Shelf column for recommendations block
-$shelfId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'shelf'")->fetchColumn();
-$shelfValueTable = "custom_column_{$shelfId}";
-$shelfLinkTable  = "books_custom_column_{$shelfId}_link";
+$statusList = [];
+try {
+    $stmt = $pdo->query(
+        "SELECT cv.value, COUNT(sc.book) AS book_count\n" .
+        "FROM custom_column_{$statusId} cv\n" .
+        "LEFT JOIN $statusTable sc ON sc.value = cv.id\n" .
+        "GROUP BY cv.id\n" .
+        "ORDER BY cv.value COLLATE NOCASE"
+    );
+    $statusList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $statusList = [];
+}
+$statusOptions = array_column($statusList, 'value');
 
 $recId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'recommendation'")->fetchColumn();
 $recTable = "custom_column_{$recId}";
@@ -204,10 +229,16 @@ $filterStatusName = $statusName !== '' ? $statusName : null;
 $filterShelfName = $shelfName !== '' ? $shelfName : null;
 $filterFileTypeName = $fileType !== '' ? $fileType : null;
 
-// Fetch full genre list for sidebar
+// Fetch full genre list for sidebar (with counts)
 $genreList = [];
 try {
-    $stmt = $pdo->query("SELECT id, value FROM custom_column_{$genreColumnId} ORDER BY value COLLATE NOCASE");
+    $stmt = $pdo->query(
+        "SELECT gv.id, gv.value, COUNT(gl.book) AS book_count\n" .
+        "FROM custom_column_{$genreColumnId} gv\n" .
+        "LEFT JOIN $genreLinkTable gl ON gl.value = gv.id\n" .
+        "GROUP BY gv.id\n" .
+        "ORDER BY gv.value COLLATE NOCASE"
+    );
     $genreList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $genreList = [];
@@ -754,16 +785,20 @@ body {
             <h6 class="fw-semibold mb-2">Shelves</h6>
             <?php $shelfUrlBase = buildBaseUrl([], ['shelf']); ?>
             <ul class="list-group" id="shelfList">
-                <li class="list-group-item<?= linkActive($shelfName, '') ?>">
-                    <a href="<?= htmlspecialchars($shelfUrlBase) ?>" class="stretched-link text-decoration-none<?= linkTextColor($shelfName, '') ?>">All Shelves</a>
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($shelfName, '') ?>">
+                    <a href="<?= htmlspecialchars($shelfUrlBase) ?>" class="flex-grow-1 text-decoration-none<?= linkTextColor($shelfName, '') ?>">All Shelves</a>
+                    <span class="badge bg-secondary rounded-pill"><?= $totalLibraryBooks ?></span>
                 </li>
-                <?php foreach ($shelfList as $s): ?>
-                    <?php $url = buildBaseUrl(['shelf' => $s]); ?>
-                    <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($shelfName, $s) ?>">
-                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= linkTextColor($shelfName, $s) ?>"><?= htmlspecialchars($s) ?></a>
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary edit-shelf" data-shelf="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-pen"></i></button>
-                            <button type="button" class="btn btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-trash"></i></button>
+                <?php foreach ($shelves as $s): ?>
+                    <?php $url = buildBaseUrl(['shelf' => $s['value']]); ?>
+                    <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($shelfName, $s['value']) ?>">
+                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= linkTextColor($shelfName, $s['value']) ?>"><?= htmlspecialchars($s['value']) ?></a>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-secondary rounded-pill me-2"><?= (int)$s['book_count'] ?></span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary edit-shelf" data-shelf="<?= htmlspecialchars($s['value']) ?>"><i class="fa-solid fa-pen"></i></button>
+                                <button type="button" class="btn btn-outline-danger delete-shelf" data-shelf="<?= htmlspecialchars($s['value']) ?>"><i class="fa-solid fa-trash"></i></button>
+                            </div>
                         </div>
                     </li>
                 <?php endforeach; ?>
@@ -781,16 +816,20 @@ body {
             <h6 class="fw-semibold mb-2">Status</h6>
             <?php $statusUrlBase = buildBaseUrl([], ['status']); ?>
             <ul class="list-group" id="statusList">
-                <li class="list-group-item<?= linkActive($statusName, '') ?>">
-                    <a href="<?= htmlspecialchars($statusUrlBase) ?>" class="stretched-link text-decoration-none<?= linkTextColor($statusName, '') ?>">All Status</a>
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($statusName, '') ?>">
+                    <a href="<?= htmlspecialchars($statusUrlBase) ?>" class="flex-grow-1 text-decoration-none<?= linkTextColor($statusName, '') ?>">All Status</a>
+                    <span class="badge bg-secondary rounded-pill"><?= $totalLibraryBooks ?></span>
                 </li>
-                <?php foreach ($statusOptions as $s): ?>
-                    <?php $url = buildBaseUrl(['status' => $s]); ?>
-                    <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($statusName, $s) ?>">
-                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= linkTextColor($statusName, $s) ?>"><?= htmlspecialchars($s) ?></a>
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary edit-status" data-status="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-pen"></i></button>
-                            <button type="button" class="btn btn-outline-danger delete-status" data-status="<?= htmlspecialchars($s) ?>"><i class="fa-solid fa-trash"></i></button>
+                <?php foreach ($statusList as $s): ?>
+                    <?php $url = buildBaseUrl(['status' => $s['value']]); ?>
+                    <li class="list-group-item d-flex justify-content-between align-items-center<?= linkActive($statusName, $s['value']) ?>">
+                        <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= linkTextColor($statusName, $s['value']) ?>"><?= htmlspecialchars($s['value']) ?></a>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-secondary rounded-pill me-2"><?= (int)$s['book_count'] ?></span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary edit-status" data-status="<?= htmlspecialchars($s['value']) ?>"><i class="fa-solid fa-pen"></i></button>
+                                <button type="button" class="btn btn-outline-danger delete-status" data-status="<?= htmlspecialchars($s['value']) ?>"><i class="fa-solid fa-trash"></i></button>
+                            </div>
                         </div>
                     </li>
                 <?php endforeach; ?>
@@ -825,8 +864,9 @@ body {
             <h6 class="fw-semibold mb-2">Genres</h6>
             <?php $genreBase = buildBaseUrl([], ['genre']); ?>
             <ul class="list-group" id="genreList">
-                <li class="list-group-item<?= $genreName !== '' ? '' : ' active' ?>">
-                    <a href="<?= htmlspecialchars($genreBase) ?>" class="stretched-link text-decoration-none<?= $genreName !== '' ? '' : ' text-white' ?>">All Genres</a>
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreName !== '' ? '' : ' active' ?>">
+                    <a href="<?= htmlspecialchars($genreBase) ?>" class="flex-grow-1 text-decoration-none<?= $genreName !== '' ? '' : ' text-white' ?>">All Genres</a>
+                    <span class="badge bg-secondary rounded-pill"><?= $totalLibraryBooks ?></span>
                 </li>
                 <?php foreach ($genreList as $g): ?>
                     <?php $url = buildBaseUrl(['genre' => $g['value']]); ?>
@@ -834,9 +874,12 @@ body {
                         <a href="<?= htmlspecialchars($url) ?>" class="flex-grow-1 text-truncate text-decoration-none<?= $genreName === $g['value'] ? ' text-white' : '' ?>">
                             <?= htmlspecialchars($g['value']) ?>
                         </a>
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-secondary edit-genre" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-pen"></i></button>
-                            <button type="button" class="btn btn-outline-danger delete-genre" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-trash"></i></button>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-secondary rounded-pill me-2"><?= (int)$g['book_count'] ?></span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary edit-genre" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-pen"></i></button>
+                                <button type="button" class="btn btn-outline-danger delete-genre" data-genre="<?= htmlspecialchars($g['value']) ?>"><i class="fa-solid fa-trash"></i></button>
+                            </div>
                         </div>
                     </li>
                 <?php endforeach; ?>
