@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $status = trim($_POST['status'] ?? '');
@@ -24,6 +25,7 @@ try {
     $valueTable = 'custom_column_' . (int)$statusId;
     $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:val)")
         ->execute([':val' => $status]);
+    invalidateCache('statuses');
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);

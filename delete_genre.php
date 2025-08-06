@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $genre = trim($_POST['genre'] ?? '');
@@ -23,6 +24,7 @@ try {
         $pdo->prepare("DELETE FROM $linkTable WHERE value = :id")->execute([':id' => $gid]);
         $pdo->prepare("DELETE FROM $valueTable WHERE id = :id")->execute([':id' => $gid]);
     }
+    invalidateCache('genres');
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);

@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $shelf = trim($_POST['shelf'] ?? '');
@@ -14,6 +15,7 @@ $pdo = getDatabaseConnection();
 try {
     $stmt = $pdo->prepare('DELETE FROM shelves WHERE name = :name');
     $stmt->execute([':name' => $shelf]);
+    invalidateCache('shelves');
     $shelfId = ensureSingleValueColumn($pdo, '#shelf', 'Shelf');
     $table = "custom_column_{$shelfId}";
 
