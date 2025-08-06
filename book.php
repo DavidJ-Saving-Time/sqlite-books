@@ -33,6 +33,20 @@ $commentStmt->execute([$id]);
 $description = $commentStmt->fetchColumn() ?: '';
 $notes = '';
 
+$returnPage = isset($_GET['page']) ? max(1, (int)$_GET['page']) : null;
+$returnItem = isset($_GET['item']) ? preg_replace('/[^A-Za-z0-9_-]/', '', $_GET['item']) : '';
+$backToListUrl = 'list_books.php';
+$backParams = [];
+if ($returnPage) {
+    $backParams['page'] = $returnPage;
+}
+if ($backParams) {
+    $backToListUrl .= '?' . http_build_query($backParams);
+}
+if ($returnItem !== '') {
+    $backToListUrl .= '#' . $returnItem;
+}
+
 $updated = false;
 $sendMessage = null;
 $sendRequested = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_to_device']));
@@ -434,7 +448,7 @@ if ($sendRequested) {
 <body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>"<?php if($ebookFileRel): ?> data-ebook-file="<?= htmlspecialchars($ebookFileRel) ?>"<?php endif; ?><?php if(!empty($book['isbn'])): ?> data-isbn="<?= htmlspecialchars($book['isbn']) ?>"<?php endif; ?>>
 <?php include "navbar_other.php"; ?>
 <div class="container my-4">
-    <a href="list_books.php" class="btn btn-secondary mb-3">
+    <a href="<?= htmlspecialchars($backToListUrl) ?>" class="btn btn-secondary mb-3">
         <i class="fa-solid fa-arrow-left me-1"></i> Back to list
     </a>
     <a href="list_books.php?search=<?= urlencode($book['title']) ?>&source=local" class="btn btn-secondary mb-3 ms-2">
@@ -696,7 +710,7 @@ if ($sendRequested) {
                         <!-- Form Actions -->
                         <div class="d-flex justify-content-between mt-4">
                             <div>
-                                <a href="list_books.php" class="btn btn-secondary">
+                                <a href="<?= htmlspecialchars($backToListUrl) ?>" class="btn btn-secondary">
                                     <i class="fa-solid fa-arrow-left me-1"></i> Back to list
                                 </a>
                                 <a href="list_books.php?search=<?= urlencode($book['title']) ?>&source=local" class="btn btn-secondary ms-2">

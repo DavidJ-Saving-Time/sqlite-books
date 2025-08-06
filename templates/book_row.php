@@ -2,7 +2,7 @@
             <!-- Left: Thumbnail -->
             <div class="col-md-2 col-12 text-center cover-wrapper">
                 <?php if (!empty($book['has_cover'])): ?>
-                    <a href="book.php?id=<?= urlencode($book['id']) ?>">
+                    <a href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>">
                         <div class="position-relative d-inline-block">
                             <img id="coverImage<?= (int)$book['id'] ?>" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
                                  alt="Cover"
@@ -25,7 +25,7 @@
                         <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
                     <?php endif; ?>
                      
-                    <a href="book.php?id=<?= urlencode($book['id']) ?>" class="fw-bold book-title me-1"
+                    <a href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>" class="fw-bold book-title me-1"
                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
                          <?= htmlspecialchars($book['title']) ?>
                     </a>
