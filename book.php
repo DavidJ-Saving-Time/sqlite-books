@@ -512,7 +512,7 @@ if ($sendRequested) {
     <?php endif; ?>
 
     <!-- Two-column layout -->
-    <div class="row">
+        <div class="row">
         <!-- Left Column: Book Metadata -->
         <div class="col-lg-4 mb-4">
             <?php if (!empty($book['has_cover'])): ?>
@@ -524,6 +524,10 @@ if ($sendRequested) {
                 </div>
             <?php else: ?>
                 <div class="text-muted">No cover</div>
+            <?php endif; ?>
+
+            <?php if ($ebookFileRel): ?>
+                <button type="button" id="extractCoverBtn" class="btn btn-secondary mb-4">Extract Cover</button>
             <?php endif; ?>
 
             <div class="border p-3 rounded bg-light shadow-sm">
@@ -737,6 +741,7 @@ if ($sendRequested) {
 
 
     <?php include 'metadata_modal.php'; ?>
+    <?php include 'cover_modal.php'; ?>
   </div>
     
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
