@@ -46,7 +46,7 @@ try {
         $subseriesLinkTable  = "books_custom_column_{$subseriesColumnId}_link";
         $cols = $pdo->query("PRAGMA table_info($subseriesLinkTable)")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($cols as $col) {
-            if (in_array($col['name'], ['book_index','sort'], true)) {
+            if (in_array($col['name'], ['book_index', 'sort', 'extra'], true)) {
                 $subseriesIndexColumn = $col['name'];
                 break;
             }
