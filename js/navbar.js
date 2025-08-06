@@ -8,4 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (shelfSelect && shelfSelect.form) {
     shelfSelect.addEventListener('change', () => shelfSelect.form.submit());
   }
+
+  const statusSelect = document.getElementById('statusSelect');
+  if (statusSelect && statusSelect.form) {
+    statusSelect.addEventListener('change', () => statusSelect.form.submit());
+  }
 });
