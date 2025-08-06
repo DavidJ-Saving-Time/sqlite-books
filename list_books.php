@@ -3,12 +3,12 @@ require_once 'db.php';
 requireLogin();
 
 $pdo = getDatabaseConnection();
-$genreColumnId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'genre'")->fetchColumn();
+$genreColumnId = getCustomColumnId($pdo, 'genre');
 $genreLinkTable = "books_custom_column_{$genreColumnId}_link";
 $totalLibraryBooks = (int)$pdo->query('SELECT COUNT(*) FROM books')->fetchColumn();
 
 // Shelf column and list with counts
-$shelfId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'shelf'")->fetchColumn();
+$shelfId = getCustomColumnId($pdo, 'shelf');
 $shelfValueTable = "custom_column_{$shelfId}";
 $shelfLinkTable  = "books_custom_column_{$shelfId}_link";
 $shelves = [];
@@ -32,7 +32,7 @@ if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
 }
 
 // Locate custom column for reading status and fetch counts
-$statusId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'status'")->fetchColumn();
+$statusId = getCustomColumnId($pdo, 'status');
 $statusTable = 'books_custom_column_' . $statusId . '_link';
 $statusIsLink = true;
 $statusList = [];
@@ -50,7 +50,7 @@ try {
 }
 $statusOptions = array_column($statusList, 'value');
 
-$recId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'recommendation'")->fetchColumn();
+$recId = getCustomColumnId($pdo, 'recommendation');
 $recTable = "custom_column_{$recId}";
 $recLinkTable = "books_custom_column_{$recId}_link";
 $recColumnExists = true;
@@ -62,7 +62,7 @@ $subseriesValueTable = '';
 $subseriesIndexColumn = null;
 
 try {
-    $subseriesColumnId = $pdo->query("SELECT id FROM custom_columns WHERE label = 'subseries'")->fetchColumn();
+    $subseriesColumnId = getCustomColumnId($pdo, 'subseries');
     if ($subseriesColumnId) {
         $hasSubseries = true;
         $subseriesIsCustom = true;

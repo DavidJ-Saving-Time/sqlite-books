@@ -147,6 +147,16 @@ function firstBookFile(string $relativePath): ?string {
     return null;
 }
 
+function getCustomColumnId(PDO $pdo, string $label): int {
+    static $cache = [];
+    if (!isset($cache[$label])) {
+        $stmt = $pdo->prepare('SELECT id FROM custom_columns WHERE label = ?');
+        $stmt->execute([$label]);
+        $cache[$label] = (int)$stmt->fetchColumn();
+    }
+    return $cache[$label];
+}
+
 function getDatabaseConnection(?string $path = null) {
     $path = $path ?? currentDatabasePath();
     try {
@@ -195,7 +205,7 @@ function getDatabaseConnection(?string $path = null) {
         // Ensure indexes used by book list queries
         try {
             $pdo->exec('CREATE INDEX IF NOT EXISTS books_authors_link_bidx ON books_authors_link (book)');
-            $genreId = (int)$pdo->query("SELECT id FROM custom_columns WHERE label = 'genre'")->fetchColumn();
+            $genreId = getCustomColumnId($pdo, 'genre');
             if ($genreId) {
                 $pdo->exec("CREATE INDEX IF NOT EXISTS books_custom_column_{$genreId}_link_bidx ON books_custom_column_{$genreId}_link (book)");
             }
