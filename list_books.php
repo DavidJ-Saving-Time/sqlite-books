@@ -31,15 +31,35 @@ $recLinkTable = "books_custom_column_{$recId}_link";
 $recColumnExists = true;
 
 $hasSubseries = false;
+$subseriesIsCustom = false;
+$subseriesLinkTable = '';
+$subseriesValueTable = '';
+$subseriesIndexColumn = null;
+
 try {
-    $subTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='subseries'")->fetchColumn();
-    $subLinkTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_subseries_link'")->fetchColumn();
-    if ($subTable && $subLinkTable) {
-        $cols = $pdo->query('PRAGMA table_info(books)')->fetchAll(PDO::FETCH_ASSOC);
+    $subseriesColumnId = $pdo->query("SELECT id FROM custom_columns WHERE label = 'subseries'")->fetchColumn();
+    if ($subseriesColumnId) {
+        $hasSubseries = true;
+        $subseriesIsCustom = true;
+        $subseriesValueTable = "custom_column_{$subseriesColumnId}";
+        $subseriesLinkTable  = "books_custom_column_{$subseriesColumnId}_link";
+        $cols = $pdo->query("PRAGMA table_info($subseriesLinkTable)")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($cols as $col) {
-            if ($col['name'] === 'subseries_index') {
-                $hasSubseries = true;
+            if (in_array($col['name'], ['book_index','sort'], true)) {
+                $subseriesIndexColumn = $col['name'];
                 break;
+            }
+        }
+    } else {
+        $subTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='subseries'")->fetchColumn();
+        $subLinkTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_subseries_link'")->fetchColumn();
+        if ($subTable && $subLinkTable) {
+            $cols = $pdo->query('PRAGMA table_info(books)')->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($cols as $col) {
+                if ($col['name'] === 'subseries_index') {
+                    $hasSubseries = true;
+                    break;
+                }
             }
         }
     }
@@ -86,7 +106,7 @@ if (!in_array($sort, $allowedSorts, true)) {
 }
 $recommendedOnly = ($sort === 'recommended');
 
-$subseriesOrder = $hasSubseries ? ', subseries, b.subseries_index' : '';
+$subseriesOrder = $hasSubseries ? ', subseries, subseries_index' : '';
 
 $orderByMap = [
     'title' => 'b.title',
@@ -215,7 +235,12 @@ $books = [];
                        com.text AS description,
                        r.rating AS rating";
         if ($hasSubseries) {
-            $selectFields .= ", b.subseries_index, ss.id AS subseries_id, ss.name AS subseries";
+            if ($subseriesIsCustom) {
+                $idxExpr = $subseriesIndexColumn ? "bssl.$subseriesIndexColumn" : 'NULL';
+                $selectFields .= ", $idxExpr AS subseries_index, ss.id AS subseries_id, ss.value AS subseries";
+            } else {
+                $selectFields .= ", b.subseries_index AS subseries_index, ss.id AS subseries_id, ss.name AS subseries";
+            }
         }
         if ($statusTable) {
             if ($statusIsLink) {
@@ -241,9 +266,15 @@ $books = [];
                 LEFT JOIN books_series_link bsl ON bsl.book = b.id
                 LEFT JOIN series s ON bsl.series = s.id";
         if ($hasSubseries) {
-            $sql .= "
+            if ($subseriesIsCustom) {
+                $sql .= "
+                LEFT JOIN $subseriesLinkTable bssl ON bssl.book = b.id
+                LEFT JOIN $subseriesValueTable ss ON bssl.value = ss.id";
+            } else {
+                $sql .= "
                 LEFT JOIN books_subseries_link bssl ON bssl.book = b.id
                 LEFT JOIN subseries ss ON bssl.subseries = ss.id";
+            }
         }
         $sql .= "
                 LEFT JOIN (
