@@ -339,19 +339,13 @@ $books = [];
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
         $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (!$recColumnExists) {
-            foreach ($books as &$b) {
+        foreach ($books as &$b) {
+            if (!$recColumnExists) {
                 $b['has_recs'] = 0;
             }
-            unset($b);
-        }
-        if (!$statusTable) {
-            foreach ($books as &$b) {
+            if (!$statusTable) {
                 $b['status'] = null;
             }
-            unset($b);
-        }
-        foreach ($books as &$b) {
             if ($b['rating'] !== null) {
                 $b['rating'] = (int)($b['rating'] / 2);
             }
