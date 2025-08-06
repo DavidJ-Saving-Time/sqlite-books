@@ -1,30 +1,18 @@
 <?php
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $pdo = getDatabaseConnection();
 $genreColumnId = getCustomColumnId($pdo, 'genre');
 $genreLinkTable = "books_custom_column_{$genreColumnId}_link";
-$totalLibraryBooks = (int)$pdo->query('SELECT COUNT(*) FROM books')->fetchColumn();
+$totalLibraryBooks = getTotalLibraryBooks($pdo);
 
 // Shelf column and list with counts
 $shelfId = getCustomColumnId($pdo, 'shelf');
 $shelfValueTable = "custom_column_{$shelfId}";
 $shelfLinkTable  = "books_custom_column_{$shelfId}_link";
-$shelves = [];
-try {
-    $stmt = $pdo->query(
-        "SELECT s.name AS value, COUNT(bsl.book) AS book_count\n" .
-        "FROM shelves s\n" .
-        "LEFT JOIN $shelfValueTable sv ON sv.value = s.name\n" .
-        "LEFT JOIN $shelfLinkTable bsl ON bsl.value = sv.id\n" .
-        "GROUP BY s.name\n" .
-        "ORDER BY s.name"
-    );
-    $shelves = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $shelves = [];
-}
+$shelves = getCachedShelves($pdo);
 $shelfList = array_column($shelves, 'value');
 $shelfName = isset($_GET['shelf']) ? trim((string)$_GET['shelf']) : '';
 if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
@@ -35,19 +23,7 @@ if ($shelfName !== '' && !in_array($shelfName, $shelfList, true)) {
 $statusId = getCustomColumnId($pdo, 'status');
 $statusTable = 'books_custom_column_' . $statusId . '_link';
 $statusIsLink = true;
-$statusList = [];
-try {
-    $stmt = $pdo->query(
-        "SELECT cv.value, COUNT(sc.book) AS book_count\n" .
-        "FROM custom_column_{$statusId} cv\n" .
-        "LEFT JOIN $statusTable sc ON sc.value = cv.id\n" .
-        "GROUP BY cv.id\n" .
-        "ORDER BY cv.value COLLATE NOCASE"
-    );
-    $statusList = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $statusList = [];
-}
+$statusList = getCachedStatuses($pdo);
 $statusOptions = array_column($statusList, 'value');
 
 $recId = getCustomColumnId($pdo, 'recommendation');
@@ -230,19 +206,7 @@ $filterShelfName = $shelfName !== '' ? $shelfName : null;
 $filterFileTypeName = $fileType !== '' ? $fileType : null;
 
 // Fetch full genre list for sidebar (with counts)
-$genreList = [];
-try {
-    $stmt = $pdo->query(
-        "SELECT gv.id, gv.value, COUNT(gl.book) AS book_count\n" .
-        "FROM custom_column_{$genreColumnId} gv\n" .
-        "LEFT JOIN $genreLinkTable gl ON gl.value = gv.id\n" .
-        "GROUP BY gv.id\n" .
-        "ORDER BY gv.value COLLATE NOCASE"
-    );
-    $genreList = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $genreList = [];
-}
+$genreList = getCachedGenres($pdo);
 
 $books = [];
     try {

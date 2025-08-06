@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $shelf = trim($_POST['shelf'] ?? '');
@@ -20,6 +21,7 @@ try {
     }
     $stmt = $pdo->prepare('INSERT OR IGNORE INTO shelves (name) VALUES (:name)');
     $stmt->execute([':name' => $shelf]);
+    invalidateCache('shelves');
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);

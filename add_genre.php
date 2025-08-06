@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $genre = trim($_POST['genre'] ?? '');
@@ -16,6 +17,7 @@ try {
     $valueTable = "custom_column_{$genreId}";
     $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES (:val)")
         ->execute([':val' => $genre]);
+    invalidateCache('genres');
     echo json_encode(['status' => 'ok']);
 } catch (PDOException $e) {
     http_response_code(500);
