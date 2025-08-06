@@ -12,6 +12,14 @@ Run the schema initialization script once for each Calibre library:
 php scripts/init_schema.php
 ```
 
+If upgrading from a previous version that left orphaned entries in
+`books_custom_column_*` tables, run the cleanup script once to remove
+those dangling rows:
+
+```
+php scripts/fix_orphaned_custom_columns.php
+```
+
 Each book also has a "Shelf" value stored in the custom column labeled `#shelf`. Available shelf names are kept in a `shelves` table and displayed in the sidebar. You can add or remove shelves from that sidebar and click a shelf name to filter the list. Each book row includes a drop-down to select one of the shelves. All books default to `Ebook Calibre` if no explicit value is set.
 
 Books can now store freeform notes in the single-value custom column labeled `#notes`.
