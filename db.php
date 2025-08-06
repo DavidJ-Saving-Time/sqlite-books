@@ -442,15 +442,38 @@ function createCalibreColumnTables(PDO $pdo, int $id, bool $isMulti): void {
     ");
     $pdo->exec("CREATE INDEX IF NOT EXISTS {$customTable}_idx ON {$customTable} (value COLLATE NOCASE);");
 
-    // Create link table
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS {$linkTable} (
+    // Ensure link table exists with cascading foreign keys. Recreate it if needed.
+    $createLinkSql = "
+        CREATE TABLE {$linkTable} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             book INTEGER NOT NULL,
             value INTEGER NOT NULL,
-            UNIQUE(book, value)
+            UNIQUE(book, value),
+            FOREIGN KEY(book) REFERENCES books(id) ON DELETE CASCADE,
+            FOREIGN KEY(value) REFERENCES {$customTable}(id) ON DELETE CASCADE
         );
-    ");
+    ";
+
+    $tableExists = (bool)$pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='{$linkTable}'")->fetchColumn();
+    if (!$tableExists) {
+        $pdo->exec($createLinkSql);
+    } else {
+        $bookFk = $valueFk = false;
+        foreach ($pdo->query("PRAGMA foreign_key_list({$linkTable})") as $fk) {
+            if ($fk['from'] === 'book' && $fk['table'] === 'books') {
+                $bookFk = strtolower($fk['on_delete'] ?? '') === 'cascade';
+            }
+            if ($fk['from'] === 'value' && $fk['table'] === $customTable) {
+                $valueFk = strtolower($fk['on_delete'] ?? '') === 'cascade';
+            }
+        }
+        if (!($bookFk && $valueFk)) {
+            $pdo->exec("ALTER TABLE {$linkTable} RENAME TO {$linkTable}_old");
+            $pdo->exec($createLinkSql);
+            $pdo->exec("INSERT INTO {$linkTable} (id, book, value) SELECT id, book, value FROM {$linkTable}_old");
+            $pdo->exec("DROP TABLE {$linkTable}_old");
+        }
+    }
     $pdo->exec("CREATE INDEX IF NOT EXISTS {$linkTable}_aidx ON {$linkTable} (value);");
     $pdo->exec("CREATE INDEX IF NOT EXISTS {$linkTable}_bidx ON {$linkTable} (book);");
 
