@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loadingSpinner && activeLoads++ === 0) {
       loadingSpinner.classList.remove('d-none');
       // Yield to the browser so the spinner can render
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     }
   }
   function hideSpinner() {
@@ -153,6 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cached = nextCache.get(p);
     await showSpinner();
     try {
+      if (cached) await new Promise(requestAnimationFrame);
       const els = cached || await fetchPage(p);
       nextCache.delete(p);
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
@@ -164,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error(err);
     } finally {
+      await new Promise(requestAnimationFrame);
       hideSpinner();
     }
   }
@@ -174,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cached = prevCache.get(p);
     await showSpinner();
     try {
+      if (cached) await new Promise(requestAnimationFrame);
       const els = cached || await fetchPage(p);
       prevCache.delete(p);
       const frag = document.createDocumentFragment();
@@ -187,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error(err);
     } finally {
+      await new Promise(requestAnimationFrame);
       hideSpinner();
     }
   }
