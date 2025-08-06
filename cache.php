@@ -48,6 +48,25 @@ function invalidateCache(string $key): void {
     }
 }
 
+/**
+ * Clear all cached files for the current user.
+ */
+function clearUserCache(): void {
+    $user = currentUser();
+    if (!$user) {
+        return;
+    }
+    $dir = CACHE_DIR . '/' . $user;
+    if (!is_dir($dir)) {
+        return;
+    }
+    foreach (glob($dir . '/*.json') ?: [] as $file) {
+        if (is_file($file)) {
+            unlink($file);
+        }
+    }
+}
+
 // Domain-specific helpers --------------------------------------------------
 
 /** Fetch shelves with book counts, cached. */
