@@ -24,6 +24,8 @@ CREATE TABLE books_authors_link ( id INTEGER PRIMARY KEY,
                                           author INTEGER NOT NULL,
                                           UNIQUE(book, author)
                                         );
+CREATE INDEX IF NOT EXISTS idx_books_authors_link_book ON books_authors_link(book);
+CREATE INDEX IF NOT EXISTS idx_books_authors_link_author ON books_authors_link(author);
 CREATE TABLE books_languages_link ( id INTEGER PRIMARY KEY,
                                             book INTEGER NOT NULL,
                                             lang_code INTEGER NOT NULL,
@@ -50,6 +52,8 @@ CREATE TABLE books_series_link ( id INTEGER PRIMARY KEY,
                                           series INTEGER NOT NULL,
                                           UNIQUE(book)
                                         );
+CREATE INDEX IF NOT EXISTS idx_books_series_link_book ON books_series_link(book);
+CREATE INDEX IF NOT EXISTS idx_books_series_link_series ON books_series_link(series);
 CREATE TABLE books_tags_link ( id INTEGER PRIMARY KEY,
                                           book INTEGER NOT NULL,
                                           tag INTEGER NOT NULL,
@@ -659,8 +663,8 @@ CREATE TABLE books_custom_column_1_link(
                     
                     UNIQUE(book, value)
                     );
-CREATE INDEX books_custom_column_1_link_aidx ON books_custom_column_1_link (value);
-CREATE INDEX books_custom_column_1_link_bidx ON books_custom_column_1_link (book);
+CREATE INDEX IF NOT EXISTS idx_books_custom_column_1_link_value ON books_custom_column_1_link(value);
+CREATE INDEX IF NOT EXISTS idx_books_custom_column_1_link_book ON books_custom_column_1_link(book);
 CREATE TRIGGER fkc_update_books_custom_column_1_link_a
                         BEFORE UPDATE OF book ON books_custom_column_1_link
                         BEGIN
@@ -732,8 +736,8 @@ CREATE TABLE books_custom_column_3_link(
                     
                     UNIQUE(book, value)
                     );
-CREATE INDEX books_custom_column_3_link_aidx ON books_custom_column_3_link (value);
-CREATE INDEX books_custom_column_3_link_bidx ON books_custom_column_3_link (book);
+CREATE INDEX IF NOT EXISTS idx_books_custom_column_3_link_value ON books_custom_column_3_link(value);
+CREATE INDEX IF NOT EXISTS idx_books_custom_column_3_link_book ON books_custom_column_3_link(book);
 CREATE TRIGGER fkc_update_books_custom_column_3_link_a
                         BEFORE UPDATE OF book ON books_custom_column_3_link
                         BEGIN
