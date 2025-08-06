@@ -117,45 +117,53 @@ document.addEventListener('DOMContentLoaded', () => {
   let nextCache = new Map();
   let prevCache = new Map();
 
-  async function fetchPage(p) {
-    const res = await fetch(fetchUrlBase + p + '&ajax=1');
-    const html = await res.text();
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return Array.from(tmp.children);
+  function fetchPage(p) {
+    return fetch(fetchUrlBase + p + '&ajax=1')
+      .then(res => res.text())
+      .then(html => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return Array.from(tmp.children);
+      });
   }
 
-  async function prefetchNext() {
+  function prefetchNext() {
     for (let p = highestPage + 1; p <= Math.min(highestPage + 2, totalPages); p++) {
       if (nextCache.has(p)) continue;
-      try {
-        nextCache.set(p, await fetchPage(p));
-      } catch (err) {
+      const prom = fetchPage(p).catch(err => {
         console.error(err);
-      }
+        nextCache.delete(p);
+      });
+      nextCache.set(p, prom);
     }
   }
 
-  async function prefetchPrevious() {
+  function prefetchPrevious() {
     for (let p = lowestPage - 1; p >= Math.max(lowestPage - 2, 1); p--) {
       if (prevCache.has(p)) continue;
-      try {
-        prevCache.set(p, await fetchPage(p));
-      } catch (err) {
+      const prom = fetchPage(p).catch(err => {
         console.error(err);
-      }
+        prevCache.delete(p);
+      });
+      prevCache.set(p, prom);
     }
   }
 
   async function loadNext() {
     if (highestPage >= totalPages) return;
     const p = highestPage + 1;
-    const cached = nextCache.get(p);
+    let prom = nextCache.get(p);
+    const cached = !!prom;
+    if (!prom) {
+      prom = fetchPage(p);
+      nextCache.set(p, prom);
+    }
     await showSpinner();
     try {
       if (cached) await new Promise(requestAnimationFrame);
-      const els = cached || await fetchPage(p);
+      const els = await prom;
       nextCache.delete(p);
+      if (p <= highestPage) return;
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(els);
       highestPage = p;
@@ -164,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trimPages();
     } catch (err) {
       console.error(err);
+      nextCache.delete(p);
     } finally {
       await new Promise(requestAnimationFrame);
       hideSpinner();
@@ -173,12 +182,18 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadPrevious() {
     if (lowestPage <= 1) return;
     const p = lowestPage - 1;
-    const cached = prevCache.get(p);
+    let prom = prevCache.get(p);
+    const cached = !!prom;
+    if (!prom) {
+      prom = fetchPage(p);
+      prevCache.set(p, prom);
+    }
     await showSpinner();
     try {
       if (cached) await new Promise(requestAnimationFrame);
-      const els = cached || await fetchPage(p);
+      const els = await prom;
       prevCache.delete(p);
+      if (p >= lowestPage) return;
       const frag = document.createDocumentFragment();
       els.forEach(el => frag.appendChild(el));
       contentArea.insertBefore(frag, topSentinel.nextSibling);
@@ -189,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
       trimPages();
     } catch (err) {
       console.error(err);
+      prevCache.delete(p);
     } finally {
       await new Promise(requestAnimationFrame);
       hideSpinner();
