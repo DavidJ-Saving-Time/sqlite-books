@@ -9,6 +9,7 @@ $title = trim($_POST['title'] ?? '');
 $authors = trim($_POST['authors'] ?? '');
 $year = trim($_POST['year'] ?? '');
 $imgUrl = trim($_POST['imgurl'] ?? '');
+$coverData = trim($_POST['coverdata'] ?? '');
 $descriptionPost = trim($_POST['description'] ?? '');
 $md5 = trim($_POST['md5'] ?? '');
 $bookPath = null; // track path for returning updated cover url
@@ -24,11 +25,29 @@ $pdo = getDatabaseConnection();
 try {
     $pdo->beginTransaction();
 
-    if ($imgUrl !== '') {
-        $pathStmt = $pdo->prepare('SELECT path FROM books WHERE id = :id');
-        $pathStmt->execute([':id' => $bookId]);
-        $bookPath = $pathStmt->fetchColumn();
-        if ($bookPath !== false) {
+    $pathStmt = $pdo->prepare('SELECT path FROM books WHERE id = :id');
+    $pathStmt->execute([':id' => $bookId]);
+    $bookPath = $pathStmt->fetchColumn();
+    if ($bookPath === false) {
+        $bookPath = null;
+    }
+
+    if ($coverData !== '') {
+        if ($bookPath !== null) {
+            $libraryPath = getLibraryPath();
+            $data = base64_decode($coverData);
+            if ($data !== false) {
+                $coverFile = $libraryPath . '/' . $bookPath . '/cover.jpg';
+                $dir = dirname($coverFile);
+                if (!is_dir($dir)) {
+                    mkdir($dir, 0777, true);
+                }
+                file_put_contents($coverFile, $data);
+                $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = :id')->execute([':id' => $bookId]);
+            }
+        }
+    } elseif ($imgUrl !== '') {
+        if ($bookPath !== null) {
             $libraryPath = getLibraryPath();
             $data = @file_get_contents($imgUrl);
             if ($data !== false) {

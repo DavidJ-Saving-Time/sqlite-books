@@ -70,6 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const ebookBtn = document.getElementById('ebookMetaBtn');
   const ebookFile = bodyData.ebookFile;
+  const extractCoverBtn = document.getElementById('extractCoverBtn');
+  const coverModalEl = document.getElementById('coverModal');
+  const coverImgEl = document.getElementById('extractedCoverImg');
+  const coverSizeEl = document.getElementById('extractedCoverSize');
+  const useCoverBtn = document.getElementById('useExtractedCover');
+  let coverModal = null;
+  let extractedCoverData = '';
 
   recommendBtn.addEventListener('click', () => {
     const bookId = recommendBtn.dataset.bookId;
@@ -205,6 +212,57 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         })
         .catch(() => { alert('Error reading metadata'); });
+    });
+  }
+
+  if (extractCoverBtn && ebookFile && coverModalEl && coverImgEl && useCoverBtn) {
+    extractCoverBtn.addEventListener('click', () => {
+      coverSizeEl.textContent = '';
+      fetch('ebook_meta.php?path=' + encodeURIComponent(ebookFile))
+        .then(r => r.json())
+        .then(data => {
+          if (data.cover) {
+            extractedCoverData = data.cover;
+            coverImgEl.src = 'data:image/jpeg;base64,' + data.cover;
+            if (!coverModal && window.bootstrap?.Modal) {
+              try {
+                coverModal = new bootstrap.Modal(coverModalEl);
+              } catch (err) {
+                console.error('Failed to init modal', err);
+                return;
+              }
+            }
+            if (coverModal) coverModal.show();
+          } else {
+            alert('No cover found in file');
+          }
+        })
+        .catch(() => { alert('Error extracting cover'); });
+    });
+    coverImgEl.addEventListener('load', () => {
+      coverSizeEl.textContent = `${coverImgEl.naturalWidth} × ${coverImgEl.naturalHeight}px`;
+    });
+    useCoverBtn.addEventListener('click', () => {
+      if (!extractedCoverData) return;
+      const params = new URLSearchParams({ book_id: currentBookId, coverdata: extractedCoverData });
+      fetch('update_metadata.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params
+      }).then(r => r.json())
+        .then(data => {
+          if (data.status === 'ok') {
+            if (coverModal) coverModal.hide();
+            if (img) {
+              const base = data.cover_url ? data.cover_url : img.src.split('?')[0];
+              img.src = `${base}?t=${Date.now()}`;
+              img.addEventListener('load', updateDimensions, { once: true });
+            }
+          } else {
+            alert(data.error || 'Error saving cover');
+          }
+        })
+        .catch(() => { alert('Error saving cover'); });
     });
   }
 
