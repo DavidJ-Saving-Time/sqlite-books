@@ -1,4 +1,3 @@
-// Evaluated VirtualScroller but chose manual virtualization for simplicity
 function escapeHTML(str) {
   return str.replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -87,7 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const contentArea = document.getElementById('contentArea');
   const topSentinel = document.getElementById('topSentinel');
   const bottomSentinel = document.getElementById('bottomSentinel');
-  const template = document.getElementById('book-template');
   const pageNav = document.getElementById('pageNav');
   if (pageNav) {
     pageNav.classList.add('d-none');
@@ -103,47 +101,19 @@ document.addEventListener('DOMContentLoaded', () => {
   let nextCache = new Map();
   let prevCache = new Map();
 
-  function renderBook(data) {
-    const node = template.content.firstElementChild.cloneNode(true);
-    node.dataset.bookIndex = data.index;
-    node.dataset.bookBlockId = data.id;
-    const titleLink = node.querySelector('.book-title');
-    titleLink.textContent = data.title;
-    titleLink.href = `book.php?id=${encodeURIComponent(data.id)}`;
-    titleLink.dataset.bookId = data.id;
-    const authorsEl = node.querySelector('.book-authors');
-    if (data.authors && data.authors.length) {
-      authorsEl.textContent = data.authors.join(', ');
-    } else {
-      authorsEl.innerHTML = '&mdash;';
-    }
-    const coverWrap = node.querySelector('.cover-wrapper');
-    if (data.cover) {
-      const img = node.querySelector('img');
-      img.src = data.cover;
-      const link = node.querySelector('.cover-link');
-      link.href = `book.php?id=${encodeURIComponent(data.id)}`;
-    } else {
-      coverWrap.innerHTML = '&mdash;';
-    }
-    return node;
-  }
-
   async function fetchPage(p) {
-    const res = await fetch(`${fetchUrlBase}${p}&format=json`);
-    const json = await res.json();
-    return json.books || [];
+    const res = await fetch(fetchUrlBase + p + '&ajax=1');
+    const html = await res.text();
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return Array.from(tmp.children);
   }
 
   async function prefetchNext() {
-    for (let p = highestPage + 1; p <= Math.min(highestPage + 5, totalPages); p++) {
+    for (let p = highestPage + 1; p <= Math.min(highestPage + 2, totalPages); p++) {
       if (nextCache.has(p)) continue;
       try {
         nextCache.set(p, await fetchPage(p));
-        if (nextCache.size > 5) {
-          const firstKey = Math.min(...nextCache.keys());
-          nextCache.delete(firstKey);
-        }
       } catch (err) {
         console.error(err);
       }
@@ -151,14 +121,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function prefetchPrevious() {
-    for (let p = lowestPage - 1; p >= Math.max(lowestPage - 5, 1); p--) {
+    for (let p = lowestPage - 1; p >= Math.max(lowestPage - 2, 1); p--) {
       if (prevCache.has(p)) continue;
       try {
         prevCache.set(p, await fetchPage(p));
-        if (prevCache.size > 5) {
-          const lastKey = Math.max(...prevCache.keys());
-          prevCache.delete(lastKey);
-        }
       } catch (err) {
         console.error(err);
       }
@@ -169,9 +135,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (highestPage >= totalPages) return;
     try {
       const p = highestPage + 1;
-      const data = nextCache.get(p) || await fetchPage(p);
+      const els = nextCache.get(p) || await fetchPage(p);
       nextCache.delete(p);
-      const els = data.map(renderBook);
       els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
       initCoverDimensions(els);
       highestPage = p;
@@ -187,9 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lowestPage <= 1) return;
     try {
       const p = lowestPage - 1;
-      const data = prevCache.get(p) || await fetchPage(p);
+      const els = prevCache.get(p) || await fetchPage(p);
       prevCache.delete(p);
-      const els = data.map(renderBook);
       const frag = document.createDocumentFragment();
       els.forEach(el => frag.appendChild(el));
       contentArea.insertBefore(frag, topSentinel.nextSibling);
@@ -235,13 +199,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
-  // Manual virtualization: keep only a small window of pages in the DOM
   function trimPages() {
     const idx = currentItemIndex();
     if (idx === null) return;
     const currentPage = Math.floor(idx / perPage) + 1;
-    const minPage = Math.max(1, currentPage - 1);
-    const maxPage = Math.min(totalPages, currentPage + 1);
+    const minPage = Math.max(1, currentPage - 2);
+    const maxPage = Math.min(totalPages, currentPage + 2);
 
     // Modifying the DOM while intersection observers are active can trigger
     // unwanted page loads, causing the viewport to jump around. Temporarily
