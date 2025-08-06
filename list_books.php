@@ -341,6 +341,7 @@ $rowTemplateData = [
     'statusOptions' => $statusOptions,
     'genreList' => $genreList,
     'sort' => $sort,
+    'page' => $page,
 ];
 
 if ($isAjax) {
