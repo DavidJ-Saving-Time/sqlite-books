@@ -93,6 +93,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const openLibraryModalEl = document.getElementById('openLibraryModal');
   const openLibraryModal = new bootstrap.Modal(openLibraryModalEl);
 
+  const loadingSpinner = document.getElementById('loadingSpinner');
+  let activeLoads = 0;
+  function showSpinner() {
+    if (loadingSpinner && activeLoads++ === 0) {
+      loadingSpinner.classList.remove('d-none');
+    }
+  }
+  function hideSpinner() {
+    if (loadingSpinner && --activeLoads <= 0) {
+      activeLoads = 0;
+      loadingSpinner.classList.add('d-none');
+    }
+  }
+
   initCoverDimensions(contentArea);
 
   let lowestPage = parseInt(bodyData.page, 10);
@@ -133,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadNext() {
     if (highestPage >= totalPages) return;
+    showSpinner();
     try {
       const p = highestPage + 1;
       const els = nextCache.get(p) || await fetchPage(p);
@@ -145,11 +160,14 @@ document.addEventListener('DOMContentLoaded', () => {
       trimPages();
     } catch (err) {
       console.error(err);
+    } finally {
+      hideSpinner();
     }
   }
 
   async function loadPrevious() {
     if (lowestPage <= 1) return;
+    showSpinner();
     try {
       const p = lowestPage - 1;
       const els = prevCache.get(p) || await fetchPage(p);
@@ -164,6 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
       trimPages();
     } catch (err) {
       console.error(err);
+    } finally {
+      hideSpinner();
     }
   }
 
