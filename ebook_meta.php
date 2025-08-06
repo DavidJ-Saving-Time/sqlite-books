@@ -84,8 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $path = $abs;
 }
 
-// Ensure we use English output
-$cmd = 'LANG=C ebook-meta ' . escapeshellarg($path) . ' 2>/dev/null';
+// Ensure we use English output and extract cover to a temp file
+$coverTmp = sys_get_temp_dir() . '/' . uniqid('cover_', true) . '.jpg';
+$cmd = 'LANG=C ebook-meta --get-cover=' . escapeshellarg($coverTmp) . ' ' . escapeshellarg($path) . ' 2>/dev/null';
 $out = shell_exec($cmd);
 
 if ($out === null) {
@@ -95,6 +96,15 @@ if ($out === null) {
 }
 
 $data = parse_ebook_meta($out);
+
+// Include cover image if one was extracted
+if (file_exists($coverTmp) && filesize($coverTmp) > 0) {
+    $data['cover'] = base64_encode(file_get_contents($coverTmp));
+    unlink($coverTmp);
+} else {
+    @unlink($coverTmp);
+}
+
 $data['status'] = 'ok';
 
 echo json_encode($data);
