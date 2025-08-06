@@ -71,6 +71,7 @@ try {
 $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
+$format = $_GET['format'] ?? 'html';
 $sort = $_GET['sort'] ?? 'author_series';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
@@ -342,6 +343,30 @@ $rowTemplateData = [
     'genreList' => $genreList,
     'sort' => $sort,
 ];
+
+if ($format === 'json') {
+    $jsonBooks = [];
+    foreach ($books as $i => $book) {
+        $idx = $offset + $i;
+        $item = [
+            'id'      => (int)($book['id'] ?? 0),
+            'title'   => $book['title'] ?? '',
+            'authors' => isset($book['authors']) && $book['authors'] !== ''
+                ? explode('|', $book['authors'])
+                : [],
+            'index'   => $idx,
+        ];
+        if (!empty($book['has_cover'])) {
+            $item['cover'] = getLibraryPath() . '/' . $book['path'] . '/cover.jpg';
+        } else {
+            $item['cover'] = null;
+        }
+        $jsonBooks[] = $item;
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['books' => $jsonBooks]);
+    exit;
+}
 
 if ($isAjax) {
     render_book_rows($books, $rowTemplateData, $offset);
@@ -718,6 +743,24 @@ body {
             <!-- Main Content -->
 <div class="col-md-12">
   <div id="contentArea">
+      <template id="book-template">
+          <div class="row g-3 py-3 border-bottom list-item" data-book-index="">
+              <div class="col-md-2 col-12 text-center cover-wrapper">
+                  <a class="cover-link" href="#">
+                      <div class="position-relative d-inline-block">
+                          <img src="" alt="Cover" class="img-thumbnail img-fluid book-cover" loading="lazy" style="width: 100%; max-width:150px; height:auto;">
+                          <div class="cover-dimensions position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 0.8rem;">Loading...</div>
+                      </div>
+                  </a>
+              </div>
+              <div class="col-md-10 col-12">
+                  <div class="mb-2">
+                      <a class="fw-bold book-title me-1" data-book-id="" href="#"></a>
+                      <div class="text-muted small book-authors"></div>
+                  </div>
+              </div>
+          </div>
+      </template>
       <div id="topSentinel"></div>
       <?php render_book_rows($books, $rowTemplateData, $offset); ?>
       <div id="bottomSentinel"></div>
