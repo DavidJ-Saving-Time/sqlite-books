@@ -356,35 +356,7 @@ $books = [];
     }
 
 $totalPages = max(1, ceil($totalBooks / $perPage));
-$baseUrl = '?sort=' . urlencode($sort);
-if ($source !== '') {
-    $baseUrl .= '&source=' . urlencode($source);
-}
-if ($authorId) {
-    $baseUrl .= '&author_id=' . urlencode((string)$authorId);
-}
-if ($seriesId) {
-    $baseUrl .= '&series_id=' . urlencode((string)$seriesId);
-}
-if ($genreName !== '') {
-    $baseUrl .= '&genre=' . urlencode($genreName);
-}
-if ($shelfName !== '') {
-    $baseUrl .= '&shelf=' . urlencode($shelfName);
-}
-if ($statusName !== '') {
-    $baseUrl .= '&status=' . urlencode($statusName);
-}
-if ($fileType !== '') {
-    $baseUrl .= '&filetype=' . urlencode($fileType);
-}
-if ($search !== '') {
-    $baseUrl .= '&search=' . urlencode($search);
-}
-if ($authorInitial !== '') {
-    $baseUrl .= '&author_initial=' . urlencode($authorInitial);
-}
-$baseUrl .= '&page=';
+$baseUrl = buildBaseUrl([], []) . '&page=';
 
 $prevUrl = $baseUrl . max(1, $page - 1);
 $nextUrl = $baseUrl . min($totalPages, $page + 1);
@@ -605,6 +577,7 @@ function buildBaseUrl(array $params, array $exclude = []): string {
         'source'    => $GLOBALS['source'] ?? '',
         'status'    => $GLOBALS['statusName'] ?? '',
         'filetype'  => $GLOBALS['fileType'] ?? '',
+        'author_initial' => $GLOBALS['authorInitial'] ?? '',
     ];
 
     // Remove excluded keys
