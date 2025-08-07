@@ -8,6 +8,7 @@ $hasSubseries = false;
 $subseriesIsCustom = false;
 $subseriesLinkTable = '';
 $subseriesValueTable = '';
+$allSubseries = [];
 
 try {
     $subseriesColumnId = getCustomColumnId($pdo, 'subseries');
@@ -43,6 +44,15 @@ try {
                     ORDER BY s.sort";
         }
         $series = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        $allSubseries = [];
+        foreach ($series as $row) {
+            if (!empty($row['subseries_list'])) {
+                foreach (explode('|', $row['subseries_list']) as $item) {
+                    list($sid, $sname) = explode(':', $item, 2);
+                    $allSubseries[$sid] = $sname;
+                }
+            }
+        }
     } else {
         $series = $pdo->query('SELECT id, name FROM series ORDER BY sort')->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -65,6 +75,60 @@ try {
 <?php include 'navbar_other.php'; ?>
 <div class="container my-4">
     <h1>Series</h1>
+    <div class="mb-4">
+        <h2 class="h4">Manage Series</h2>
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <select id="seriesSelect" class="form-select">
+                    <option value="">Select series</option>
+                    <?php foreach ($series as $s): ?>
+                        <option value="<?= (int)$s['id'] ?>"><?= htmlspecialchars($s['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button id="editSeriesBtn" class="btn btn-outline-secondary">Rename</button>
+            </div>
+            <div class="col-auto">
+                <button id="deleteSeriesBtn" class="btn btn-outline-danger">Delete</button>
+            </div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <input id="newSeries" type="text" class="form-control" placeholder="New series">
+            </div>
+            <div class="col-auto">
+                <button id="addSeriesBtn" class="btn btn-primary">Add Series</button>
+            </div>
+        </div>
+        <?php if ($hasSubseries): ?>
+        <h2 class="h4">Manage Subseries</h2>
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <select id="subseriesSelect" class="form-select">
+                    <option value="">Select subseries</option>
+                    <?php foreach ($allSubseries as $sid => $sname): ?>
+                        <option value="<?= (int)$sid ?>"><?= htmlspecialchars($sname) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button id="editSubseriesBtn" class="btn btn-outline-secondary">Rename</button>
+            </div>
+            <div class="col-auto">
+                <button id="deleteSubseriesBtn" class="btn btn-outline-danger">Delete</button>
+            </div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col">
+                <input id="newSubseries" type="text" class="form-control" placeholder="New subseries">
+            </div>
+            <div class="col-auto">
+                <button id="addSubseriesBtn" class="btn btn-secondary">Add Subseries</button>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
     <?php if (empty($series)): ?>
         <p class="text-muted">No series found.</p>
     <?php else: ?>
@@ -89,5 +153,128 @@ try {
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const seriesSelect = document.getElementById('seriesSelect');
+    const addSeriesBtn = document.getElementById('addSeriesBtn');
+    const editSeriesBtn = document.getElementById('editSeriesBtn');
+    const deleteSeriesBtn = document.getElementById('deleteSeriesBtn');
+    const newSeriesInput = document.getElementById('newSeries');
+
+    if (addSeriesBtn) {
+        addSeriesBtn.addEventListener('click', async () => {
+            const name = newSeriesInput.value.trim();
+            if (!name) return;
+            try {
+                const res = await fetch('add_series.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') location.reload();
+            } catch (err) { console.error(err); }
+        });
+    }
+
+    if (editSeriesBtn) {
+        editSeriesBtn.addEventListener('click', async () => {
+            const id = seriesSelect.value;
+            if (!id) return;
+            const option = seriesSelect.options[seriesSelect.selectedIndex];
+            let name = prompt('Rename series:', option.textContent);
+            if (name === null) return;
+            name = name.trim();
+            if (!name || name === option.textContent) return;
+            try {
+                const res = await fetch('rename_series.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ id, new: name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') location.reload();
+            } catch (err) { console.error(err); }
+        });
+    }
+
+    if (deleteSeriesBtn) {
+        deleteSeriesBtn.addEventListener('click', async () => {
+            const id = seriesSelect.value;
+            if (!id) return;
+            if (!confirm('Delete series?')) return;
+            try {
+                const res = await fetch('delete_series.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ id })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') location.reload();
+            } catch (err) { console.error(err); }
+        });
+    }
+
+    const subseriesSelect = document.getElementById('subseriesSelect');
+    const addSubBtn = document.getElementById('addSubseriesBtn');
+    const editSubBtn = document.getElementById('editSubseriesBtn');
+    const deleteSubBtn = document.getElementById('deleteSubseriesBtn');
+    const newSubInput = document.getElementById('newSubseries');
+
+    if (addSubBtn) {
+        addSubBtn.addEventListener('click', async () => {
+            const name = newSubInput.value.trim();
+            if (!name) return;
+            try {
+                const res = await fetch('add_subseries.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') location.reload();
+            } catch (err) { console.error(err); }
+        });
+    }
+
+    if (editSubBtn) {
+        editSubBtn.addEventListener('click', async () => {
+            const id = subseriesSelect.value;
+            if (!id) return;
+            const option = subseriesSelect.options[subseriesSelect.selectedIndex];
+            let name = prompt('Rename subseries:', option.textContent);
+            if (name === null) return;
+            name = name.trim();
+            if (!name || name === option.textContent) return;
+            try {
+                const res = await fetch('rename_subseries.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ id, new: name })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') location.reload();
+            } catch (err) { console.error(err); }
+        });
+    }
+
+    if (deleteSubBtn) {
+        deleteSubBtn.addEventListener('click', async () => {
+            const id = subseriesSelect.value;
+            if (!id) return;
+            if (!confirm('Delete subseries?')) return;
+            try {
+                const res = await fetch('delete_subseries.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ id })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') location.reload();
+            } catch (err) { console.error(err); }
+        });
+    }
+});
+</script>
 </body>
 </html>
