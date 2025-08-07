@@ -9,6 +9,14 @@ document.addEventListener('change', async e => {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ author_id: authorId, value })
     });
+  } else if (e.target.classList.contains('author-genre')) {
+    const authorId = e.target.dataset.authorId;
+    const value = e.target.value;
+    await fetch('update_author_genre.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ author_id: authorId, value })
+    });
   }
 });
 
