@@ -6,7 +6,7 @@ requireLogin();
 $pdo = getDatabaseConnection();
 $authors = $pdo->query(
     "SELECT a.id, a.name, COUNT(DISTINCT bal.book) AS book_count,\n" .
-    "       GROUP_CONCAT(DISTINCT s.id || ':' || s.name, '|') AS series_list\n" .
+    "       REPLACE(GROUP_CONCAT(DISTINCT s.id || ':' || s.name), ',', '|') AS series_list\n" .
     "FROM authors a\n" .
     "LEFT JOIN books_authors_link bal ON a.id = bal.author\n" .
     "LEFT JOIN books_series_link bsl ON bal.book = bsl.book\n" .
