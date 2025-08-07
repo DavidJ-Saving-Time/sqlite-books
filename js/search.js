@@ -1,21 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const searchInput = document.querySelector('input[name="search"]');
-  const suggestionList = document.getElementById('authorSuggestions');
-
-  if (searchInput && suggestionList) {
+  const searchInput = document.getElementById('authorSearch');
+  if (searchInput) {
+    const awesomplete = new Awesomplete(searchInput, { minChars: 2, autoFirst: true });
     searchInput.addEventListener('input', async () => {
       const term = searchInput.value.trim();
-      suggestionList.innerHTML = '';
-      if (term.length < 2) return;
+      if (term.length < 2) return awesomplete.list = [];
       try {
         const res = await fetch(`author_autocomplete.php?term=${encodeURIComponent(term)}`);
-        const data = await res.json();
-        suggestionList.innerHTML = '';
-        data.forEach(name => {
-          const opt = document.createElement('option');
-          opt.value = name;
-          suggestionList.appendChild(opt);
-        });
+        awesomplete.list = await res.json();
       } catch (err) {
         console.error(err);
       }

@@ -16,6 +16,8 @@ $genreIdVal = isset($genreId) ? $genreId : null;
 $shelfNameVal = isset($shelfName) ? $shelfName : '';
 $statusNameVal = isset($statusName) ? $statusName : '';
 ?>
+<link rel="stylesheet" href="js/vendor/awesomplete.css">
+<script src="js/vendor/awesomplete.min.js"></script>
 <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
   <div class="container-fluid">
 
@@ -51,8 +53,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
           <?php if ($statusNameVal !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>"><?php endif; ?>
 
           <div class="input-group">
-            <input class="form-control" type="search" name="search" style="width: 20rem;" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search" list="authorSuggestions">
-            <datalist id="authorSuggestions"></datalist>
+            <input id="authorSearch" class="form-control" type="search" name="search" style="width: 20rem;" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search">
             <select name="source" class="form-select" style="max-width: 12rem;">
               <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>
               <option value="openlibrary"<?= $sourceVal === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>

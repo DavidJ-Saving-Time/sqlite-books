@@ -17,3 +17,5 @@ downloads/
 ircLog/
 webfonts/
 css/
+!js/vendor/
+!js/vendor/**
