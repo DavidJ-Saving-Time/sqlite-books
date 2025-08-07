@@ -28,6 +28,13 @@
           </a>
         </li>
 
+        <!-- Add Multiple Books Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="add_physical_books.php">
+            <i class="fa-solid fa-plus me-1"></i> Add Books
+          </a>
+        </li>
+
         <!-- WordPro Button -->
         <li class="nav-item me-2">
           <a class="btn btn-primary" href="/notepad.php">
