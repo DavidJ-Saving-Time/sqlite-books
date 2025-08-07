@@ -10,20 +10,35 @@ function parse_ebook_meta(string $text): array {
     // Remove ANSI escape codes (if any)
     $text = preg_replace('/\x1b\[[0-9;]*m/', '', $text);
 
+    $currentKey = null;
     foreach (preg_split("/\r\n|\r|\n/", $text) as $line) {
-        if (preg_match('/^\s*([^:]+?)\s*:\s*(.+)$/', $line, $matches)) {
+        if (preg_match('/^\s*([^:]+?)\s*:\s*(.*)$/', $line, $matches)) {
             $k = strtolower(trim($matches[1]));
             $v = trim($matches[2]);
 
             if ($k === 'author(s)') $k = 'authors';
             if ($k === 'identifiers') $k = 'identifiers';
+            if ($k === 'series index') $k = 'series_index';
+
+            // Sometimes the series index is appended to the series name as "Name [1]"
+            if ($k === 'series' && preg_match('/^(.*)\[(.+)\]\s*$/', $v, $m)) {
+                $v = trim($m[1]);
+                $result['series_index'] = is_numeric($m[2]) ? (float)$m[2] : $m[2];
+            }
 
             $result[$k] = $v;
+            $currentKey = $k;
+        } elseif ($currentKey === 'comments') {
+            // Multiline comments come after the initial "Comments:" line
+            $trimmed = trim($line);
+            if ($trimmed !== '') {
+                $result['comments'] = trim(($result['comments'] ?? '') . "\n" . $trimmed);
+            }
         }
     }
 
     // Convert identifiers like "isbn:9781035909759" to ["isbn" => "9781035909759"]
-    if (!empty($result['identifiers'])) {
+    if (!empty($result['identifiers']) && is_string($result['identifiers'])) {
         $identifiers = [];
         foreach (explode(',', $result['identifiers']) as $id) {
             [$key, $value] = array_map('trim', explode(':', $id, 2));
@@ -39,6 +54,10 @@ function parse_ebook_meta(string $text): array {
         $authors = preg_split('/\s*&\s*|\s+and\s+|,/', $clean);
         $authors = array_filter(array_map('trim', $authors), fn($a) => $a !== '');
         $result['authors'] = array_values($authors);
+    }
+
+    if (isset($result['series_index']) && is_numeric($result['series_index'])) {
+        $result['series_index'] = (float)$result['series_index'];
     }
 
     return $result;
