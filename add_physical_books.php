@@ -81,7 +81,7 @@ function getLanguageId(PDO $pdo, string $code): int {
 /**
  * Process a single book upload and return result information.
  */
-function processBook(PDO $pdo, string $libraryPath, string $title, string $authors_str, string $tags_str, array $file): array {
+function processBook(PDO $pdo, string $libraryPath, string $title, string $authors_str, string $tags_str, string $series_str, string $series_index_str, array $file): array {
     $errors = [];
     $message = '';
     $bookLink = '';
@@ -103,6 +103,9 @@ function processBook(PDO $pdo, string $libraryPath, string $title, string $autho
             ));
             $firstAuthor = $authors[0];
 
+            $series = trim($series_str);
+            $seriesIndex = $series_index_str !== '' ? (float)$series_index_str : 1.0;
+
             $extra = fetchAdditionalMetadata($title, $firstAuthor);
             $publisher  = $extra['publisher'] ?? '';
             $languages  = $extra['languages'] ?? ['eng'];
@@ -114,14 +117,14 @@ function processBook(PDO $pdo, string $libraryPath, string $title, string $autho
                 $stmt->execute([$author, $author]);
             }
 
+
             $tmpPath = safe_filename($title);
 
             $stmt = $pdo->prepare(
-                'INSERT INTO books (title, sort, author_sort, timestamp, pubdate, series_index, last_modified, path, uuid'
-                . ')
-                 VALUES (?, title_sort(?), author_sort(?), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1.0, CURRENT_TIMESTAMP, ?, uuid4())'
+                'INSERT INTO books (title, sort, author_sort, timestamp, pubdate, series_index, last_modified, path, uuid)'
+                . ' VALUES (?, title_sort(?), author_sort(?), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?, uuid4())'
             );
-            $stmt->execute([$title, $title, $firstAuthor, $tmpPath]);
+            $stmt->execute([$title, $title, $firstAuthor, $seriesIndex, $tmpPath]);
             $bookId = (int)$pdo->lastInsertId();
             $pdo->prepare('INSERT OR IGNORE INTO metadata_dirtied (book) VALUES (?)')->execute([$bookId]);
             touchLastModified($pdo, $bookId);
@@ -142,6 +145,14 @@ function processBook(PDO $pdo, string $libraryPath, string $title, string $autho
                 }
             }
             touchLastModified($pdo, $bookId);
+            if ($series !== '') {
+                $pdo->prepare('INSERT OR IGNORE INTO series (name, sort) VALUES (?, ?)')->execute([$series, $series]);
+                $pdo->prepare('DELETE FROM books_series_link WHERE book=?')->execute([$bookId]);
+                $pdo->prepare('INSERT INTO books_series_link(book,series) SELECT ?, id FROM series WHERE name=?')
+                    ->execute([$bookId, $series]);
+                touchLastModified($pdo, $bookId);
+            }
+
 
             $authorFolderName = safe_filename($firstAuthor . (count($authors) > 1 ? ' et al.' : ''));
             $bookFolderName = safe_filename($title) . " ($bookId)";
@@ -320,6 +331,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $titles = $_POST['title'] ?? [];
     $authors = $_POST['authors'] ?? [];
     $tags = $_POST['tags'] ?? [];
+    $seriesArr = $_POST['series'] ?? [];
+    $seriesIndexArr = $_POST['series_index'] ?? [];
     $files = $_FILES['files'] ?? null;
 
     if ($files && is_array($files['name'])) {
@@ -338,6 +351,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 trim($titles[$i] ?? ''),
                 trim($authors[$i] ?? ''),
                 trim($tags[$i] ?? ''),
+                trim($seriesArr[$i] ?? ''),
+                trim($seriesIndexArr[$i] ?? ''),
                 $file
             );
         }
@@ -430,6 +445,14 @@ filesInput.addEventListener('change', () => {
                 <input type="text" name="authors[]" id="authors-${idx}" class="form-control" placeholder="Separate multiple authors with commas" required>
             </div>
             <div class="mb-3">
+                <label for="series-${idx}" class="form-label">Series</label>
+                <input type="text" name="series[]" id="series-${idx}" class="form-control" placeholder="Optional">
+            </div>
+            <div class="mb-3">
+                <label for="series_index-${idx}" class="form-label">Series Index</label>
+                <input type="number" step="0.1" name="series_index[]" id="series_index-${idx}" class="form-control" placeholder="Optional">
+            </div>
+            <div class="mb-3">
                 <label for="tags-${idx}" class="form-label">Tags</label>
                 <input type="text" name="tags[]" id="tags-${idx}" class="form-control" placeholder="Optional, comma separated">
             </div>`;
@@ -445,6 +468,12 @@ filesInput.addEventListener('change', () => {
                     document.getElementById('authors-' + idx).value = Array.isArray(data.authors)
                         ? data.authors.join(', ')
                         : String(data.authors).replace(/ and /g, ', ');
+                }
+                if (data.series) {
+                    document.getElementById('series-' + idx).value = data.series;
+                }
+                if (data.series_index) {
+                    document.getElementById('series_index-' + idx).value = data.series_index;
                 }
                 if (data.cover) {
                     const img = document.getElementById('cover-' + idx);
