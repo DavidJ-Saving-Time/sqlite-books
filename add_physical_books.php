@@ -81,7 +81,7 @@ function getLanguageId(PDO $pdo, string $code): int {
 /**
  * Process a single book upload and return result information.
  */
-function processBook(PDO $pdo, string $libraryPath, string $title, string $authors_str, string $tags_str, string $series_str, string $series_index_str, array $file): array {
+function processBook(PDO $pdo, string $libraryPath, string $title, string $authors_str, string $tags_str, string $series_str, string $series_index_str, string $description_str, array $file): array {
     $errors = [];
     $message = '';
     $bookLink = '';
@@ -111,6 +111,7 @@ function processBook(PDO $pdo, string $libraryPath, string $title, string $autho
             $languages  = $extra['languages'] ?? ['eng'];
             $identifier = $extra['isbn'] ?? '';
             $pubdate    = $extra['pubdate'] ?? null;
+            $description = trim($description_str);
 
             foreach ($authors as $author) {
                 $stmt = $pdo->prepare('INSERT OR IGNORE INTO authors (name, sort) VALUES (?, author_sort(?))');
@@ -143,6 +144,10 @@ function processBook(PDO $pdo, string $libraryPath, string $title, string $autho
                     $pdo->exec("INSERT INTO books_tags_link (book, tag)" .
                                 " SELECT $bookId, id FROM tags WHERE name=" . $pdo->quote($tag));
                 }
+            }
+            if ($description !== '') {
+                $pdo->prepare('INSERT INTO comments (book, text) VALUES (?, ?) ON CONFLICT(book) DO UPDATE SET text=excluded.text')
+                    ->execute([$bookId, $description]);
             }
             touchLastModified($pdo, $bookId);
             if ($series !== '') {
@@ -294,11 +299,13 @@ function processBook(PDO $pdo, string $libraryPath, string $title, string $autho
             $languageCode = $languages[0] ?? 'eng';
             $publisherXml = $publisher !== '' ? "    <dc:publisher>" . htmlspecialchars($publisher) . "</dc:publisher>\n" : '';
             $isbnXml = $identifier !== '' ? "    <dc:identifier opf:scheme=\"ISBN\">$identifier</dc:identifier>\n" : '';
+            $descriptionXml = $description !== '' ? "    <dc:description>" . htmlspecialchars($description) . "</dc:description>\n" : '';
             $opf = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<package version=\"2.0\" xmlns=\"http://www.idpf.org/2007/opf\">\n  <metadata>\n" .
                    "    <dc:title>" . htmlspecialchars($title) . "</dc:title>\n" .
                    "    <dc:creator opf:role=\"aut\">" . htmlspecialchars($firstAuthor) . "</dc:creator>\n" .
                    $publisherXml .
                    $tagsXml .
+                   $descriptionXml .
                    "    <dc:language>" . htmlspecialchars($languageCode) . "</dc:language>\n" .
                    "    <dc:identifier opf:scheme=\"uuid\">$uuid</dc:identifier>\n" .
                    $isbnXml .
@@ -333,6 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tags = $_POST['tags'] ?? [];
     $seriesArr = $_POST['series'] ?? [];
     $seriesIndexArr = $_POST['series_index'] ?? [];
+    $descriptions = $_POST['description'] ?? [];
     $files = $_FILES['files'] ?? null;
 
     if ($files && is_array($files['name'])) {
@@ -353,6 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 trim($tags[$i] ?? ''),
                 trim($seriesArr[$i] ?? ''),
                 trim($seriesIndexArr[$i] ?? ''),
+                trim($descriptions[$i] ?? ''),
                 $file
             );
         }
@@ -455,6 +464,10 @@ filesInput.addEventListener('change', () => {
             <div class="mb-3">
                 <label for="tags-${idx}" class="form-label">Tags</label>
                 <input type="text" name="tags[]" id="tags-${idx}" class="form-control" placeholder="Optional, comma separated">
+            </div>
+            <div class="mb-3">
+                <label for="description-${idx}" class="form-label">Description</label>
+                <textarea name="description[]" id="description-${idx}" class="form-control" rows="3" placeholder="Optional"></textarea>
             </div>`;
         entriesContainer.appendChild(entry);
 
@@ -479,6 +492,9 @@ filesInput.addEventListener('change', () => {
                     const img = document.getElementById('cover-' + idx);
                     img.src = 'data:image/jpeg;base64,' + data.cover;
                     img.style.display = 'block';
+                }
+                if (data.comments) {
+                    document.getElementById('description-' + idx).value = data.comments;
                 }
             })
             .catch(() => {});
