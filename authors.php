@@ -1,9 +1,11 @@
 <?php
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 $pdo = getDatabaseConnection();
 $authors = $pdo->query('SELECT id, name FROM authors ORDER BY sort')->fetchAll(PDO::FETCH_ASSOC);
+$statuses = getCachedStatuses($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -24,15 +26,25 @@ $authors = $pdo->query('SELECT id, name FROM authors ORDER BY sort')->fetchAll(P
     <?php else: ?>
         <ul class="list-group">
             <?php foreach ($authors as $a): ?>
-                <li class="list-group-item">
-                    <a href="list_books.php?author_id=<?= (int)$a['id'] ?>">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="list_books.php?author_id=<?= (int)$a['id'] ?>" class="flex-grow-1">
                         <?= htmlspecialchars($a['name']) ?>
                     </a>
+                    <select class="form-select form-select-sm ms-2 author-status" data-author-id="<?= (int)$a['id'] ?>" style="width: auto;">
+                        <option value="">Set status...</option>
+                        <?php foreach ($statuses as $s): ?>
+                            <option value="<?= htmlspecialchars($s['value']) ?>"><?= htmlspecialchars($s['value']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="button" class="btn btn-sm btn-danger ms-2 delete-author" data-author-id="<?= (int)$a['id'] ?>">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
                 </li>
             <?php endforeach; ?>
         </ul>
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="js/authors.js"></script>
 </body>
 </html>
