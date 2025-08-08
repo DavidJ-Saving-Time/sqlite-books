@@ -4,8 +4,8 @@
         "prefs": {
             "db_path": "ebooks\/metadata.db",
             "library_path": "ebooks",
-            "REMOTE_DIR": "",
-            "DEVICE": ""
+            "REMOTE_DIR": "\/mnt\/us\/documents\/Nilla-Books\/",
+            "DEVICE": "10.0.0.143"
         }
     },
     "david": {
@@ -14,8 +14,8 @@
             "db_path": "david_ebooks\/metadata.db",
             "library_path": "david_ebooks",
             "reading_goal_2025": 40,
-            "REMOTE_DIR": "",
-            "DEVICE": ""
+            "REMOTE_DIR": "\/mnt\/onboard\/.hidebooks\/",
+            "DEVICE": "10.0.0.146"
         }
     },
     "test": {

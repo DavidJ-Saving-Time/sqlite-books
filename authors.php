@@ -24,7 +24,7 @@ $genres = getCachedGenres($pdo);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Authors</title>
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
     <script src="js/theme.js"></script>
 </head>
 <body class="pt-5 bg-light">
@@ -34,44 +34,62 @@ $genres = getCachedGenres($pdo);
     <?php if (empty($authors)): ?>
         <p class="text-muted">No authors found.</p>
     <?php else: ?>
-        <ul class="list-group">
-            <?php foreach ($authors as $a): ?>
-                <?php $seriesList = $a['series_list'] !== null && $a['series_list'] !== '' ? explode('|', $a['series_list']) : []; ?>
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div class="flex-grow-1">
-                        <a href="list_books.php?author_id=<?= (int)$a['id'] ?>">
-                            <?= htmlspecialchars($a['name']) ?>
-                        </a>
-                        <div class="small text-muted">
-                            <?= (int)$a['book_count'] ?> book<?= ((int)$a['book_count'] === 1) ? '' : 's' ?>
-                            <?php if (!empty($seriesList)): ?>
-                                — Series:
-                                <?php foreach ($seriesList as $i => $s): ?>
-                                    <?php list($sid, $sname) = explode(':', $s, 2); ?>
-                                    <?php if ($i > 0) echo ', '; ?>
-                                    <a href="list_books.php?series_id=<?= (int)$sid ?>" class="text-reset text-decoration-underline"><?= htmlspecialchars($sname) ?></a>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <select class="form-select form-select-sm ms-2 author-genre" data-author-id="<?= (int)$a['id'] ?>" style="width: auto;">
-                        <option value="">Set genre...</option>
-                        <?php foreach ($genres as $g): ?>
-                            <option value="<?= htmlspecialchars($g['value']) ?>"><?= htmlspecialchars($g['value']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select class="form-select form-select-sm ms-2 author-status" data-author-id="<?= (int)$a['id'] ?>" style="width: auto;">
-                        <option value="">Set status...</option>
-                        <?php foreach ($statuses as $s): ?>
-                            <option value="<?= htmlspecialchars($s['value']) ?>"><?= htmlspecialchars($s['value']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button type="button" class="btn btn-sm btn-danger ms-2 delete-author" data-author-id="<?= (int)$a['id'] ?>">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
+       <ul class="list-group">
+    <?php foreach ($authors as $a): ?>
+        <?php $seriesList = $a['series_list'] !== null && $a['series_list'] !== '' ? explode('|', $a['series_list']) : []; ?>
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <a href="list_books.php?author_id=<?= (int)$a['id'] ?>" class="fs-4 fw-semibold text-primary text-decoration-none">
+                    <i class="fa-duotone fa-regular fa-user"></i> <?= htmlspecialchars($a['name']) ?>
+                </a>
+                <div class="">
+                    <i class="fa-duotone fa-regular fa-books"></i> <?= (int)$a['book_count'] ?> book<?= ((int)$a['book_count'] === 1) ? '' : 's' ?>
+                </div>
+<?php if (!empty($seriesList)): ?>
+    <div class="mt-2">
+        Series:
+        <ul class="list-unstyled mb-0 ms-3">
+            <?php foreach ($seriesList as $s): ?>
+                <?php list($sid, $sname) = explode(':', $s, 2); ?>
+                <li class="d-flex align-items-start">
+                    <i class="fa-duotone fa-solid fa-arrow-turn-down-right me-2 mt-1 text-secondary"></i>
+                    <a href="list_books.php?series_id=<?= (int)$sid ?>" class="">
+                        <?= htmlspecialchars($sname) ?>
+                    </a>
                 </li>
             <?php endforeach; ?>
         </ul>
+    </div>
+<?php endif; ?>
+            </div>
+<div class="d-flex flex-column align-items-stretch ms-3" style="min-width: 11rem;">
+    <div class="bg-light border rounded p-2 d-flex flex-column gap-2">
+        <select class="form-select form-select-sm author-genre" data-author-id="<?= (int)$a['id'] ?>">
+            <option value="">Set genre...</option>
+            <?php foreach ($genres as $g): ?>
+                <option value="<?= htmlspecialchars($g['value']) ?>"><?= htmlspecialchars($g['value']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <select class="form-select form-select-sm author-status" data-author-id="<?= (int)$a['id'] ?>">
+            <option value="">Set status...</option>
+            <?php foreach ($statuses as $s): ?>
+                <option value="<?= htmlspecialchars($s['value']) ?>"><?= htmlspecialchars($s['value']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-danger delete-author" data-author-id="<?= (int)$a['id'] ?>" title="Delete author">
+            <i class="fa-solid fa-trash"></i> Delete
+        </button>
+    </div>
+</div>
+        </li>
+    <?php endforeach; ?>
+</ul>
+
+<style>
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+</style>
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
