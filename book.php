@@ -691,12 +691,21 @@ if ($sendRequested) {
                     <?php endif; ?>
                 </p>
                 <p><strong>Series:</strong>
-                    <?php if (!empty($book['series'])): ?>
-                        <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
-                            <?= htmlspecialchars($book['series']) ?>
-                        </a>
-                        <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
-                            (<?= htmlspecialchars($book['series_index']) ?>)
+                    <?php if (!empty($book['series']) || !empty($book['subseries'])): ?>
+                        <?php if (!empty($book['series'])): ?>
+                            <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
+                                <?= htmlspecialchars($book['series']) ?>
+                            </a>
+                            <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
+                                (<?= htmlspecialchars($book['series_index']) ?>)
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        <?php if (!empty($book['subseries'])): ?>
+                            <?php if (!empty($book['series'])): ?>&gt; <?php endif; ?>
+                            <?= htmlspecialchars($book['subseries']) ?>
+                            <?php if ($book['subseries_index'] !== null && $book['subseries_index'] !== ''): ?>
+                                (<?= htmlspecialchars($book['subseries_index']) ?>)
+                            <?php endif; ?>
                         <?php endif; ?>
                     <?php else: ?>
                         &mdash;
