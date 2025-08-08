@@ -540,16 +540,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function toggleSubseriesInput() {
     if (!subseriesSelect) return;
     if (subseriesSelect.value === 'new') {
-      newSubseriesInput.style.display = '';
+      if (newSubseriesInput) newSubseriesInput.style.display = '';
     } else {
-      newSubseriesInput.style.display = 'none';
-      if (subseriesSelect.value !== 'new') newSubseriesInput.value = '';
+      if (newSubseriesInput) {
+        newSubseriesInput.style.display = 'none';
+        if (subseriesSelect.value !== 'new') newSubseriesInput.value = '';
+      }
     }
     if (editSubseriesBtn) {
       editSubseriesBtn.style.display = (subseriesSelect.value && subseriesSelect.value !== 'new') ? '' : 'none';
     }
   }
-  if (subseriesSelect && newSubseriesInput) {
+  if (subseriesSelect) {
     subseriesSelect.addEventListener('change', toggleSubseriesInput);
     toggleSubseriesInput();
   }
@@ -558,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (subseriesSelect) {
         subseriesSelect.value = 'new';
         toggleSubseriesInput();
-        newSubseriesInput.focus();
+        if (newSubseriesInput) newSubseriesInput.focus();
       }
     });
   }
