@@ -79,22 +79,6 @@ try {
         <h2 class="h4">Manage Series</h2>
         <div class="row g-2 mb-3">
             <div class="col">
-                <select id="seriesSelect" class="form-select">
-                    <option value="">Select series</option>
-                    <?php foreach ($series as $s): ?>
-                        <option value="<?= (int)$s['id'] ?>"><?= htmlspecialchars($s['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-auto">
-                <button id="editSeriesBtn" class="btn btn-outline-secondary">Rename</button>
-            </div>
-            <div class="col-auto">
-                <button id="deleteSeriesBtn" class="btn btn-outline-danger">Delete</button>
-            </div>
-        </div>
-        <div class="row g-2 mb-3">
-            <div class="col">
                 <input id="newSeries" type="text" class="form-control" placeholder="New series">
             </div>
             <div class="col-auto">
@@ -140,7 +124,11 @@ try {
                         <a href="list_books.php?series_id=<?= (int)$s['id'] ?>">
                             <?= htmlspecialchars($s['name']) ?>
                         </a>
-                        <span class="badge bg-secondary rounded-pill"><?= (int)$s['book_count'] ?></span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-secondary rounded-pill"><?= (int)$s['book_count'] ?></span>
+                            <button class="btn btn-sm btn-outline-secondary rename-series" data-id="<?= (int)$s['id'] ?>" data-name="<?= htmlspecialchars($s['name'], ENT_QUOTES) ?>">Rename</button>
+                            <button class="btn btn-sm btn-outline-danger delete-series" data-id="<?= (int)$s['id'] ?>">Delete</button>
+                        </div>
                     </div>
                     <?php if (!empty($subs)): ?>
                         <ul class="mt-2">
@@ -158,10 +146,7 @@ try {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const seriesSelect = document.getElementById('seriesSelect');
     const addSeriesBtn = document.getElementById('addSeriesBtn');
-    const editSeriesBtn = document.getElementById('editSeriesBtn');
-    const deleteSeriesBtn = document.getElementById('deleteSeriesBtn');
     const newSeriesInput = document.getElementById('newSeries');
 
     if (addSeriesBtn) {
@@ -180,15 +165,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (editSeriesBtn) {
-        editSeriesBtn.addEventListener('click', async () => {
-            const id = seriesSelect.value;
-            if (!id) return;
-            const option = seriesSelect.options[seriesSelect.selectedIndex];
-            let name = prompt('Rename series:', option.textContent);
+    document.querySelectorAll('.rename-series').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const current = btn.dataset.name || '';
+            let name = prompt('Rename series:', current);
             if (name === null) return;
             name = name.trim();
-            if (!name || name === option.textContent) return;
+            if (!name || name === current) return;
             try {
                 const res = await fetch('rename_series.php', {
                     method: 'POST',
@@ -199,11 +183,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.status === 'ok') location.reload();
             } catch (err) { console.error(err); }
         });
-    }
+    });
 
-    if (deleteSeriesBtn) {
-        deleteSeriesBtn.addEventListener('click', async () => {
-            const id = seriesSelect.value;
+    document.querySelectorAll('.delete-series').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
             if (!id) return;
             if (!confirm('Delete series?')) return;
             try {
@@ -216,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.status === 'ok') location.reload();
             } catch (err) { console.error(err); }
         });
-    }
+    });
 
     const subseriesSelect = document.getElementById('subseriesSelect');
     const addSubBtn = document.getElementById('addSubseriesBtn');
