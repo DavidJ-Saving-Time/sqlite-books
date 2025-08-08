@@ -118,6 +118,15 @@ function getLibraryPath(): string {
     return rtrim($path, '/');
 }
 
+function getLibraryWebPath(): string {
+    $path = getLibraryPath();
+    $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/');
+    if ($docRoot && strpos($path, $docRoot) === 0) {
+        $path = substr($path, strlen($docRoot));
+    }
+    return '/' . ltrim($path, '/');
+}
+
 function bookHasFile(string $relativePath): bool {
     $library = getLibraryPath();
     $dir = $library . '/' . $relativePath;
