@@ -370,8 +370,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $sort = $_GET['sort'] ?? 'title';
 
+// Prepare subseries fields if available
+$subseriesSelect = '';
+$subseriesJoin = '';
+if ($hasSubseries) {
+    if ($subseriesIsCustom) {
+        $idxExpr = $subseriesIndexColumn ? "bssl.$subseriesIndexColumn" : 'NULL';
+        $subseriesSelect = ", $idxExpr AS subseries_index, ss.id AS subseries_id, ss.value AS subseries";
+        $subseriesJoin = " LEFT JOIN $subseriesLinkTable bssl ON bssl.book = b.id LEFT JOIN $subseriesValueTable ss ON bssl.value = ss.id";
+    } else {
+        $idxExpr = $subseriesIndexExists ? 'b.subseries_index' : 'NULL';
+        $subseriesSelect = ", $idxExpr AS subseries_index, ss.id AS subseries_id, ss.name AS subseries";
+        $subseriesJoin = " LEFT JOIN books_subseries_link bssl ON bssl.book = b.id LEFT JOIN subseries ss ON bssl.subseries = ss.id";
+    }
+}
+
 // Fetch full book details for display
-$stmt = $pdo->prepare("SELECT b.*,
+$stmt = $pdo->prepare("SELECT b.*, 
         (SELECT GROUP_CONCAT(a.name, ', ')
             FROM books_authors_link bal
             JOIN authors a ON bal.author = a.id
@@ -384,10 +399,10 @@ $stmt = $pdo->prepare("SELECT b.*,
         s.name AS series,
         (SELECT name FROM publishers WHERE publishers.id IN
             (SELECT publisher FROM books_publishers_link WHERE book = b.id)
-            LIMIT 1) AS publisher
+            LIMIT 1) AS publisher" . $subseriesSelect . "
     FROM books b
     LEFT JOIN books_series_link bsl ON bsl.book = b.id
-    LEFT JOIN series s ON bsl.series = s.id
+    LEFT JOIN series s ON bsl.series = s.id" . $subseriesJoin . "
     WHERE b.id = :id");
 $stmt->bindValue(':id', $id, PDO::PARAM_INT);
 $stmt->execute();
