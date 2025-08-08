@@ -45,7 +45,9 @@
                             <?php endif; ?>
                             <?php if (!empty($book['subseries'])): ?>
                                 &gt;
-                                <?= htmlspecialchars($book['subseries']) ?>
+                                <a href="list_books.php?sort=<?= urlencode($sort) ?>&subseries_id=<?= urlencode($book['subseries_id']) ?>">
+                                    <?= htmlspecialchars($book['subseries']) ?>
+                                </a>
                                 <?php if ($book['subseries_index'] !== null && $book['subseries_index'] !== ''): ?>
                                     (<?= htmlspecialchars($book['subseries_index']) ?>)
                                 <?php endif; ?>

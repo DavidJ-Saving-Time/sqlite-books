@@ -74,6 +74,7 @@ $isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
 $sort = $_GET['sort'] ?? 'author_series';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
+$subseriesId = isset($_GET['subseries_id']) ? (int)$_GET['subseries_id'] : null;
 $genreName = isset($_GET['genre']) ? trim((string)$_GET['genre']) : '';
 $statusName = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
 if ($statusName !== '' && !in_array($statusName, $statusOptions, true)) {
@@ -129,6 +130,14 @@ if ($authorId) {
 if ($seriesId) {
     $whereClauses[] = 'EXISTS (SELECT 1 FROM books_series_link WHERE book = b.id AND series = :series_id)';
     $params[':series_id'] = $seriesId;
+}
+if ($subseriesId) {
+    if ($subseriesIsCustom) {
+        $whereClauses[] = 'EXISTS (SELECT 1 FROM ' . $subseriesLinkTable . ' WHERE book = b.id AND value = :subseries_id)';
+    } else {
+        $whereClauses[] = 'EXISTS (SELECT 1 FROM books_subseries_link WHERE book = b.id AND subseries = :subseries_id)';
+    }
+    $params[':subseries_id'] = $subseriesId;
 }
 if ($genreName !== '') {
     $whereClauses[] = 'EXISTS (SELECT 1 FROM ' . $genreLinkTable . ' gl JOIN custom_column_' . (int)$genreColumnId . ' gv ON gl.value = gv.id WHERE gl.book = b.id AND gv.value = :genre_val)';
@@ -203,6 +212,16 @@ if ($seriesId) {
     $stmt = $pdo->prepare('SELECT name FROM series WHERE id = ?');
     $stmt->execute([$seriesId]);
     $filterSeriesName = $stmt->fetchColumn();
+}
+$filterSubseriesName = null;
+if ($subseriesId) {
+    if ($subseriesIsCustom) {
+        $stmt = $pdo->prepare('SELECT value FROM ' . $subseriesValueTable . ' WHERE id = ?');
+    } else {
+        $stmt = $pdo->prepare('SELECT name FROM subseries WHERE id = ?');
+    }
+    $stmt->execute([$subseriesId]);
+    $filterSubseriesName = $stmt->fetchColumn();
 }
 $filterGenreName = $genreName !== '' ? $genreName : null;
 $filterStatusName = $statusName !== '' ? $statusName : null;
@@ -358,6 +377,7 @@ function buildBaseUrl(array $params, array $exclude = []): string {
         'sort'      => $GLOBALS['sort'] ?? '',
         'author_id' => $GLOBALS['authorId'] ?? '',
         'series_id' => $GLOBALS['seriesId'] ?? '',
+        'subseries_id' => $GLOBALS['subseriesId'] ?? '',
         'genre'  => $GLOBALS['genreName'] ?? '',
         'shelf'     => $GLOBALS['shelfName'] ?? '',
         'search'    => $GLOBALS['search'] ?? '',
@@ -391,13 +411,16 @@ function linkTextColor(string $current, string $compare): string {
 
 // Build breadcrumb items for navigation
 $breadcrumbs = [
-    ['label' => 'Books', 'url' => buildBaseUrl([], ['author_id','series_id','genre','shelf','status','filetype','search','sort'])]
+    ['label' => 'Books', 'url' => buildBaseUrl([], ['author_id','series_id','subseries_id','genre','shelf','status','filetype','search','sort'])]
 ];
 if ($filterAuthorName !== null) {
     $breadcrumbs[] = ['label' => $filterAuthorName, 'url' => buildBaseUrl([], ['author_id'])];
 }
 if ($filterSeriesName !== null) {
-    $breadcrumbs[] = ['label' => $filterSeriesName, 'url' => buildBaseUrl([], ['series_id'])];
+    $breadcrumbs[] = ['label' => $filterSeriesName, 'url' => buildBaseUrl([], ['series_id','subseries_id'])];
+}
+if ($filterSubseriesName !== null) {
+    $breadcrumbs[] = ['label' => $filterSubseriesName, 'url' => buildBaseUrl([], ['subseries_id'])];
 }
 if ($filterGenreName !== null) {
     $breadcrumbs[] = ['label' => $filterGenreName, 'url' => buildBaseUrl([], ['genre'])];
