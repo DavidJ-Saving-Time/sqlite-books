@@ -119,13 +119,13 @@ try {
         <ul class="list-group">
             <?php foreach ($series as $s): ?>
                 <?php $subs = ($hasSubseries && isset($s['subseries_list']) && $s['subseries_list'] !== '') ? explode('|', $s['subseries_list']) : []; ?>
-                <li class="list-group-item">
+                <li class="list-group-item<?= ((int)$s['book_count'] === 0) ? ' list-group-item-warning' : '' ?>">
                     <div class="d-flex justify-content-between align-items-center">
                         <a href="list_books.php?series_id=<?= (int)$s['id'] ?>">
                             <?= htmlspecialchars($s['name']) ?>
                         </a>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge bg-secondary rounded-pill"><?= (int)$s['book_count'] ?></span>
+                            <span class="badge rounded-pill <?= ((int)$s['book_count'] === 0) ? 'bg-warning text-dark' : 'bg-secondary' ?>"><?= (int)$s['book_count'] ?></span>
                             <button class="btn btn-sm btn-outline-secondary rename-series" data-id="<?= (int)$s['id'] ?>" data-name="<?= htmlspecialchars($s['name'], ENT_QUOTES) ?>">Rename</button>
                             <button class="btn btn-sm btn-outline-danger delete-series" data-id="<?= (int)$s['id'] ?>">Delete</button>
                         </div>
