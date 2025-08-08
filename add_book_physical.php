@@ -25,7 +25,7 @@ if (!file_exists($dbPath)) {
 }
 
 // --- Database Setup ---
-$pdo = getDatabaseConnection($dbPath);
+$pdo = getDatabaseConnection();
 
 // --- Helper Functions ---
 function safe_filename($name, $max_length = 150) {

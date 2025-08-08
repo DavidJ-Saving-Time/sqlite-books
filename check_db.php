@@ -2,10 +2,11 @@
 // check_calibre_db.php
 // Verifies if the database schema matches Calibre's expectations.
 
-$dbPath = 'ebooks/metadata.db';
+require_once __DIR__ . '/db.php';
+$dbPath = currentDatabasePath();
 
 try {
-    $pdo = new PDO("sqlite:$dbPath");
+    $pdo = new PDO('sqlite:' . $dbPath);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     $errors = [];

@@ -1,6 +1,6 @@
 <?php
 require_once 'db.php';
-$pdo = new PDO('sqlite:' . getLibraryPath() . '/metadata.db');
+$pdo = getDatabaseConnection();
 // this shows how to create multi-value and single-value calibre multi-value structure for single-value
 // Create single-value column: shelf
 $pdo->exec("

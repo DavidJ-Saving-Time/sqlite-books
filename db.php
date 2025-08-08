@@ -90,24 +90,32 @@ function setUserPreference(string $username, string $key, $value): bool {
 
 function currentDatabasePath(): string {
     $user = currentUser();
+    $path = '';
     if ($user) {
-        $path = getUserPreference($user, 'db_path');
-        if ($path) {
-            return $path;
-        }
+        $path = (string)getUserPreference($user, 'db_path');
     }
-    return getPreference('db_path', 'metadata.old.db');
+    if (!$path) {
+        $path = getPreference('db_path', 'metadata.old.db');
+    }
+    if (!preg_match('/^(?:[\\/]|[A-Za-z]:[\\/])/', $path)) {
+        $path = __DIR__ . '/' . ltrim($path, '/');
+    }
+    return $path;
 }
 
 function getLibraryPath(): string {
     $user = currentUser();
+    $path = '';
     if ($user) {
-        $path = getUserPreference($user, 'library_path');
-        if ($path) {
-            return rtrim($path, '/');
-        }
+        $path = (string)getUserPreference($user, 'library_path');
     }
-    return rtrim(getPreference('library_path', 'ebooks'), '/');
+    if (!$path) {
+        $path = getPreference('library_path', 'ebooks');
+    }
+    if (!preg_match('/^(?:[\\/]|[A-Za-z]:[\\/])/', $path)) {
+        $path = __DIR__ . '/' . ltrim($path, '/');
+    }
+    return rtrim($path, '/');
 }
 
 function bookHasFile(string $relativePath): bool {

@@ -1,11 +1,8 @@
 <?php
-require 'db.php'; // Include your db.php where the functions are defined
-
-// Path to your Calibre metadata database
-$dbPath = 'ebooks/metadata.db';
+require_once __DIR__ . '/db.php'; // Include your db.php where the functions are defined
 
 try {
-    $pdo = new PDO("sqlite:" . $dbPath);
+    $pdo = getDatabaseConnection();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Run only the initialization code
