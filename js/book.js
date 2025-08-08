@@ -483,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const newSeriesInput = document.getElementById('newSeriesInput');
   const addSeriesBtn = document.getElementById('addSeriesBtn');
   const editSeriesBtn = document.getElementById('editSeriesBtn');
+  const seriesIndexInput = document.getElementById('seriesIndex');
   function toggleSeriesInput() {
     if (!seriesSelect) return;
     if (seriesSelect.value === 'new') {
@@ -535,6 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const newSubseriesInput = document.getElementById('newSubseriesInput');
   const addSubseriesBtn = document.getElementById('addSubseriesBtn');
   const editSubseriesBtn = document.getElementById('editSubseriesBtn');
+  const subseriesIndexInput = document.getElementById('subseriesIndex');
   function toggleSubseriesInput() {
     if (!subseriesSelect) return;
     if (subseriesSelect.value === 'new') {
@@ -580,6 +582,30 @@ document.addEventListener('DOMContentLoaded', () => {
           option.textContent = name;
         }
       } catch (err) { console.error(err); }
+    });
+  }
+
+  const swapSeriesSubseriesBtn = document.getElementById('swapSeriesSubseriesBtn');
+  if (swapSeriesSubseriesBtn && seriesSelect && subseriesSelect) {
+    swapSeriesSubseriesBtn.addEventListener('click', () => {
+      const tmpVal = seriesSelect.value;
+      seriesSelect.value = subseriesSelect.value;
+      subseriesSelect.value = tmpVal;
+
+      if (newSeriesInput && newSubseriesInput) {
+        const tmpNew = newSeriesInput.value;
+        newSeriesInput.value = newSubseriesInput.value;
+        newSubseriesInput.value = tmpNew;
+      }
+
+      if (seriesIndexInput && subseriesIndexInput) {
+        const tmpIdx = seriesIndexInput.value;
+        seriesIndexInput.value = subseriesIndexInput.value;
+        subseriesIndexInput.value = tmpIdx;
+      }
+
+      toggleSeriesInput();
+      toggleSubseriesInput();
     });
   }
 });

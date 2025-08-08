@@ -838,6 +838,11 @@ if ($sendRequested) {
                                     </label>
                                     <input type="number" step="0.1" id="subseriesIndex" name="subseries_index" value="<?= htmlspecialchars($book['subseries_index'] ?? '') ?>" class="form-control">
                                 </div>
+                                <div class="mb-3">
+                                    <button type="button" id="swapSeriesSubseriesBtn" class="btn btn-outline-secondary">
+                                        <i class="fa-solid fa-right-left me-1"></i> Swap Series/Subseries
+                                    </button>
+                                </div>
                                 <?php endif; ?>
                             </div>
 
