@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require_once 'google_books.php';
+require_once __DIR__ . '/../google_books.php';
 
 $q = trim($_GET['q'] ?? '');
 if ($q === '') {

@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.classList.contains('shelf-select')) {
       const bookId = e.target.dataset.bookId;
       const value = e.target.value;
-      await fetch('update_shelf.php', {
+      await fetch('json_endpoints/update_shelf.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: bookId, value })
@@ -314,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (e.target.classList.contains('genre-select')) {
       const bookId = e.target.dataset.bookId;
       const value = e.target.value;
-      await fetch('update_genre.php', {
+      await fetch('json_endpoints/update_genre.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: bookId, value })
@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (e.target.classList.contains('status-select')) {
       const bookId = e.target.dataset.bookId;
       const value = e.target.value;
-      await fetch('update_status.php', {
+      await fetch('json_endpoints/update_status.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: bookId, value })
@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (e.target.classList.contains('rating-select')) {
       const bookId = e.target.dataset.bookId;
       const value = e.target.value;
-      await fetch('update_rating.php', {
+      await fetch('json_endpoints/update_rating.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         credentials: 'same-origin',
@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const shelf = addShelfForm.querySelector('input[name="shelf"]').value.trim();
       if (!shelf) return;
       try {
-        const res = await fetch('add_shelf.php', {
+        const res = await fetch('json_endpoints/add_shelf.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ shelf })
@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const status = addStatusForm.querySelector('input[name="status"]').value.trim();
       if (!status) return;
       try {
-        const res = await fetch('add_status.php', {
+        const res = await fetch('json_endpoints/add_status.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ status })
@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const genre = addGenreForm.querySelector('input[name="genre"]').value.trim();
       if (!genre) return;
       try {
-        const res = await fetch('add_genre.php', {
+        const res = await fetch('json_endpoints/add_genre.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ genre })
@@ -432,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const value = star ? parseInt(star.dataset.value, 10) : 0;
       if (bookId) {
         try {
-          await fetch('update_rating.php', {
+          await fetch('json_endpoints/update_rating.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             credentials: 'same-origin',
@@ -448,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!confirm('Are you sure you want to remove this shelf?')) return;
       const shelf = delShelfBtn.dataset.shelf;
       try {
-        const res = await fetch('delete_shelf.php', {
+        const res = await fetch('json_endpoints/delete_shelf.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ shelf })
@@ -469,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name = name.trim();
       if (!name || name === shelf) return;
       try {
-        const res = await fetch('rename_shelf.php', {
+        const res = await fetch('json_endpoints/rename_shelf.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ shelf, new: name })
@@ -489,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!confirm('Are you sure you want to remove this status?')) return;
       const status = delStatusBtn.dataset.status;
       try {
-        const res = await fetch('delete_status.php', {
+        const res = await fetch('json_endpoints/delete_status.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ status })
@@ -507,7 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!confirm('Are you sure you want to remove this genre?')) return;
       const genre = delGenreBtn.dataset.genre;
       try {
-        const res = await fetch('delete_genre.php', {
+        const res = await fetch('json_endpoints/delete_genre.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ genre })
@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!confirm('Are you sure you want to permanently delete this book?')) return;
       const bookId = delBookBtn.dataset.bookId;
       try {
-        const res = await fetch('delete_book.php', {
+        const res = await fetch('json_endpoints/delete_book.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ book_id: bookId })
@@ -546,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name = name.trim();
       if (!name || name === status) return;
       try {
-        const res = await fetch('rename_status.php', {
+        const res = await fetch('json_endpoints/rename_status.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ status, new: name })
@@ -569,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
       name = name.trim();
       if (!name || name === genre) return;
       try {
-        const res = await fetch('rename_genre.php', {
+        const res = await fetch('json_endpoints/rename_genre.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ id: genre, new: name })
@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (resultsEl) resultsEl.textContent = 'Loading...';
       openLibraryModal.show();
       try {
-        fetch(`openlibrary_search.php?q=${encodeURIComponent(query)}`)
+        fetch(`json_endpoints/openlibrary_search.php?q=${encodeURIComponent(query)}`)
           .then(response => response.json())
           .then(data => {
             if (!data.books || data.books.length === 0) {
@@ -650,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const img = useBtn.dataset.imgurl;
     const desc = useBtn.dataset.description;
     try {
-      const response = await fetch('update_metadata.php', {
+      const response = await fetch('json_endpoints/update_metadata.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ book_id: bookId, title: t, authors: a, year: y, imgurl: img, description: desc })

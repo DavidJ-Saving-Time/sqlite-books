@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const term = searchInput.value.trim();
       if (term.length < 2) { clearSuggestions(); return; }
       try {
-        const res = await fetch(`author_autocomplete.php?term=${encodeURIComponent(term)}`);
+        const res = await fetch(`json_endpoints/author_autocomplete.php?term=${encodeURIComponent(term)}`);
         const data = await res.json();
         renderSuggestions(data);
       } catch (err) {

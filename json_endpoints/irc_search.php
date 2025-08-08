@@ -3,7 +3,7 @@ use Meilisearch\Client;
 
 header('Content-Type: application/json');
 
-require_once 'vendor/autoload.php'; // make sure Meilisearch PHP SDK is loaded
+require_once __DIR__ . '/../vendor/autoload.php'; // make sure Meilisearch PHP SDK is loaded
 
 // Accept q via GET or POST so this script can power both search and autocomplete
 $searchTerm = isset($_REQUEST['q']) ? trim((string)$_REQUEST['q']) : '';

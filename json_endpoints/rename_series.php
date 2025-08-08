@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require_once 'db.php';
+require_once __DIR__ . '/../db.php';
 requireLogin();
 
 $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;

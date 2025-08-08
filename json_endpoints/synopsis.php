@@ -1,8 +1,8 @@
 <?php
 header('Content-Type: application/json');
 
-require_once 'book_synopsis.php';
-require_once 'db.php';
+require_once __DIR__ . '/book_synopsis.php';
+require_once __DIR__ . '/../db.php';
 requireLogin();
 
 $title = $_GET['title'] ?? '';

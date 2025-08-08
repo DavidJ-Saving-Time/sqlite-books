@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const name = newSeriesInput.value.trim();
             if (!name) return;
             try {
-                const res = await fetch('add_series.php', {
+                const res = await fetch('json_endpoints/add_series.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ name })
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
             name = name.trim();
             if (!name || name === current) return;
             try {
-                const res = await fetch('rename_series.php', {
+                const res = await fetch('json_endpoints/rename_series.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ id, new: name })
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!id) return;
             if (!confirm('Delete series?')) return;
             try {
-                const res = await fetch('delete_series.php', {
+                const res = await fetch('json_endpoints/delete_series.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ id })
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const name = newSubInput.value.trim();
             if (!name) return;
             try {
-                const res = await fetch('add_subseries.php', {
+                const res = await fetch('json_endpoints/add_subseries.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ name })
@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             name = name.trim();
             if (!name || name === option.textContent) return;
             try {
-                const res = await fetch('rename_subseries.php', {
+                const res = await fetch('json_endpoints/rename_subseries.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ id, new: name })
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!id) return;
             if (!confirm('Delete subseries?')) return;
             try {
-                const res = await fetch('delete_subseries.php', {
+                const res = await fetch('json_endpoints/delete_subseries.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ id })
