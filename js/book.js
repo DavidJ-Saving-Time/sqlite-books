@@ -530,4 +530,56 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) { console.error(err); }
     });
   }
+
+  const subseriesSelect = document.getElementById('subseries');
+  const newSubseriesInput = document.getElementById('newSubseriesInput');
+  const addSubseriesBtn = document.getElementById('addSubseriesBtn');
+  const editSubseriesBtn = document.getElementById('editSubseriesBtn');
+  function toggleSubseriesInput() {
+    if (!subseriesSelect) return;
+    if (subseriesSelect.value === 'new') {
+      newSubseriesInput.style.display = '';
+    } else {
+      newSubseriesInput.style.display = 'none';
+      if (subseriesSelect.value !== 'new') newSubseriesInput.value = '';
+    }
+    if (editSubseriesBtn) {
+      editSubseriesBtn.style.display = (subseriesSelect.value && subseriesSelect.value !== 'new') ? '' : 'none';
+    }
+  }
+  if (subseriesSelect && newSubseriesInput) {
+    subseriesSelect.addEventListener('change', toggleSubseriesInput);
+    toggleSubseriesInput();
+  }
+  if (addSubseriesBtn) {
+    addSubseriesBtn.addEventListener('click', () => {
+      if (subseriesSelect) {
+        subseriesSelect.value = 'new';
+        toggleSubseriesInput();
+        newSubseriesInput.focus();
+      }
+    });
+  }
+  if (editSubseriesBtn && subseriesSelect) {
+    editSubseriesBtn.addEventListener('click', async () => {
+      const id = subseriesSelect.value;
+      if (!id || id === 'new') return;
+      const option = subseriesSelect.options[subseriesSelect.selectedIndex];
+      let name = prompt('Rename subseries:', option.textContent);
+      if (name === null) return;
+      name = name.trim();
+      if (!name || name === option.textContent) return;
+      try {
+        const res = await fetch('rename_subseries.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ id, new: name })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          option.textContent = name;
+        }
+      } catch (err) { console.error(err); }
+    });
+  }
 });
