@@ -1,4 +1,16 @@
 <?php
+/**
+ * Deletes an author and all books associated with them.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - author_id: ID of the author to delete.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../cache.php';

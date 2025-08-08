@@ -1,4 +1,17 @@
 <?php
+/**
+ * Updates the shelf assignment for a book.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - book_id: ID of the book.
+ * - value: Shelf name.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on invalid input.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

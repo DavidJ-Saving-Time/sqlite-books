@@ -1,4 +1,18 @@
 <?php
+/**
+ * Generates book recommendations based on authors and title.
+ *
+ * Expects an HTTP GET request.
+ *
+ * Query Parameters:
+ * - authors: Optional author names.
+ * - title: Optional book title.
+ * - book_id: Optional book ID to save recommendations to.
+ *
+ * Returns:
+ * {"output":string} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/book_recommend.php';

@@ -1,4 +1,16 @@
 <?php
+/**
+ * Adds a new subseries either to a custom column or the subseries table.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - name: Name of the subseries.
+ *
+ * Returns:
+ * {"status":"ok","id":int} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

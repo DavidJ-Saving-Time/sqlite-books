@@ -1,4 +1,15 @@
 <?php
+/**
+ * Returns up to ten author names beginning with the given term.
+ *
+ * Expects an HTTP GET request.
+ *
+ * Query Parameters:
+ * - term: Partial author name to autocomplete.
+ *
+ * Returns:
+ * JSON array of matching author names (may be empty).
+ */
 require_once __DIR__ . '/../db.php';
 requireLogin();
 header('Content-Type: application/json');

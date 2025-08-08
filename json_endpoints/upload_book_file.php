@@ -1,4 +1,20 @@
 <?php
+/**
+ * Uploads a book file for an existing book and returns JSON or HTML.
+ *
+ * Expects HTTP GET to display the upload form and HTTP POST to upload a file.
+ *
+ * Query Parameters:
+ * - id: Book ID when requesting the form.
+ *
+ * POST Parameters:
+ * - id: Book ID.
+ * - file: Ebook file to upload.
+ *
+ * Returns:
+ * HTML form by default, or JSON {"status":"ok","message":string} on success
+ * or {"error":"message"} on failure when JSON is requested.
+ */
 require_once __DIR__ . '/../db.php';
 requireLogin();
 

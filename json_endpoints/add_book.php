@@ -1,4 +1,17 @@
 <?php
+/**
+ * Adds a new book with default shelf and status.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - title: Title of the book.
+ * - authors: Comma-separated list of authors.
+ *
+ * Returns:
+ * {"status":"ok","book_id":int} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

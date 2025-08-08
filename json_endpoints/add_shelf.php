@@ -1,4 +1,16 @@
 <?php
+/**
+ * Adds a new shelf to the shelves table, creating defaults if necessary.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - shelf: Name of the shelf to add.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../cache.php';

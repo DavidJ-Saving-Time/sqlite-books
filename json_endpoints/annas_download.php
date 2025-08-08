@@ -1,4 +1,16 @@
 <?php
+/**
+ * Proxies a download request to Anna's Archive using an MD5 identifier.
+ *
+ * Expects an HTTP GET request.
+ *
+ * Query Parameters:
+ * - md5: MD5 hash of the desired file.
+ *
+ * Returns:
+ * The raw JSON response from Anna's Archive,
+ * or {"error":"message"} if the request fails.
+ */
 header('Content-Type: application/json');
 
 $md5 = trim($_GET['md5'] ?? '');

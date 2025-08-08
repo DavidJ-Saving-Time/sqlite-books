@@ -1,4 +1,20 @@
 <?php
+/**
+ * Creates a new book and populates metadata, optionally fetching details from Open Library.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - title: Book title.
+ * - authors: Comma- or semicolon-separated authors.
+ * - tags: (optional) list of tags.
+ * - thumbnail: (optional) cover image URL.
+ * - description: (optional) description text.
+ *
+ * Returns:
+ * {"status":"ok","book_id":int} on success
+ * or {"error":"message"} on failure.
+ */
 require_once __DIR__ . '/../db.php';
 requireLogin();
 

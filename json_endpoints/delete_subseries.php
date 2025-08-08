@@ -1,4 +1,16 @@
 <?php
+/**
+ * Deletes a subseries and removes any links from books to it.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - id: ID of the subseries to delete.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

@@ -1,8 +1,8 @@
 <?php
 /**
- * Generate a short synopsis for a book using OpenRouter.
+ * Helper function to request a short synopsis for a book via OpenRouter.
  *
- * Set the environment variable OPENROUTER_API_KEY with your API key.
+ * Not a standalone HTTP endpoint. Requires the OPENROUTER_API_KEY environment variable.
  */
 function get_book_synopsis(string $title, string $authors): string {
     $apiKey = getenv('OPENROUTER_API_KEY') ?: 'your_api_key_here';

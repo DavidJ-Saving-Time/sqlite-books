@@ -1,8 +1,8 @@
 <?php
 /**
- * Generate book recommendations using OpenRouter.
+ * Helper function to generate book recommendations using OpenRouter.
  *
- * Set the environment variable OPENROUTER_API_KEY with your API key.
+ * Not a standalone HTTP endpoint. Set the OPENROUTER_API_KEY environment variable.
  */
 function get_book_recommendations(string $preferences): string {
     $apiKey = getenv('OPENROUTER_API_KEY') ?: 'your_api_key_here';

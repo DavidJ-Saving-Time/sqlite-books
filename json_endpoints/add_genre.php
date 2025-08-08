@@ -1,4 +1,16 @@
 <?php
+/**
+ * Adds a new genre option to the library.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - genre: Name of the genre to add.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../cache.php';

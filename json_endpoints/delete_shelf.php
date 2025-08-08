@@ -1,4 +1,16 @@
 <?php
+/**
+ * Deletes a shelf and reassigns books to the default shelf.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - shelf: Name of the shelf to remove.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../cache.php';
