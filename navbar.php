@@ -50,9 +50,9 @@ $statusNameVal = isset($statusName) ? $statusName : '';
           <?php if ($shelfNameVal !== ''): ?><input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>"><?php endif; ?>
           <?php if ($statusNameVal !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>"><?php endif; ?>
 
-          <div class="input-group">
-            <input class="form-control" type="search" name="search" style="width: 20rem;" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search" list="authorSuggestions">
-            <datalist id="authorSuggestions"></datalist>
+          <div class="input-group position-relative">
+            <input class="form-control" type="search" name="search" style="width: 20rem;" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search" autocomplete="off">
+            <ul id="authorSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none; top:100%; left:0;"></ul>
             <select name="source" class="form-select" style="max-width: 12rem;">
               <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>
               <option value="openlibrary"<?= $sourceVal === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
