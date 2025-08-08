@@ -180,10 +180,14 @@ if ($recommendedOnly) {
     $whereClauses[] = "EXISTS (SELECT 1 FROM $recLinkTable rl JOIN $recTable rt ON rl.value = rt.id WHERE rl.book = b.id AND TRIM(COALESCE(rt.value, '')) <> '')";
 }
 if ($search !== '') {
-    $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
-    $ftsQuery = implode(' ', array_map(fn($t) => $t . '*', $tokens));
-    $whereClauses[] = 'b.id IN (SELECT rowid FROM books_fts WHERE books_fts MATCH :fts_query)';
-    $params[':fts_query'] = $ftsQuery;
+    // Sanitize search input to avoid FTS5 syntax errors
+    $cleanSearch = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $search);
+    $tokens = preg_split('/\s+/', $cleanSearch, -1, PREG_SPLIT_NO_EMPTY);
+    if ($tokens) {
+        $ftsQuery = implode(' ', array_map(fn($t) => $t . '*', $tokens));
+        $whereClauses[] = 'b.id IN (SELECT rowid FROM books_fts WHERE books_fts MATCH :fts_query)';
+        $params[':fts_query'] = $ftsQuery;
+    }
 }
 $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
 
