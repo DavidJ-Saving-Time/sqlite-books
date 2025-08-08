@@ -1,4 +1,18 @@
 <?php
+/**
+ * Generates a short synopsis for a book and saves it as a comment.
+ *
+ * Expects an HTTP GET request.
+ *
+ * Query Parameters:
+ * - title: Book title.
+ * - authors: Optional author names.
+ * - book_id: ID of the book to update.
+ *
+ * Returns:
+ * {"output":string} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/book_synopsis.php';

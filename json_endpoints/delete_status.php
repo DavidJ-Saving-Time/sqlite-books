@@ -1,4 +1,16 @@
 <?php
+/**
+ * Removes a status value and clears any links from books to it.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - status: Name of the status to remove.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../cache.php';

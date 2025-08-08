@@ -1,4 +1,16 @@
 <?php
+/**
+ * Adds a new series to the database.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - name: Name of the series.
+ *
+ * Returns:
+ * {"status":"ok","id":int} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

@@ -1,4 +1,23 @@
 <?php
+/**
+ * Updates metadata for a book including title, authors, cover, and description.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - book_id: ID of the book (required).
+ * - title: (optional) new title.
+ * - authors: (optional) list of authors.
+ * - year: (optional) publication year.
+ * - imgurl: (optional) cover image URL.
+ * - coverdata: (optional) base64-encoded cover image.
+ * - description: (optional) description text.
+ * - md5: (optional) Anna's Archive MD5 for description.
+ *
+ * Returns:
+ * {"status":"ok","cover_url":string,"authors_html":string} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

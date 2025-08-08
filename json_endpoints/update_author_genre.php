@@ -1,4 +1,17 @@
 <?php
+/**
+ * Sets the genre for all books by a specific author.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - author_id: ID of the author.
+ * - value: Genre name to apply; empty to clear.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 require_once __DIR__ . '/../cache.php';

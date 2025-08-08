@@ -1,4 +1,17 @@
 <?php
+/**
+ * Searches an IRC log index via Meilisearch and supports autocomplete.
+ *
+ * Expects an HTTP GET request (also accepts POST for "q").
+ *
+ * Query Parameters:
+ * - q: Search term.
+ * - requireAllWords: Optional flag to require all words.
+ * - autocomplete: If present, returns suggestions instead of matches.
+ *
+ * Returns:
+ * {"matches":array} for searches or an array of suggestions when autocomplete is used.
+ */
 use Meilisearch\Client;
 
 header('Content-Type: application/json');

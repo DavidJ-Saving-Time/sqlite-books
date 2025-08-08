@@ -1,4 +1,17 @@
 <?php
+/**
+ * Renames an existing reading status value.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - status: Current status name.
+ * - new: New status name.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

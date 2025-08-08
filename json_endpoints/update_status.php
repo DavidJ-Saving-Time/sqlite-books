@@ -1,4 +1,17 @@
 <?php
+/**
+ * Sets the reading status for a book and updates the reading log.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - book_id: ID of the book.
+ * - value: Status name to apply; empty to clear.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();

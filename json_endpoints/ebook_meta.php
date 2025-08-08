@@ -1,4 +1,19 @@
 <?php
+/**
+ * Extracts metadata and cover information from an ebook using Calibre's ebook-meta.
+ *
+ * Expects HTTP POST with an uploaded file or HTTP GET with a library path.
+ *
+ * POST Parameters:
+ * - file: Uploaded ebook file.
+ *
+ * Query Parameters:
+ * - path: Library-relative path to an existing ebook.
+ *
+ * Returns:
+ * Parsed metadata plus {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 require_once __DIR__ . '/../db.php';
 requireLogin();
 

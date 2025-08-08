@@ -1,4 +1,17 @@
 <?php
+/**
+ * Renames an existing genre value.
+ *
+ * Expects an HTTP POST request.
+ *
+ * POST Parameters:
+ * - id: Current genre name.
+ * - new: New genre name.
+ *
+ * Returns:
+ * {"status":"ok"} on success
+ * or {"error":"message"} on failure.
+ */
 header('Content-Type: application/json');
 require_once __DIR__ . '/../db.php';
 requireLogin();
