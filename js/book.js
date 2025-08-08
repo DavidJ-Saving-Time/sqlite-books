@@ -590,21 +590,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const swapSeriesSubseriesBtn = document.getElementById('swapSeriesSubseriesBtn');
   if (swapSeriesSubseriesBtn && seriesSelect && subseriesSelect) {
     swapSeriesSubseriesBtn.addEventListener('click', () => {
-      const tmpVal = seriesSelect.value;
-      seriesSelect.value = subseriesSelect.value;
-      subseriesSelect.value = tmpVal;
+      const currentSeriesText = seriesSelect.value === 'new'
+        ? (newSeriesInput ? newSeriesInput.value : '')
+        : seriesSelect.options[seriesSelect.selectedIndex]?.text || '';
+      const currentSubseriesText = subseriesSelect.value === 'new'
+        ? (newSubseriesInput ? newSubseriesInput.value : '')
+        : subseriesSelect.options[subseriesSelect.selectedIndex]?.text || '';
 
-      if (newSeriesInput && newSubseriesInput) {
-        const tmpNew = newSeriesInput.value;
-        newSeriesInput.value = newSubseriesInput.value;
-        newSubseriesInput.value = tmpNew;
-      }
-
+      // swap index numbers
       if (seriesIndexInput && subseriesIndexInput) {
         const tmpIdx = seriesIndexInput.value;
         seriesIndexInput.value = subseriesIndexInput.value;
         subseriesIndexInput.value = tmpIdx;
       }
+
+      // helper to select by text or fallback to 'new'
+      const selectByText = (select, text, newInput) => {
+        const opt = Array.from(select.options).find(o => o.text === text);
+        if (opt) {
+          select.value = opt.value;
+          if (newInput) newInput.value = '';
+        } else {
+          select.value = 'new';
+          if (newInput) newInput.value = text;
+        }
+      };
+
+      selectByText(seriesSelect, currentSubseriesText, newSeriesInput);
+      selectByText(subseriesSelect, currentSeriesText, newSubseriesInput);
 
       toggleSeriesInput();
       toggleSubseriesInput();
