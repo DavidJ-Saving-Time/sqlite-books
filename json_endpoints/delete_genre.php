@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
-require_once 'db.php';
-require_once 'cache.php';
+require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../cache.php';
 requireLogin();
 
 $genre = trim($_POST['genre'] ?? '');

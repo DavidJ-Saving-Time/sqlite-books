@@ -473,7 +473,7 @@ filesInput.addEventListener('change', () => {
 
         const fd = new FormData();
         fd.append('file', file);
-        fetch('ebook_meta.php', { method: 'POST', body: fd })
+        fetch('json_endpoints/ebook_meta.php', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(data => {
                 if (data.title) document.getElementById('title-' + idx).value = data.title;

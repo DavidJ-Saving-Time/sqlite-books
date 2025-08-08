@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require_once 'openlibrary.php';
+require_once __DIR__ . '/../openlibrary.php';
 
 $q = trim($_GET['q'] ?? '');
 if ($q === '') {

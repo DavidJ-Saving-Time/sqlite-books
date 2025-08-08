@@ -1,8 +1,8 @@
 <?php
 header('Content-Type: application/json');
 
-require_once 'book_recommend.php';
-require_once 'db.php';
+require_once __DIR__ . '/book_recommend.php';
+require_once __DIR__ . '/../db.php';
 requireLogin();
 
 $authors = $_GET['authors'] ?? '';

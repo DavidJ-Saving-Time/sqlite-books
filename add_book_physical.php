@@ -1,14 +1,14 @@
 <?php
 /**
- * add_book.php
+ * json_endpoints/add_book.php
  * A script to replicate Calibre's "Add Book" feature.
  *
  * Usage:
- * php add_book.php "Title" "Author1, Author2" "/path/to/file.epub" "tag1,tag2"
+ * php json_endpoints/add_book.php "Title" "Author1, Author2" "/path/to/file.epub" "tag1,tag2"
  */
 
 if ($argc < 4) {
-    die("Usage: php add_book.php \"Title\" \"Author(s)\" \"/path/to/file.ext\" \"[tags]\"\n");
+    die("Usage: php json_endpoints/add_book.php \"Title\" \"Author(s)\" \"/path/to/file.ext\" \"[tags]\"\n");
 }
 
 $title = $argv[1];

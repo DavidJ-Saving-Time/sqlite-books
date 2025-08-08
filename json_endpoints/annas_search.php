@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require_once 'annas_archive.php';
+require_once __DIR__ . '/../annas_archive.php';
 
 $q = trim($_GET['q'] ?? '');
 if ($q === '') {

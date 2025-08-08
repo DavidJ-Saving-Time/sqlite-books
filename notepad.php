@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!confirm('Are you sure you want to delete this note?')) return;
         const id = btn.dataset.noteId;
         try {
-            const res = await fetch('delete_note.php', {
+            const res = await fetch('json_endpoints/delete_note.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                 body: new URLSearchParams({ id })

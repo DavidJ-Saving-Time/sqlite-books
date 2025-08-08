@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require_once __DIR__ . '/metadata/metadata_sources.php';
+require_once __DIR__ . '/../metadata/metadata_sources.php';
 
 $q = trim($_GET['q'] ?? '');
 if ($q === '') {

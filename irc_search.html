@@ -216,7 +216,7 @@ queryInput.addEventListener('input', async () => {
     resultsDiv.innerHTML = '';
     if (term.length < 2) return;
     try {
-        const res = await fetch(`irc_search.php?autocomplete=1&q=${encodeURIComponent(term)}`);
+        const res = await fetch(`json_endpoints/irc_search.php?autocomplete=1&q=${encodeURIComponent(term)}`);
         const data = await res.json();
         data.forEach(text => {
             const highlighted = highlightText(text, term);
@@ -379,7 +379,7 @@ form.addEventListener('submit', function(e) {
         <div class="text-muted"><i class="fas fa-spinner fa-spin"></i> Searching...</div>
     `;
 
-fetch('irc_search.php', {
+fetch('json_endpoints/irc_search.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
