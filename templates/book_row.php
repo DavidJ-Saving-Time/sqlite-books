@@ -4,7 +4,7 @@
                 <?php if (!empty($book['has_cover'])): ?>
                     <a href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>">
                         <div class="position-relative d-inline-block">
-                            <img id="coverImage<?= (int)$book['id'] ?>" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>"
+                            <img id="coverImage<?= (int)$book['id'] ?>" src="<?= htmlspecialchars(getLibraryWebPath() . '/' . $book['path'] . '/cover.jpg') ?>"
                                  alt="Cover"
                                  class="img-thumbnail img-fluid book-cover"
                                  loading="lazy"
@@ -135,7 +135,7 @@
                         <?php if ($firstFile):
                             $ftype = strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION));
                             if ($ftype === 'PDF') {
-                                $fileUrl = getLibraryPath() . '/' . $firstFile;
+                                $fileUrl = getLibraryWebPath() . '/' . $firstFile;
                                 ?>
                                 <a class="btn btn-sm btn-success me-1" target="_blank" href="<?= htmlspecialchars($fileUrl) ?>">Read <?= htmlspecialchars($ftype) ?></a>
                                 <?php

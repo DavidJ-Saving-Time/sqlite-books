@@ -149,7 +149,7 @@ try {
     // Prepare data for AJAX refresh
     $coverUrl = '';
     if ($bookPath !== null) {
-        $coverUrl = getLibraryPath() . '/' . $bookPath . '/cover.jpg';
+        $coverUrl = getLibraryWebPath() . '/' . $bookPath . '/cover.jpg';
     }
 
     $authorsHtml = '';

@@ -318,7 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newPath = $newAuthorFolder . '/' . $oldBookFolder;
 
         if ($newPath !== $oldPath) {
-            $libraryPath = getLibraryPath();
+            $libraryPath = getLibraryWebPath();
             $oldFullPath = $oldPath !== '' ? $libraryPath . '/' . $oldPath : '';
             $newFullPath = $libraryPath . '/' . $newPath;
 
@@ -677,7 +677,7 @@ if ($sendRequested) {
             <?php if (!empty($book['has_cover'])): ?>
                 <div class="card shadow-sm mb-4">
                     <div class="position-relative">
-                        <img id="coverImagePreview" src="<?= htmlspecialchars(getLibraryPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="card-img-top img-thumbnail">
+                        <img id="coverImagePreview" src="<?= htmlspecialchars(getLibraryWebPath() . '/' . $book['path'] . '/cover.jpg') ?>" alt="Cover" class="card-img-top img-thumbnail">
                         <div id="coverDimensions" class="position-absolute bottom-0 end-0 bg-dark text-white px-2 py-1 small rounded-top-start opacity-75" style="font-size: 1.2rem;">Loading...</div>
                     </div>
                 </div>

@@ -250,7 +250,7 @@ try {
                 <div class="col">
                     <div class="card h-100 shadow-sm">
                         <?php if (!empty($b['has_cover'])): ?>
-                            <img src="<?= htmlspecialchars(getLibraryPath() . '/' . $b['path'] . '/cover.jpg') ?>" alt="Cover" class="card-img-top" style="height: 600px; object-fit: cover;">
+                            <img src="<?= htmlspecialchars(getLibraryWebPath() . '/' . $b['path'] . '/cover.jpg') ?>" alt="Cover" class="card-img-top" style="height: 600px; object-fit: cover;">
                         <?php else: ?>
                             <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 600px;">
                                 <i class="fa-solid fa-book fa-3x text-secondary"></i>
