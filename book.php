@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('DELETE FROM books_subseries_link WHERE book = :book')
                     ->execute([':book' => $id]);
             }
-            if ($subseriesIndexExists) {
+            if (!$subseriesIsCustom && $subseriesIndexExists) {
                 $pdo->prepare('UPDATE books SET subseries_index = NULL WHERE id = :id')
                     ->execute([':id' => $id]);
             }
@@ -277,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([':book' => $id]);
                 $pdo->prepare('INSERT OR REPLACE INTO books_subseries_link (book, subseries) VALUES (:book, :sub)')
                     ->execute([':book' => $id, ':sub' => $subId]);
-                if ($subseriesIndexExists) {
+                if (!$subseriesIsCustom && $subseriesIndexExists) {
                     $pdo->prepare('UPDATE books SET subseries_index = :idx WHERE id = :id')
                         ->execute([':idx' => $subIndex, ':id' => $id]);
                 }
