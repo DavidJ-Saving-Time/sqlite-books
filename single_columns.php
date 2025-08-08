@@ -1,13 +1,12 @@
 <?php
-// Path to your Calibre metadata database
-$dbPath = 'ebooks/metadata.db';
+require_once __DIR__ . '/db.php';
 
 // Column settings (change these two values)
 $columnLabel = 'mycolumn';   // Internal label (e.g., #mycolumn)
 $columnName  = 'My Column';  // Display name shown in Calibre
 
 try {
-    $db = new PDO("sqlite:" . $dbPath);
+    $db = getDatabaseConnection();
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // --------------------------------------------------
