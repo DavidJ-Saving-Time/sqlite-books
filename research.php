@@ -24,12 +24,14 @@ function extract_page_num_from_text(string $line): ?int {
 /** Inputs */
 $searchTerm = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
 $shelfName  = isset($_GET['shelf']) ? trim((string)$_GET['shelf']) : 'school';
+$bookId     = isset($_GET['book']) ? (int)$_GET['book'] : 0;
 $ctx        = 5;     // keep exactly -C5 like your original
 $case       = 'i';   // keep -i like your original
 
 /** Collect directories for the selected shelf */
-$libraryPath = rtrim(getLibraryPath(), '/'); // absolute FS path (inside web root)
-$pdo = getDatabaseConnection();
+$libraryPath     = rtrim(getLibraryPath(), '/'); // absolute FS path (inside web root)
+$libraryWebPath  = rtrim(getLibraryWebPath(), '/');
+$pdo             = getDatabaseConnection();
 $shelves = getCachedShelves($pdo);
 $shelfList = array_column($shelves, 'value');
 if (!in_array($shelfName, $shelfList, true)) {
@@ -40,16 +42,20 @@ $shelfTable = "custom_column_{$shelfId}";
 $shelfLinkTable = "books_custom_column_{$shelfId}_link";
 
 $stmt = $pdo->prepare(
-    "SELECT b.id, b.path
+    "SELECT b.id, b.title, b.path
      FROM books b
      JOIN {$shelfLinkTable} sl ON sl.book = b.id
      JOIN {$shelfTable} sv ON sl.value = sv.id
-     WHERE sv.value = :shelf"
+     WHERE sv.value = :shelf
+     ORDER BY b.title"
 );
 $stmt->execute([':shelf' => $shelfName]);
 
+$books = [];
 $bookDirs = [];
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $books[] = $row;
+    if ($bookId && (int)$row['id'] !== $bookId) continue;
     $full = $libraryPath . '/' . $row['path'];
     if (is_dir($full)) $bookDirs[] = $full;
 }
@@ -199,19 +205,37 @@ if ($searchTerm !== '' && $bookDirs) {
                 </button>
             </div>
         </div>
+        <div class="row g-2 mt-2">
+            <div class="col-md-12">
+                <label class="form-label">Book</label>
+                <select class="form-select" name="book">
+                    <option value="0">All</option>
+                    <?php foreach ($books as $b): ?>
+                        <option value="<?= (int)$b['id'] ?>"<?= (int)$b['id'] === $bookId ? ' selected' : '' ?>>
+                            <?= htmlspecialchars($b['title']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
     </form>
 
     <?php if ($searchTerm !== ''): ?>
         <?php if ($results): ?>
             <?php foreach ($results as $file => $blocks): ?>
                 <?php
-                    $relative = (strpos($file, $libraryPath . '/') === 0)
-                        ? substr($file, strlen($libraryPath) + 1)
-                        : $file;
-                    $fileUrl = url_path_encode($relative);
+                    if (strpos($file, $libraryPath . '/') === 0) {
+                        $relative = substr($file, strlen($libraryPath) + 1);
+                        $display  = $relative;
+                        $fileUrl  = url_path_encode($libraryWebPath . '/' . $relative);
+                    } else {
+                        $relative = $file;
+                        $display  = $file;
+                        $fileUrl  = url_path_encode($file);
+                    }
                 ?>
                 <div class="mb-4">
-                    <h5><a href="<?= htmlspecialchars($fileUrl) ?>"><?= htmlspecialchars($relative) ?></a></h5>
+                    <h5><a href="<?= htmlspecialchars($fileUrl) ?>"><?= htmlspecialchars($display) ?></a></h5>
 
                     <?php foreach ($blocks as $blk): ?>
                         <?php
