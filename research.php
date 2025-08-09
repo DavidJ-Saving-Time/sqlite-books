@@ -1,5 +1,6 @@
 <?php
 require_once 'db.php';
+require_once 'cache.php';
 requireLogin();
 
 mb_internal_encoding('UTF-8');
@@ -22,12 +23,18 @@ function extract_page_num_from_text(string $line): ?int {
 
 /** Inputs */
 $searchTerm = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+$shelfName  = isset($_GET['shelf']) ? trim((string)$_GET['shelf']) : 'school';
 $ctx        = 5;     // keep exactly -C5 like your original
 $case       = 'i';   // keep -i like your original
 
-/** Collect directories for the "school" shelf */
+/** Collect directories for the selected shelf */
 $libraryPath = rtrim(getLibraryPath(), '/'); // absolute FS path (inside web root)
 $pdo = getDatabaseConnection();
+$shelves = getCachedShelves($pdo);
+$shelfList = array_column($shelves, 'value');
+if (!in_array($shelfName, $shelfList, true)) {
+    $shelfName = $shelfList[0] ?? '';
+}
 $shelfId = getCustomColumnId($pdo, 'shelf');
 $shelfTable = "custom_column_{$shelfId}";
 $shelfLinkTable = "books_custom_column_{$shelfId}_link";
@@ -39,7 +46,7 @@ $stmt = $pdo->prepare(
      JOIN {$shelfTable} sv ON sl.value = sv.id
      WHERE sv.value = :shelf"
 );
-$stmt->execute([':shelf' => 'school']);
+$stmt->execute([':shelf' => $shelfName]);
 
 $bookDirs = [];
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -169,11 +176,21 @@ if ($searchTerm !== '' && $bookDirs) {
 
     <form class="mb-4" method="get">
         <div class="row g-2 align-items-end">
-            <div class="col-md-10">
+            <div class="col-md-8">
                 <label class="form-label">Query</label>
                 <input type="text" class="form-control" name="q" autofocus
                        placeholder="Search inside books..."
                        value="<?= htmlspecialchars($searchTerm) ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Shelf</label>
+                <select class="form-select" name="shelf">
+                    <?php foreach ($shelfList as $s): ?>
+                        <option value="<?= htmlspecialchars($s) ?>"<?= $s === $shelfName ? ' selected' : '' ?>>
+                            <?= htmlspecialchars($s) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div class="col-md-2">
                 <label class="form-label d-block">&nbsp;</label>
