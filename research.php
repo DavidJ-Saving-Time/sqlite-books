@@ -2,57 +2,150 @@
 require_once 'db.php';
 requireLogin();
 
-$searchTerm = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
-$results = [];
+mb_internal_encoding('UTF-8');
 
-$libraryPath = getLibraryPath();
+/** URL-encode a filesystem path for use as an href, preserving slashes */
+function url_path_encode(string $path): string {
+    $parts = explode('/', ltrim($path, '/'));
+    $parts = array_map('rawurlencode', $parts);
+    return '/' . implode('/', $parts);
+}
+
+/** Try to extract a page number like "Page 67", "page 12:", "Page 10 of 300" */
+function extract_page_num_from_text(string $line): ?int {
+    if (preg_match('/\b[Pp]age\s+(\d{1,6})(?=\D|$)/u', $line, $m)) {
+        $n = (int)$m[1];
+        return $n > 0 ? $n : null;
+    }
+    return null;
+}
+
+/** Inputs */
+$searchTerm = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+$ctx        = 5;     // keep exactly -C5 like your original
+$case       = 'i';   // keep -i like your original
+
+/** Collect directories for the "school" shelf */
+$libraryPath = rtrim(getLibraryPath(), '/'); // absolute FS path (inside web root)
 $pdo = getDatabaseConnection();
 $shelfId = getCustomColumnId($pdo, 'shelf');
 $shelfTable = "custom_column_{$shelfId}";
 $shelfLinkTable = "books_custom_column_{$shelfId}_link";
 
 $stmt = $pdo->prepare(
-    "SELECT b.id, b.path FROM books b\n" .
-    "JOIN {$shelfLinkTable} sl ON sl.book = b.id\n" .
-    "JOIN {$shelfTable} sv ON sl.value = sv.id\n" .
-    "WHERE sv.value = :shelf"
+    "SELECT b.id, b.path
+     FROM books b
+     JOIN {$shelfLinkTable} sl ON sl.book = b.id
+     JOIN {$shelfTable} sv ON sl.value = sv.id
+     WHERE sv.value = :shelf"
 );
 $stmt->execute([':shelf' => 'school']);
+
 $bookDirs = [];
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
     $full = $libraryPath . '/' . $row['path'];
-    if (is_dir($full)) {
-        $bookDirs[] = $full;
-    }
+    if (is_dir($full)) $bookDirs[] = $full;
 }
 
+/** Run your exact rga and parse JSON -> blocks */
+$results = []; // $results[$file][] = ['page'=>int|null,'lines'=>[ ['is_match'=>bool,'html'=>string,'raw'=>string]... ]];
+
 if ($searchTerm !== '' && $bookDirs) {
-    $cmd = 'rga --json -i -n -C5 -H -- ' . escapeshellarg($searchTerm) . ' '
-        . implode(' ', array_map('escapeshellarg', $bookDirs)) . ' 2>&1';
+    // EXACT command you had (no extra flags)
+    $cmd = 'env LANG=C.UTF-8 rga --json -i -n -C5 -H -- '
+         . escapeshellarg($searchTerm) . ' '
+         . implode(' ', array_map('escapeshellarg', $bookDirs)) . ' 2>&1';
+
     $output = shell_exec($cmd);
-    if ($output !== null) {
-        $lines = preg_split("/(\r\n|\r|\n)/", trim($output));
-        foreach ($lines as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $data = json_decode($line, true);
-            if (!is_array($data) || !isset($data['type'])) {
-                continue;
-            }
-            if ($data['type'] === 'match' || $data['type'] === 'context') {
-                $file = $data['data']['path']['text'] ?? null;
-                if ($file === null) {
-                    continue;
+
+    // Collect per file lines, then build blocks around each MATCH line_number
+    $files = []; // file => ['lines'=>[ln=>...], 'match_lines'=>[ln=>true]]
+    if ($output) {
+        // IMPORTANT: don't add --type or --max-columns filters — that broke it earlier
+        foreach (preg_split("/(\r\n|\r|\n)/", $output) as $line) {
+            if ($line === '') continue;
+            $j = json_decode($line, true);
+            if (!is_array($j) || !isset($j['type'])) continue;
+            if ($j['type'] !== 'match' && $j['type'] !== 'context') continue;
+
+            $file = $j['data']['path']['text'] ?? null;
+            if (!$file) continue;
+
+            $ln = (int)($j['data']['line_number'] ?? 0); // text line index (NOT a PDF page)
+            $raw = rtrim((string)($j['data']['lines']['text'] ?? ''), "\r\n");
+            $isMatch = ($j['type'] === 'match');
+
+            // Highlight using submatches (byte offsets) when it's a match
+            $html = htmlspecialchars($raw, ENT_QUOTES, 'UTF-8');
+            if ($isMatch && !empty($j['data']['submatches'])) {
+                $out = '';
+                $pos = 0;
+                foreach ($j['data']['submatches'] as $sm) {
+                    $s = (int)$sm['start']; $e = (int)$sm['end'];
+                    if ($s < $pos) continue;
+                    $out .= htmlspecialchars(substr($raw, $pos, $s - $pos), ENT_QUOTES, 'UTF-8');
+                    $out .= '<mark>' . htmlspecialchars(substr($raw, $s, $e - $s), ENT_QUOTES, 'UTF-8') . '</mark>';
+                    $pos = $e;
                 }
-                $results[$file][] = [
-                    'line' => (int)$data['data']['line_number'],
-                    'text' => ltrim(rtrim($data['data']['lines']['text'] ?? '', "\r\n")),
-                    'match' => $data['type'] === 'match'
-                ];
+                $out .= htmlspecialchars(substr($raw, $pos), ENT_QUOTES, 'UTF-8');
+                $html = $out;
             }
+
+            if (!isset($files[$file])) $files[$file] = ['lines' => [], 'match_lines' => []];
+
+            // Keep first-seen content; upgrade context→match if same ln reappears as match
+            if (!isset($files[$file]['lines'][$ln])) {
+                $files[$file]['lines'][$ln] = ['raw' => $raw, 'html' => $html, 'is_match' => $isMatch];
+            } else {
+                if ($isMatch && !$files[$file]['lines'][$ln]['is_match']) {
+                    $files[$file]['lines'][$ln]['is_match'] = true;
+                    $files[$file]['lines'][$ln]['html'] = $html;
+                }
+            }
+            if ($isMatch) $files[$file]['match_lines'][$ln] = true;
         }
     }
+
+    // Build readable blocks: for each match line, take [ln-ctx .. ln+ctx]
+    foreach ($files as $file => $data) {
+        if (empty($data['match_lines'])) continue;
+
+        ksort($data['lines'], SORT_NUMERIC);
+        $matchLines = array_keys($data['match_lines']);
+        sort($matchLines, SORT_NUMERIC);
+
+        foreach ($matchLines as $mLn) {
+            $start = max(1, $mLn - $ctx);
+            $end   = $mLn + $ctx;
+
+            $blockLines = [];
+            for ($i = $start; $i <= $end; $i++) {
+                if (isset($data['lines'][$i])) {
+                    $blockLines[] = [
+                        'is_match' => $data['lines'][$i]['is_match'],
+                        'html'     => $data['lines'][$i]['html'],
+                        'raw'      => $data['lines'][$i]['raw'],
+                    ];
+                }
+            }
+            if (!$blockLines) continue;
+
+            // Try to infer a PDF page number from any line's text in the block
+            $page = null;
+            foreach ($blockLines as $BL) {
+                $p = extract_page_num_from_text($BL['raw']);
+                if ($p !== null) { $page = $p; break; }
+            }
+
+            $results[$file][] = [
+                'page'  => $page,       // null if not detected
+                'lines' => $blockLines,
+            ];
+        }
+    }
+
+    // Sort files naturally (case-insensitive)
+    uksort($results, fn($a,$b)=>strnatcasecmp($a,$b));
 }
 ?>
 <!DOCTYPE html>
@@ -64,42 +157,66 @@ if ($searchTerm !== '' && $bookDirs) {
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="js/theme.js"></script>
+    <style>
+        pre { white-space: pre-wrap; }
+        mark { padding: 0 .1em; }
+    </style>
 </head>
 <body class="pt-5">
 <?php include 'navbar_other.php'; ?>
 <div class="container my-4">
     <h1>Research</h1>
+
     <form class="mb-4" method="get">
-        <div class="input-group">
-            <input type="text" class="form-control" name="q" placeholder="Search inside books..." value="<?= htmlspecialchars($searchTerm) ?>">
-            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass me-1"></i>Search</button>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-10">
+                <label class="form-label">Query</label>
+                <input type="text" class="form-control" name="q" autofocus
+                       placeholder="Search inside books..."
+                       value="<?= htmlspecialchars($searchTerm) ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label d-block">&nbsp;</label>
+                <button class="btn btn-primary w-100" type="submit">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i>Search
+                </button>
+            </div>
         </div>
     </form>
+
     <?php if ($searchTerm !== ''): ?>
         <?php if ($results): ?>
-            <?php foreach ($results as $file => $lines): ?>
+            <?php foreach ($results as $file => $blocks): ?>
                 <?php
-                    $bookId = null;
-                    if (preg_match('/\((\d+)\)/', $file, $m)) {
-                        $bookId = $m[1];
-                    }
-                    $library = getLibraryPath();
-                    $relative = (strpos($file, $library) === 0) ? substr($file, strlen($library) + 1) : $file;
-                    $link = $bookId ? 'book.php?id=' . urlencode($bookId) : null;
+                    $relative = (strpos($file, $libraryPath . '/') === 0)
+                        ? substr($file, strlen($libraryPath) + 1)
+                        : $file;
+                    $fileUrl = url_path_encode($relative);
                 ?>
                 <div class="mb-4">
-                    <h5>
-                        <?php if ($link): ?>
-                            <a href="<?= htmlspecialchars($link) ?>"><?= htmlspecialchars($relative) ?></a>
-                        <?php else: ?>
-                            <?= htmlspecialchars($relative) ?>
-                        <?php endif; ?>
-                    </h5>
-                    <pre class="bg-light p-2 border">
-<?php foreach ($lines as $entry): ?>
-<?= htmlspecialchars($entry['line'] . ($entry['match'] ? ':' : '-') . ' ' . $entry['text']) . "\n" ?>
-<?php endforeach; ?>
-                    </pre>
+                    <h5><a href="<?= htmlspecialchars($fileUrl) ?>"><?= htmlspecialchars($relative) ?></a></h5>
+
+                    <?php foreach ($blocks as $blk): ?>
+                        <?php
+                            $hasPage = ($blk['page'] !== null);
+                            $openAt  = $fileUrl . ($hasPage ? '#page=' . (int)$blk['page'] : '');
+                        ?>
+                        <div class="border rounded mb-3">
+                            <div class="bg-light px-2 py-1 small d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">
+                                    <?= $hasPage ? 'Page ' . (int)$blk['page'] : 'Match' ?>
+                                </span>
+                                <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars($openAt) ?>">
+                                    <?= $hasPage ? 'Open at page ' . (int)$blk['page'] : 'Open file' ?>
+                                </a>
+                            </div>
+                            <pre class="m-0 p-2"><?php
+                                foreach ($blk['lines'] as $L) {
+                                    echo ($L['is_match'] ? '▶ ' : '  ') . $L['html'] . "\n";
+                                }
+                            ?></pre>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
@@ -109,3 +226,4 @@ if ($searchTerm !== '' && $bookDirs) {
 </div>
 </body>
 </html>
+
