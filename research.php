@@ -20,6 +20,15 @@ if ($searchTerm !== '') {
                 $currentFile = null;
                 continue;
             }
+            if (preg_match('/^([^:]+):(\d+)([:\-])(.*)$/', $line, $m)) {
+                $currentFile = $m[1];
+                $results[$currentFile][] = [
+                    'line' => (int)$m[2],
+                    'text' => ltrim($m[4]),
+                    'match' => $m[3] === ':'
+                ];
+                continue;
+            }
             if ($currentFile === null) {
                 $currentFile = $line;
                 continue;
