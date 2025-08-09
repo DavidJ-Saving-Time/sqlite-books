@@ -4,13 +4,31 @@ requireLogin();
 
 $searchTerm = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
 $results = [];
-if ($searchTerm !== '') {
-    $libraryPath = getLibraryPath();
-    $cmd = sprintf(
-        'rga -i -n -C5 -H -- %s %s 2>&1',
-        escapeshellarg($searchTerm),
-        escapeshellarg($libraryPath)
-    );
+
+$libraryPath = getLibraryPath();
+$pdo = getDatabaseConnection();
+$shelfId = getCustomColumnId($pdo, 'shelf');
+$shelfTable = "custom_column_{$shelfId}";
+$shelfLinkTable = "books_custom_column_{$shelfId}_link";
+
+$stmt = $pdo->prepare(
+    "SELECT b.id, b.path FROM books b\n" .
+    "JOIN {$shelfLinkTable} sl ON sl.book = b.id\n" .
+    "JOIN {$shelfTable} sv ON sl.value = sv.id\n" .
+    "WHERE sv.value = :shelf"
+);
+$stmt->execute([':shelf' => 'school']);
+$bookDirs = [];
+foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $full = $libraryPath . '/' . $row['path'];
+    if (is_dir($full)) {
+        $bookDirs[] = $full;
+    }
+}
+
+if ($searchTerm !== '' && $bookDirs) {
+    $cmd = 'rga -i -n -C5 -H -- ' . escapeshellarg($searchTerm) . ' ' .
+           implode(' ', array_map('escapeshellarg', $bookDirs)) . ' 2>&1';
     $output = shell_exec($cmd);
     if ($output !== null) {
         $lines = preg_split("/(\r\n|\r|\n)/", trim($output));
