@@ -27,35 +27,28 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 }
 
 if ($searchTerm !== '' && $bookDirs) {
-    $cmd = 'rga -i -n -C5 -H -- ' . escapeshellarg($searchTerm) . ' ' .
-           implode(' ', array_map('escapeshellarg', $bookDirs)) . ' 2>&1';
+    $cmd = 'rga --json -i -n -C5 -H -- ' . escapeshellarg($searchTerm) . ' '
+        . implode(' ', array_map('escapeshellarg', $bookDirs)) . ' 2>&1';
     $output = shell_exec($cmd);
     if ($output !== null) {
         $lines = preg_split("/(\r\n|\r|\n)/", trim($output));
-        $currentFile = null;
         foreach ($lines as $line) {
             if ($line === '') {
-                $currentFile = null;
                 continue;
             }
-            if (preg_match('/^([^:]+):(\d+)([:\-])(.*)$/', $line, $m)) {
-                $currentFile = $m[1];
-                $results[$currentFile][] = [
-                    'line' => (int)$m[2],
-                    'text' => ltrim($m[4]),
-                    'match' => $m[3] === ':'
-                ];
+            $data = json_decode($line, true);
+            if (!is_array($data) || !isset($data['type'])) {
                 continue;
             }
-            if ($currentFile === null) {
-                $currentFile = $line;
-                continue;
-            }
-            if (preg_match('/^(\d+)([:\-])(.*)$/', $line, $m)) {
-                $results[$currentFile][] = [
-                    'line' => (int)$m[1],
-                    'text' => ltrim($m[3]),
-                    'match' => $m[2] === ':'
+            if ($data['type'] === 'match' || $data['type'] === 'context') {
+                $file = $data['data']['path']['text'] ?? null;
+                if ($file === null) {
+                    continue;
+                }
+                $results[$file][] = [
+                    'line' => (int)$data['data']['line_number'],
+                    'text' => ltrim(rtrim($data['data']['lines']['text'] ?? '', "\r\n")),
+                    'match' => $data['type'] === 'match'
                 ];
             }
         }
