@@ -26,5 +26,15 @@
             "REMOTE_DIR": "",
             "DEVICE": ""
         }
+    },
+    "genocide": {
+        "password": "genocide",
+        "prefs": {
+            "db_path": "genocide\/metadata.db",
+            "library_path": "genocide",
+            "REMOTE_DIR": "",
+            "DEVICE": ""
+        }
     }
+
 }
