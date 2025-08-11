@@ -29,7 +29,7 @@ $pdo = getDatabaseConnection();
 
 // --- Helper Functions ---
 function safe_filename($name, $max_length = 150) {
-    $name = preg_replace('/[^A-Za-z0-9 _-]/', '', $name);
+    $name = preg_replace('/[^A-Za-z0-9 _.-]/', '', $name);
     return substr(trim($name), 0, $max_length);
 }
 
