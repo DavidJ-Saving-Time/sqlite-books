@@ -24,11 +24,27 @@
                     <?php if ($missing): ?>
                         <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
                     <?php endif; ?>
-                     
+                    <?php
+                        $goodreadsUrl = '';
+                        if (!empty($book['authors'])) {
+                            $firstAuthor = explode('|', $book['authors'])[0];
+                            $nameParts = preg_split('/\s+/', trim($firstAuthor));
+                            $firstName = $nameParts[0] ?? '';
+                            $surname = $nameParts[count($nameParts) - 1] ?? '';
+                            $query = trim($firstName . ' ' . $surname . ' ' . $book['title']);
+                            $goodreadsUrl = 'https://www.goodreads.com/search?q=' . urlencode($query);
+                        }
+                    ?>
+
                     <a href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>" class="fw-bold book-title me-1"
                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
                          <?= htmlspecialchars($book['title']) ?>
                     </a>
+                    <?php if ($goodreadsUrl !== ''): ?>
+                        <a href="<?= htmlspecialchars($goodreadsUrl) ?>" target="_blank" class="ms-1 text-decoration-none">
+                            <i class="fa-brands fa-goodreads"></i>
+                        </a>
+                    <?php endif; ?>
                     <?php if (!empty($book['has_recs'])): ?>
                         <span class="text-success ms-1">&#10003;</span>
                     <?php endif; ?>
