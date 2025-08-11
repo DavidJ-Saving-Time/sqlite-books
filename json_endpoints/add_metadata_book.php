@@ -76,7 +76,7 @@ function fetchAdditionalMetadata(string $title, string $author): array {
 }
 
 function safe_filename(string $name, int $max_length = 150): string {
-    $name = preg_replace('/[^A-Za-z0-9 _-]/', '', $name);
+    $name = preg_replace('/[^A-Za-z0-9 _.-]/', '', $name);
     return substr(trim($name), 0, $max_length);
 }
 
