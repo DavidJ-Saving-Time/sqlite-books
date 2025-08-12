@@ -256,6 +256,20 @@ $text = formatSourcesUsedInHtml($text);     // formats "Sources used:" section
     padding-left: .75rem;
     border-left: 3px solid rgba(0,0,0,.1); /* looks nice with Bootstrap */
   }
+
+  @media print {
+    body {
+      background: #fff !important;
+      padding-top: 0 !important;
+    }
+    nav.navbar,
+    .no-print {
+      display: none !important;
+    }
+    .bg-white {
+      box-shadow: none !important;
+    }
+  }
     </style>
 <?php if (($id > 0 && $action !== 'view') || $action === 'new'): ?>
 <script>
@@ -286,9 +300,12 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="bg-white p-4 shadow rounded">
                 <h2><?= $title ?></h2>
                 <div><?= $text ?></div>
-                <div class="d-flex justify-content-between mt-3">
+                <div class="d-flex justify-content-between align-items-center mt-3 no-print">
                     <a href="notepad.php" class="btn btn-secondary">Back</a>
-                    <a href="notepad.php?id=<?= (int)$id ?>" class="btn btn-primary">Edit</a>
+                    <div>
+                        <button type="button" onclick="window.print()" class="btn btn-outline-secondary me-2">Print</button>
+                        <a href="notepad.php?id=<?= (int)$id ?>" class="btn btn-primary">Edit</a>
+                    </div>
                 </div>
             </div>
 
