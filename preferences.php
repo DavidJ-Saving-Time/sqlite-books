@@ -5,10 +5,68 @@ requireLogin();
 
 $message = '';
 $alertClass = 'success';
+$orphanDirs = [];
+
+function findOrphanDirectories(): array {
+    $pdo = getDatabaseConnection();
+    $stmt = $pdo->query('SELECT path FROM books');
+    $paths = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    $known = array_flip($paths);
+
+    $library = getLibraryPath();
+    $orphans = [];
+
+    foreach (glob($library . '/*', GLOB_ONLYDIR) as $authorDir) {
+        foreach (glob($authorDir . '/*', GLOB_ONLYDIR) as $bookDir) {
+            $rel = substr($bookDir, strlen($library) + 1);
+            if (!isset($known[$rel])) {
+                $orphans[] = $rel;
+            }
+        }
+    }
+
+    return $orphans;
+}
+
+function deleteDirectories(array $dirs): void {
+    $library = getLibraryPath();
+    foreach ($dirs as $rel) {
+        $full = realpath($library . '/' . $rel);
+        if ($full && strpos($full, $library) === 0 && is_dir($full)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($full, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($it as $file) {
+                $path = $file->getPathname();
+                if ($file->isDir()) {
+                    rmdir($path);
+                } else {
+                    unlink($path);
+                }
+            }
+            rmdir($full);
+        }
+    }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['clear_cache'])) {
         clearUserCache();
         $message = 'Cache cleared.';
+    } elseif (isset($_POST['check_orphans'])) {
+        $orphanDirs = findOrphanDirectories();
+        if (!$orphanDirs) {
+            $message = 'No orphan directories found.';
+        }
+    } elseif (isset($_POST['delete_orphans'])) {
+        $dirs = $_POST['dirs'] ?? [];
+        if (is_array($dirs) && $dirs) {
+            deleteDirectories($dirs);
+            $message = 'Selected directories deleted.';
+            $orphanDirs = findOrphanDirectories();
+        } else {
+            $message = 'No directories selected.';
+        }
     } else {
         $dbPath = trim($_POST['db_path'] ?? '');
         $libPath = trim($_POST['library_path'] ?? '');
@@ -111,5 +169,21 @@ $currentDevice = getUserPreference(currentUser(), 'DEVICE', getPreference('DEVIC
     <button type="submit" name="clear_cache" value="1" class="btn btn-warning ms-2">Clear Cache</button>
     <a href="fix_author_sort.php" class="btn btn-secondary ms-2">Fix Author Sort</a>
   </form>
+  <hr class="my-4">
+  <h2 class="mb-3">Library Cleanup</h2>
+  <form method="post" class="mb-3">
+    <button type="submit" name="check_orphans" value="1" class="btn btn-secondary">Check for Orphaned Directories</button>
+  </form>
+  <?php if ($orphanDirs): ?>
+    <form method="post">
+      <?php foreach ($orphanDirs as $dir): $id = md5($dir); ?>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="dirs[]" value="<?= htmlspecialchars($dir) ?>" id="dir<?= $id ?>">
+          <label class="form-check-label" for="dir<?= $id ?>"><?= htmlspecialchars($dir) ?></label>
+        </div>
+      <?php endforeach; ?>
+      <button type="submit" name="delete_orphans" value="1" class="btn btn-danger mt-2">Delete Selected</button>
+    </form>
+  <?php endif; ?>
 </body>
 </html>
