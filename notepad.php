@@ -20,8 +20,146 @@ function makeClickableLinks(string $text): string {
     );
 }
 
+
 function italicizeBrackets(string $text): string {
-    return preg_replace('/\[(.*?)\]/', '<em>$1</em>', $text);
+    // [Title, 2010, p.164–165]  or  [Title, 2010, p.44]
+    // Be generous about dash types (&ndash;, —, −, -) and spacing.
+    $pattern = '/\[\s*(?<title>[^,\]]+)\s*,\s*(?<year>\d{4})'
+             . '(?:\s*,\s*(?<pages>p{1,2}\.?\s*\d+(?:\s*(?:,|&ndash;|&#8211;|&#x2013;|&#8212;|—|-|\x{2212}|\p{Pd})\s*\d+)*))?'
+             . '\s*\]/u';
+
+    return preg_replace_callback($pattern, function ($m) {
+        $title = trim($m['title']);
+        $year  = $m['year'];
+        $pagesRaw = isset($m['pages']) ? trim($m['pages']) : '';
+
+        $pages = '';
+        if ($pagesRaw !== '') {
+            // Drop leading p./pp.
+            $numPart = preg_replace('/^p{1,2}\.?\s*/iu', '', $pagesRaw);
+
+            // Normalise all dash variants to a true en dash
+            $numPart = preg_replace('/(&ndash;|&#8211;|&#x2013;|&#8212;|—|-|\x{2212}|\p{Pd})/u', '–', $numPart);
+            // Tighten spaces around the dash
+            $numPart = preg_replace('/\s*–\s*/u', '–', $numPart);
+
+            // Decide p. vs pp. (range or multiple pages -> pp.)
+            $label = (str_contains($numPart, '–') || str_contains($numPart, ',')) ? 'pp.' : 'p.';
+            $pages = ", {$label} {$numPart}";
+        }
+
+        return sprintf(
+            '<span class="reference text-muted" style="font-variant: small-caps;">'
+          . '<cite class="fst-italic">%s</cite> (%s)%s'
+          . '</span>',
+            htmlspecialchars($title, ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($year, ENT_QUOTES, 'UTF-8'),
+            htmlspecialchars($pages, ENT_QUOTES, 'UTF-8')
+        );
+    }, $text);
+}
+
+function debugReveal(string $text): string {
+    $map = [
+        "\r\n" => "␍␊\n",
+        "\r"   => "␍\n",
+        "\n"   => "␊\n",
+        "\t"   => "␉",
+        "\u{00A0}" => "⍽", // NBSP
+    ];
+    $vis = strtr($text, $map);
+    // show HTML tags literally
+    $vis = htmlspecialchars($vis, ENT_QUOTES, 'UTF-8');
+    return "<pre style='white-space:pre-wrap;border:1px dashed #ccc;padding:8px'>{$vis}</pre>";
+}
+
+
+
+function formatSourcesUsedInHtml(string $html): string {
+    // Match a paragraph that starts with "Sources used:" and has one or more bullet lines after,
+    // all within the same <p>…</p>. We don't touch anything else.
+    $pattern = '~<p[^>]*>\s*Sources\s+used\s*:?\s*(?:<br\s*/?>\s*[-•–*].*?)+\s*</p>~isu';
+
+    return preg_replace_callback($pattern, function ($m) {
+        $block = $m[0];
+
+        // Get the inside of <p>…</p>
+        $inner = preg_replace('~^<p[^>]*>|</p>$~i', '', $block);
+
+        // Split by <br>
+        $lines = preg_split('~<br\s*/?>~i', $inner);
+        if (!$lines || stripos(trim($lines[0]), 'sources used') === false) {
+            return $block; // safety: keep original if unexpected
+        }
+
+        // Build output
+        $out = [];
+        $out[] = '<h6 class="text-uppercase text-muted mt-3 mb-2">Sources used</h6>';
+        $out[] = '<ul class="list-unstyled">';
+
+        for ($i = 1; $i < count($lines); $i++) {
+            $line = trim(html_entity_decode($lines[$i], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($line === '' || !preg_match('/^[-•–*]\s+/u', $line)) {
+                continue; // skip non-bullets in that paragraph
+            }
+            // Strip leading bullet
+            $item = preg_replace('/^[-•–*]\s+/u', '', $line);
+            // Drop trailing [sim=...]
+            $item = preg_replace('/\s*\[sim=[^\]]+\]\s*$/iu', '', $item);
+
+            // Expect: Title (Author(s), Year) [pages...]
+            $rparen = mb_strrpos($item, ')');
+            if ($rparen === false) {
+                $out[] = '<li class="mb-1">'.htmlspecialchars($item, ENT_QUOTES, 'UTF-8').'</li>';
+                continue;
+            }
+            $before = trim(mb_substr($item, 0, $rparen + 1)); // "Title (Author(s), Year)"
+            $after  = trim(mb_substr($item, $rparen + 1));    // "p.xxx–yyy" (optional)
+
+            if (!preg_match('/^(?<title>.+)\s*\(\s*(?<inside>.+)\s*\)$/u', $before, $mm)) {
+                $out[] = '<li class="mb-1">'.htmlspecialchars($item, ENT_QUOTES, 'UTF-8').'</li>';
+                continue;
+            }
+
+            $title  = trim($mm['title']);
+            $inside = trim($mm['inside']);
+
+            // inside = "Author(s), 2010"  → split at last comma
+            $lastComma = mb_strrpos($inside, ',');
+            if ($lastComma === false) {
+                $out[] = '<li class="mb-1">'.htmlspecialchars($item, ENT_QUOTES, 'UTF-8').'</li>';
+                continue;
+            }
+            $author = trim(mb_substr($inside, 0, $lastComma));
+            $year   = trim(mb_substr($inside, $lastComma + 1));
+
+            // Pages
+            $pagesOut = '';
+            if ($after !== '') {
+                $after = preg_replace('/^[,;\.\s]+/u', '', $after);
+                if (preg_match('/^p{1,2}\.?\s*[\d,\s\-\x{2013}\x{2014}]+$/iu', $after)) {
+                    $numPart = preg_replace('/^p{1,2}\.?\s*/iu', '', $after);
+                    // normalize any dash to en dash
+                    $numPart = preg_replace('/(-|\x{2014}|\x{2013}|\x{2212}|\p{Pd})/u', '–', $numPart);
+                    // tighten spaces around en dash
+                    $numPart = preg_replace('/\s*–\s*/u', '–', $numPart);
+                    $label = (mb_strpos($numPart, '–') !== false || mb_strpos($numPart, ',') !== false) ? 'pp.' : 'p.';
+                    $pagesOut = ", {$label} {$numPart}";
+                }
+            }
+
+            $out[] = sprintf(
+                '<li class="mb-1"><span class="reference text-muted" style="font-variant: small-caps;">%s, <cite class="fst-italic">%s</cite> (%s)%s</span></li>',
+                htmlspecialchars($author, ENT_QUOTES, 'UTF-8'),
+                htmlspecialchars($title,  ENT_QUOTES, 'UTF-8'),
+                htmlspecialchars($year,   ENT_QUOTES, 'UTF-8'),
+                htmlspecialchars($pagesOut, ENT_QUOTES, 'UTF-8')
+            );
+        }
+
+        $out[] = '</ul>';
+        return implode("\n", $out);
+    }, $html);
 }
 
 
@@ -50,7 +188,15 @@ if ($action === 'view' && $id > 0) {
         exit;
     }
     $title = $note['title'];
-    $text  = italicizeBrackets($note['text']);
+    
+    //$text  = italicizeBrackets($note['text']);
+    
+    $text = $note['text'];
+$text = italicizeBrackets($text);      // styles [ ... ] inline refs
+$text = formatSourcesUsedInHtml($text);     // formats "Sources used:" section
+    
+    
+    //$text  = formatSourcesUsed($note['text']);
 } elseif ($id > 0) {
     $stmt = $pdo->prepare('SELECT * FROM notepad WHERE id = ?');
     $stmt->execute([$id]);
@@ -105,7 +251,11 @@ if ($action === 'view' && $id > 0) {
     .tox.tox-tinymce {
         margin-top: 0 !important;
     }
-
+  .reference {
+    display: inline-block;
+    padding-left: .75rem;
+    border-left: 3px solid rgba(0,0,0,.1); /* looks nice with Bootstrap */
+  }
     </style>
 <?php if (($id > 0 && $action !== 'view') || $action === 'new'): ?>
 <script>
@@ -124,6 +274,8 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <?php endif; ?>
+
+
 </head>
 <body class="pt-5 bg-light">
     <?php include 'navbar_other.php'; ?>
