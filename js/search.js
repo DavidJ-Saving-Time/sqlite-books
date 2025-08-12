@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.querySelector('input[name="search"]');
-  const suggestionList = document.getElementById('authorSuggestions');
+  const suggestionList = document.getElementById('searchSuggestions');
 
   if (searchInput && suggestionList) {
     let debounceTimer;
@@ -12,16 +12,23 @@ document.addEventListener('DOMContentLoaded', () => {
       selectedIndex = -1;
     };
 
-    const renderSuggestions = (data) => {
+    const renderSuggestions = (items) => {
       clearSuggestions();
-      if (!data.length) return;
-      data.forEach(name => {
+      if (!items.length) return;
+      items.forEach(item => {
         const li = document.createElement('li');
-        li.textContent = name;
         li.className = 'list-group-item list-group-item-action';
+        li.dataset.value = item.value;
+
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-secondary me-2';
+        badge.textContent = item.type;
+        li.appendChild(badge);
+        li.appendChild(document.createTextNode(item.value));
+
         li.addEventListener('mousedown', (e) => {
           e.preventDefault();
-          searchInput.value = name;
+          searchInput.value = li.dataset.value;
           clearSuggestions();
         });
         suggestionList.appendChild(li);
@@ -33,9 +40,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const term = searchInput.value.trim();
       if (term.length < 2) { clearSuggestions(); return; }
       try {
-        const res = await fetch(`json_endpoints/author_autocomplete.php?term=${encodeURIComponent(term)}`);
-        const data = await res.json();
-        renderSuggestions(data);
+        const [authorsRes, titlesRes, seriesRes] = await Promise.all([
+          fetch(`json_endpoints/author_autocomplete.php?term=${encodeURIComponent(term)}`),
+          fetch(`json_endpoints/title_autocomplete.php?term=${encodeURIComponent(term)}`),
+          fetch(`json_endpoints/series_autocomplete.php?term=${encodeURIComponent(term)}`)
+        ]);
+        const [authors, titles, series] = await Promise.all([
+          authorsRes.json(), titlesRes.json(), seriesRes.json()
+        ]);
+        const combined = [
+          ...authors.map(name => ({ type: 'Author', value: name })),
+          ...titles.map(name => ({ type: 'Title', value: name })),
+          ...series.map(name => ({ type: 'Series', value: name }))
+        ].slice(0, 10);
+        renderSuggestions(combined);
       } catch (err) {
         console.error(err);
       }
@@ -60,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (e.key === 'Enter') {
         if (selectedIndex >= 0) {
           e.preventDefault();
-          searchInput.value = items[selectedIndex].textContent;
+          searchInput.value = items[selectedIndex].dataset.value;
           clearSuggestions();
         }
       } else if (e.key === 'Escape') {

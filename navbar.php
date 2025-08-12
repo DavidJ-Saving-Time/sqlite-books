@@ -52,7 +52,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
 
           <div class="input-group position-relative">
             <input class="form-control" type="search" name="search" style="width: 20rem;" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search" autocomplete="off">
-            <ul id="authorSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none; top:100%; left:0;"></ul>
+            <ul id="searchSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none; top:100%; left:0;"></ul>
             <select name="source" class="form-select" style="max-width: 12rem;">
               <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>
               <option value="openlibrary"<?= $sourceVal === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
