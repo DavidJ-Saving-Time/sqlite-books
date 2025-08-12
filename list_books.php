@@ -90,6 +90,17 @@ $authorInitial = isset($_GET['author_initial'])
     : '';
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
 $source = $_GET['source'] ?? 'local';
+
+// If searching locally, redirect to series page when query matches a series name
+if ($search !== '' && $source === 'local') {
+    $stmt = $pdo->prepare('SELECT id FROM series WHERE name = :name COLLATE NOCASE');
+    $stmt->execute([':name' => $search]);
+    $seriesMatch = $stmt->fetchColumn();
+    if ($seriesMatch) {
+        header('Location: list_books.php?series_id=' . (int)$seriesMatch);
+        exit;
+    }
+}
 $redirectParams = $_GET;
 unset($redirectParams['source']);
 if ($source === 'openlibrary') {
