@@ -20,6 +20,10 @@ function makeClickableLinks(string $text): string {
     );
 }
 
+function italicizeBrackets(string $text): string {
+    return preg_replace('/\[(.*?)\]/', '<em>$1</em>', $text);
+}
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
@@ -46,7 +50,7 @@ if ($action === 'view' && $id > 0) {
         exit;
     }
     $title = $note['title'];
-    $text  = $note['text'];
+    $text  = italicizeBrackets($note['text']);
 } elseif ($id > 0) {
     $stmt = $pdo->prepare('SELECT * FROM notepad WHERE id = ?');
     $stmt->execute([$id]);
