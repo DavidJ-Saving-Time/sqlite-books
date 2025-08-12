@@ -2,18 +2,22 @@
 require_once 'db.php';
 requireLogin();
 
-$fileParam = $_GET['file'] ?? '';
-$bookFile = '';
+$fileParam      = $_GET['file'] ?? '';
+$bookFile       = '';
+$libraryPath    = getLibraryPath();
+$libraryWebPath = getLibraryWebPath();
+
 if ($fileParam !== '') {
-    $library = getLibraryPath();
-    $abs = realpath($library . '/' . $fileParam);
-    if ($abs !== false && strpos($abs, realpath($library)) === 0 && is_file($abs)) {
+    $abs = realpath($libraryPath . '/' . $fileParam);
+    if ($abs !== false && strpos($abs, realpath($libraryPath)) === 0 && is_file($abs)) {
         $bookFile = '/' . ltrim($fileParam, '/');
     }
 }
+
 $bookFileEncoded = $bookFile !== ''
     ? dirname($bookFile) . '/' . rawurlencode(basename($bookFile))
     : '';
+$bookFileUrl = $bookFileEncoded !== '' ? $libraryWebPath . $bookFileEncoded : '';
 ?>
 
 
@@ -321,5 +325,5 @@ body {
     </button>
 </div>
 
-<div id="book-data" data-file="<?php echo $library ?><?php echo $bookFileEncoded ?>"></div>
+<div id="book-data" data-file="<?php echo htmlspecialchars($bookFileUrl, ENT_QUOTES); ?>"></div>
 <script src="/foliate-js/reader.js" type="module"></script>
