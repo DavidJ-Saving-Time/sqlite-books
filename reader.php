@@ -18,6 +18,37 @@ $bookFileEncoded = $bookFile !== ''
     ? dirname($bookFile) . '/' . rawurlencode(basename($bookFile))
     : '';
 $bookFileUrl = $bookFileEncoded !== '' ? $libraryWebPath . $bookFileEncoded : '';
+
+$ext = strtolower(pathinfo($bookFile, PATHINFO_EXTENSION));
+if (in_array($ext, ['txt', 'docx'], true)) {
+    header('Content-Type: text/html; charset=utf-8');
+    ?>
+    <!DOCTYPE html>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>E-Book Reader</title>
+    <?php if ($ext === 'txt'): ?>
+    <pre id="plain-text" style="white-space: pre-wrap; font-family: system-ui, sans-serif; margin:1rem;"></pre>
+    <script>
+    fetch("<?php echo htmlspecialchars($bookFileUrl, ENT_QUOTES); ?>")
+        .then(r => r.text())
+        .then(t => { document.getElementById('plain-text').textContent = t; })
+        .catch(err => { document.getElementById('plain-text').textContent = 'Failed to load file.'; console.error(err); });
+    </script>
+    <?php else: ?>
+    <div id="docx-content" style="font-family: system-ui, sans-serif; margin:1rem;"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <script>
+    fetch("<?php echo htmlspecialchars($bookFileUrl, ENT_QUOTES); ?>")
+        .then(r => r.arrayBuffer())
+        .then(buf => mammoth.convertToHtml({arrayBuffer: buf}))
+        .then(result => { document.getElementById('docx-content').innerHTML = result.value; })
+        .catch(err => { document.getElementById('docx-content').textContent = 'Failed to load document.'; console.error(err); });
+    </script>
+    <?php endif; ?>
+    <?php
+    exit;
+}
 ?>
 
 
