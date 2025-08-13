@@ -49,6 +49,27 @@ function deleteDirectories(array $dirs): void {
         }
     }
 }
+
+/**
+ * Set the reading status for all books to "Not Read".
+ */
+function resetAllStatusesToNotRead(): void {
+    $pdo = getDatabaseConnection();
+    $statusId = ensureMultiValueColumn($pdo, '#status', 'Status');
+    $valueTable = "custom_column_{$statusId}";
+    $linkTable = "books_custom_column_{$statusId}_link";
+
+    // Ensure the "Not Read" value exists
+    $pdo->prepare("INSERT OR IGNORE INTO $valueTable (value) VALUES ('Not Read')")->execute();
+    $notReadId = $pdo->query("SELECT id FROM $valueTable WHERE value = 'Not Read'")->fetchColumn();
+
+    // Clear existing links and assign "Not Read" to every book
+    $pdo->exec("DELETE FROM $linkTable");
+    $stmt = $pdo->prepare("INSERT INTO $linkTable (book, value) SELECT id, :val FROM books");
+    $stmt->execute([':val' => $notReadId]);
+
+    invalidateCache('statuses');
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['clear_cache'])) {
         clearUserCache();
@@ -67,6 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $message = 'No directories selected.';
         }
+    } elseif (isset($_POST['reset_statuses'])) {
+        resetAllStatusesToNotRead();
+        $message = 'All books marked as Not Read.';
     } else {
         $dbPath = trim($_POST['db_path'] ?? '');
         $libPath = trim($_POST['library_path'] ?? '');
@@ -168,6 +192,9 @@ $currentDevice = getUserPreference(currentUser(), 'DEVICE', getPreference('DEVIC
     <button type="submit" class="btn btn-primary">Save</button>
     <button type="submit" name="clear_cache" value="1" class="btn btn-warning ms-2">Clear Cache</button>
     <a href="fix_author_sort.php" class="btn btn-secondary ms-2">Fix Author Sort</a>
+  </form>
+  <form method="post" class="mt-3" onsubmit="return confirm('Are you sure you want to mark all books as Not Read?');">
+    <button type="submit" name="reset_statuses" value="1" class="btn btn-danger">Mark All Books as Not Read</button>
   </form>
   <hr class="my-4">
   <h2 class="mb-3">Library Cleanup</h2>
