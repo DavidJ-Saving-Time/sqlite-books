@@ -117,18 +117,14 @@ document.addEventListener('DOMContentLoaded', () => {
           '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
       .then(resp => resp.json())
       .then(data => {
-        if (descriptionInput) {
-          if (data.output) {
-            setDescriptionValue(data.output);
-          } else {
-            setDescriptionValue(data.error || 'Error');
-          }
+        if (data.output) {
+          setDescriptionValue(data.output);
+        } else {
+          setDescriptionValue(data.error || 'Error');
         }
       })
       .catch(() => {
-        if (descriptionInput) {
-          setDescriptionValue('Error fetching synopsis');
-        }
+        setDescriptionValue('Error fetching synopsis');
       });
   });
 
@@ -215,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             updateAuthorSort();
           }
-          if (data.comments && descriptionInput) {
+          if (data.comments) {
             setDescriptionValue(data.comments);
           }
         })
