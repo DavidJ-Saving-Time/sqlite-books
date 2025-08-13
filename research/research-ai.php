@@ -13,7 +13,7 @@
  *   - OPENAI_API_KEY set in environment
  *   - Optional: OPENAI_EMBED_MODEL (default text-embedding-3-small)
  *
- * Database schema is defined in library_schema.sql.
+ * The SQLite schema is created automatically.
  */
 
 ini_set('memory_limit', '1G');
@@ -56,8 +56,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbPath = __DIR__ . '/../library.sqlite';
     $db = new PDO('sqlite:' . $dbPath);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $schema = file_get_contents(__DIR__ . '/../library_schema.sql');
-    if ($schema) $db->exec($schema);
+    $db->exec("
+CREATE TABLE IF NOT EXISTS items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  author TEXT,
+  year INTEGER,
+  display_offset INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS chunks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id INTEGER NOT NULL,
+  section TEXT,
+  page_start INTEGER,
+  page_end INTEGER,
+  text TEXT NOT NULL,
+  embedding BLOB,
+  token_count INTEGER,
+  FOREIGN KEY(item_id) REFERENCES items(id)
+);
+CREATE INDEX IF NOT EXISTS idx_chunks_item ON chunks(item_id);
+");
     out('Database ready.');
 
     // ---- Page count via pdfinfo ----
