@@ -121,6 +121,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+$ingestedBooks = [];
+$dbListPath = __DIR__ . '/../library.sqlite';
+if (is_file($dbListPath)) {
+    try {
+        $dbList = new PDO('sqlite:' . $dbListPath);
+        $dbList->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $rows = $dbList->query('SELECT id, title, author, year, created_at FROM items ORDER BY created_at DESC')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $r) {
+            $id = (int)$r['id'];
+            $r['pages'] = (int)$dbList->query('SELECT MAX(page_end) FROM chunks WHERE item_id = ' . $id)->fetchColumn();
+            $r['chunks'] = (int)$dbList->query('SELECT COUNT(*) FROM chunks WHERE item_id = ' . $id)->fetchColumn();
+            $r['endpoint'] = 'openai/v1/embeddings';
+            $ingestedBooks[] = $r;
+        }
+    } catch (Exception $e) {
+        $ingestedBooks = [];
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -156,6 +175,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-upload me-2"></i>Ingest</button>
 </form>
+<?php if ($ingestedBooks): ?>
+<h2 class="mt-5">Ingested Books</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Year</th>
+            <th>Pages</th>
+            <th>Chunks</th>
+            <th>Endpoint</th>
+            <th>Ingested</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($ingestedBooks as $b): ?>
+        <tr>
+            <td><?= htmlspecialchars($b['id']) ?></td>
+            <td><?= htmlspecialchars($b['title']) ?></td>
+            <td><?= htmlspecialchars($b['author']) ?></td>
+            <td><?= htmlspecialchars($b['year']) ?></td>
+            <td><?= htmlspecialchars($b['pages'] ?: 'n/a') ?></td>
+            <td><?= htmlspecialchars($b['chunks']) ?></td>
+            <td><?= htmlspecialchars($b['endpoint']) ?></td>
+            <td><?= htmlspecialchars($b['created_at']) ?></td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>
+<?php else: ?>
+<p class="mt-5">No books ingested yet.</p>
+<?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
