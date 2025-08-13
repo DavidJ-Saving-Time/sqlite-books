@@ -1,48 +1,53 @@
 <?php
 /**
- * ingest_book.php
+ * ingest_book.php — Per-page PDF ingest with exact page ranges + optional printed page offset.
  *
- * CLI usage:
- *   php ingest_book.php /path/to/book.pdf "Book Title" "Author" 2020
+ * CLI:
+ *   php ingest_book.php /path/to/book.pdf "Book Title" "Author" 1995 --page-offset=-22
  *
  * ENV:
- *   OPENAI_API_KEY=sk-...
- *   OPENAI_EMBED_MODEL=text-embedding-3-small (default)
+ *   OPENAI_API_KEY=...
+ *   OPENAI_EMBED_MODEL=text-embedding-3-large   (or -small; MUST match your ask/query)
  *
- * Requires:
- *   - poppler-utils (pdftotext) installed
- *   - PHP PDO SQLite extension
+ * Requires: poppler-utils (pdftotext, pdfinfo), PHP PDO SQLite
  */
 
 ini_set('memory_limit', '1G');
 
 if ($argc < 3) {
-  fwrite(STDERR, "Usage: php ingest_book.php /path/to/book.pdf \"Book Title\" \"Author\" [Year]\n");
+  fwrite(STDERR, "Usage: php ingest_book.php /path/to/book.pdf \"Book Title\" \"Author\" [Year] [--page-offset=N]\n");
   exit(1);
 }
 
-$pdfPath   = $argv[1];
-$bookTitle = $argv[2];
-$bookAuthor= $argv[3] ?? "";
-$bookYear  = (int)($argv[4] ?? 0);
+$pdfPath    = $argv[1];
+$bookTitle  = $argv[2];
+$bookAuthor = $argv[3] ?? "";
+$bookYear   = (int)($argv[4] ?? 0);
+$displayOffset = 0;
+
+for ($i = 5; $i < $argc; $i++) {
+  if (preg_match('/^--page-offset=(-?\d+)/', $argv[$i], $m)) $displayOffset = (int)$m[1];
+}
+
+if (!is_file($pdfPath)) {
+  fwrite(STDERR, "ERROR: PDF not found: $pdfPath\n"); exit(1);
+}
 
 $apiKey = getenv('OPENAI_API_KEY');
-if (!$apiKey) {
-  fwrite(STDERR, "ERROR: Set OPENAI_API_KEY in your environment.\n");
-  exit(1);
-}
-$embedModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small'; // see OpenAI docs
+if (!$apiKey) { fwrite(STDERR, "ERROR: Set OPENAI_API_KEY.\n"); exit(1); }
+$embedModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small';
 
 $db = new PDO('sqlite:library.sqlite');
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// --- Schema ---
+// --- Schema (adds display_offset if missing) ---
 $db->exec("
 CREATE TABLE IF NOT EXISTS items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
   author TEXT,
   year INTEGER,
+  display_offset INTEGER DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS chunks (
@@ -52,56 +57,55 @@ CREATE TABLE IF NOT EXISTS chunks (
   page_start INTEGER,
   page_end INTEGER,
   text TEXT NOT NULL,
-  embedding BLOB,                 -- store as binary-packed floats (smaller) or JSON
+  embedding BLOB,
   token_count INTEGER,
   FOREIGN KEY(item_id) REFERENCES items(id)
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_item ON chunks(item_id);
 ");
 
-// --- Extract text with page breaks ---
-$tmpTxt = tempnam(sys_get_temp_dir(), 'pdftxt_');
-$cmd = sprintf('pdftotext -layout -enc UTF-8 "%s" "%s"', addslashes($pdfPath), addslashes($tmpTxt));
-exec($cmd, $o, $rc);
-if ($rc !== 0 || !file_exists($tmpTxt)) {
-  fwrite(STDERR, "ERROR: pdftotext failed. Is poppler-utils installed?\n");
-  exit(1);
-}
-$full = file_get_contents($tmpTxt);
-unlink($tmpTxt);
+// --- OCR hint: if needed, run ocrmypdf yourself before this script ---
 
-// Heuristic page splitting: pdftotext separates pages by form feed when using -layout sometimes,
-// but not guaranteed. We'll fallback to a layout-based split by long runs of newlines.
-$pages = preg_split("/\f|\n{3,}/u", $full);
-if (count($pages) < 2) {
-  // As a fallback, split every ~2000 chars to avoid one mega-page
-  $pages = chunk_str_by_chars($full, 2000);
+// --- Exact page count via pdfinfo ---
+$info = [];
+exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($pdfPath)), $info, $rc);
+$pagesCount = 0;
+foreach ($info as $ln) {
+  if (preg_match('/^Pages:\s+(\d+)/', $ln, $m)) { $pagesCount = (int)$m[1]; break; }
+}
+if ($pagesCount < 1) { fwrite(STDERR, "ERROR: Could not read page count (pdfinfo).\n"); exit(1); }
+
+// --- Extract text per page (exact mapping: pdf_page -> text) ---
+$pages = [];
+for ($p = 1; $p <= $pagesCount; $p++) {
+  $tmp = tempnam(sys_get_temp_dir(), 'pg_');
+  $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
+                 $p, $p, escapeshellarg($pdfPath), escapeshellarg($tmp));
+  exec($cmd, $_, $rc);
+  $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
+  @unlink($tmp);
+  $pages[$p] = normalize_whitespace($txt ?? '');
 }
 
-// Insert item (book) row
-$insItem = $db->prepare("INSERT INTO items (title, author, year) VALUES (:t, :a, :y)");
-$insItem->execute([':t'=>$bookTitle, ':a'=>$bookAuthor, ':y'=>$bookYear]);
+// --- Insert item (book) row with display_offset ---
+$insItem = $db->prepare("INSERT INTO items (title, author, year, display_offset) VALUES (:t,:a,:y,:o)");
+$insItem->execute([':t'=>$bookTitle, ':a'=>$bookAuthor, ':y'=>$bookYear, ':o'=>$displayOffset]);
 $itemId = (int)$db->lastInsertId();
 
-// Build chunks around ~1000 tokens (approx by characters, then tighten)
+// --- Build chunks by concatenating sequential pages until ~1000 tokens ---
 $targetTokens = 1000;
 $chunks = build_chunks_from_pages($pages, $targetTokens);
 
-// Embed in batches (the API lets you send multiple inputs per request)
+// --- Embed chunks in batches ---
 $batchSize = 64;
 for ($i = 0; $i < count($chunks); $i += $batchSize) {
   $batch = array_slice($chunks, $i, $batchSize);
   $vectors = create_embeddings_batch(array_column($batch, 'text'), $embedModel, $apiKey);
   foreach ($batch as $j => $chunk) {
-    $embedding = $vectors[$j] ?? null;
-    if (!$embedding) continue;
-    // Pack floats into binary to save space
+    $embedding = $vectors[$j] ?? null; if (!$embedding) continue;
     $bin = pack_floats($embedding);
-
-    $stmt = $db->prepare("
-      INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count)
-      VALUES (:item, :section, :ps, :pe, :text, :emb, :tok)
-    ");
+    $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count)
+                          VALUES (:item,:section,:ps,:pe,:text,:emb,:tok)");
     $stmt->bindValue(':item', $itemId, PDO::PARAM_INT);
     $stmt->bindValue(':section', $chunk['section']);
     $stmt->bindValue(':ps', $chunk['page_start'], PDO::PARAM_INT);
@@ -111,78 +115,78 @@ for ($i = 0; $i < count($chunks); $i += $batchSize) {
     $stmt->bindValue(':tok', $chunk['approx_tokens'], PDO::PARAM_INT);
     $stmt->execute();
   }
-  // gentle pacing for rate limits
-  usleep(200000); // 200ms
+  usleep(200000); // throttle a bit
 }
 
 echo "Ingest complete.\n";
 echo "Book ID: $itemId\n";
-echo "Chunks stored: ".count($chunks)."\n";
+echo "Pages: $pagesCount | Chunks: ".count($chunks)."\n";
 
 // --------------- Helpers ---------------
 
-function chunk_str_by_chars(string $s, int $chars): array {
-  $out = [];
-  $len = mb_strlen($s, 'UTF-8');
-  for ($i=0; $i<$len; $i+=$chars) {
-    $out[] = mb_substr($s, $i, $chars, 'UTF-8');
-  }
-  return $out;
+function normalize_whitespace(string $s): string {
+  if ($s === '') return '';
+  $s = preg_replace("/[ \t]+/u", " ", $s);
+  $s = preg_replace("/[ \t]*\n/u", "\n", $s);
+  $s = preg_replace("/\n{4,}/u", "\n\n", $s);
+  return trim($s);
 }
 
-/**
- * Build ~1000-token chunks:
- * - concatenate sequential pages until ~1000 tokens (rough approx = words)
- * - keep metadata: page_start/page_end
- */
-function build_chunks_from_pages(array $pages, int $targetTokens): array {
-  $chunks = [];
-  $cur = "";
-  $startPage = 1;
-  for ($i=0; $i<count($pages); $i++) {
-    $p = trim(normalize_whitespace($pages[$i]));
+function approx_token_count(string $s): int {
+  $words = preg_split("/\s+/u", trim($s));
+  $w = max(1, count(array_filter($words)));
+  return (int)round($w * 1.3);
+}
+
+function infer_section_title(string $chunk): ?string {
+  foreach (preg_split("/\n/u", $chunk) as $line) {
+    $line = trim($line);
+    if ($line !== '' && mb_strlen($line,'UTF-8') > 3) return mb_substr($line, 0, 80, 'UTF-8');
+  }
+  return null;
+}
+
+function build_chunks_from_pages(array $pagesByNum, int $targetTokens): array {
+  $chunks = []; $cur = ""; $startPage = null; $lastPage = null;
+  foreach ($pagesByNum as $pageNum => $pageText) {
+    $p = trim($pageText);
     if ($p === '') continue;
     $try = $cur ? ($cur."\n\n".$p) : $p;
     if (approx_token_count($try) > $targetTokens && $cur) {
-      // finalize current chunk
       $chunks[] = [
         'text' => $cur,
         'page_start' => $startPage,
-        'page_end' => $i,
+        'page_end' => $lastPage,
         'approx_tokens' => approx_token_count($cur),
         'section' => infer_section_title($cur)
       ];
-      $cur = $p;
-      $startPage = $i+1;
+      $cur = $p; $startPage = $pageNum; $lastPage = $pageNum;
     } else {
-      $cur = $try;
+      if ($cur === "") $startPage = $pageNum;
+      $cur = $try; $lastPage = $pageNum;
     }
   }
   if ($cur) {
     $chunks[] = [
       'text' => $cur,
       'page_start' => $startPage,
-      'page_end' => count($pages),
+      'page_end' => $lastPage,
       'approx_tokens' => approx_token_count($cur),
       'section' => infer_section_title($cur)
     ];
   }
-  // Optional: split any monster chunks > 1600 tokens
+  // Optional: split any >1600 token monsters by paragraph
   $refined = [];
   foreach ($chunks as $c) {
     if ($c['approx_tokens'] <= 1600) { $refined[] = $c; continue; }
-    // split by paragraph
     $paras = preg_split("/\n{2,}/u", $c['text']);
     $acc = "";
     foreach ($paras as $para) {
       $t = $acc ? ($acc."\n\n".$para) : $para;
       if (approx_token_count($t) > 1000 && $acc) {
         $refined[] = [
-          'text'=>$acc,
-          'page_start'=>$c['page_start'],
-          'page_end'=>$c['page_end'],
-          'approx_tokens'=>approx_token_count($acc),
-          'section'=>infer_section_title($acc)
+          'text'=>$acc, 'page_start'=>$c['page_start'], 'page_end'=>$c['page_end'],
+          'approx_tokens'=>approx_token_count($acc), 'section'=>infer_section_title($acc)
         ];
         $acc = $para;
       } else {
@@ -191,57 +195,16 @@ function build_chunks_from_pages(array $pages, int $targetTokens): array {
     }
     if ($acc) {
       $refined[] = [
-        'text'=>$acc,
-        'page_start'=>$c['page_start'],
-        'page_end'=>$c['page_end'],
-        'approx_tokens'=>approx_token_count($acc),
-        'section'=>infer_section_title($acc)
+        'text'=>$acc, 'page_start'=>$c['page_start'], 'page_end'=>$c['page_end'],
+        'approx_tokens'=>approx_token_count($acc), 'section'=>infer_section_title($acc)
       ];
     }
   }
   return $refined;
 }
 
-function normalize_whitespace(string $s): string {
-  // collapse multiple spaces/indent columns; keep paragraphs
-  $s = preg_replace("/[ \t]+/u", " ", $s);
-  // remove trailing spaces on lines
-  $s = preg_replace("/[ \t]*\n/u", "\n", $s);
-  // collapse 4+ newlines to 2 (para separator)
-  $s = preg_replace("/\n{4,}/u", "\n\n", $s);
-  return trim($s);
-}
-
-function infer_section_title(string $chunk): string {
-  // take the first non-empty line up to ~80 chars as a "section hint"
-  foreach (preg_split("/\n/u", $chunk) as $line) {
-    $line = trim($line);
-    if ($line !== '' && mb_strlen($line,'UTF-8') > 3) {
-      return mb_substr($line, 0, 80, 'UTF-8');
-    }
-  }
-  return null;
-}
-
-function approx_token_count(string $s): int {
-  // super rough: tokens ≈ words * 1.3; words ≈ whitespace splits
-  $words = preg_split("/\s+/u", trim($s));
-  $w = max(1, count($words));
-  return (int)round($w * 1.3);
-}
-
-/**
- * Batch embeddings call. See: Embeddings guide & API reference.
- * Returns: array of vectors (float[]).
- */
 function create_embeddings_batch(array $texts, string $model, string $apiKey): array {
-  $payload = [
-    'model' => $model,
-    'input' => array_map(function($t){
-      // OpenAI recommends <= ~8192 tokens per input; we trimmed earlier.
-      return $t;
-    }, $texts),
-  ];
+  $payload = ['model' => $model, 'input' => array_values($texts)];
   $ch = curl_init("https://api.openai.com/v1/embeddings");
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
@@ -254,29 +217,18 @@ function create_embeddings_batch(array $texts, string $model, string $apiKey): a
     CURLOPT_TIMEOUT => 120
   ]);
   $res = curl_exec($ch);
-  if ($res === false) {
-    throw new Exception("cURL error: ".curl_error($ch));
-  }
+  if ($res === false) throw new Exception("cURL error: ".curl_error($ch));
   $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   curl_close($ch);
-
-  if ($code < 200 || $code >= 300) {
-    throw new Exception("Embeddings API error ($code): $res");
-  }
+  if ($code < 200 || $code >= 300) throw new Exception("Embeddings API error ($code): $res");
   $json = json_decode($res, true);
   $out = [];
-  foreach ($json['data'] ?? [] as $row) {
-    $out[] = $row['embedding'] ?? null;
-  }
+  foreach ($json['data'] ?? [] as $row) $out[] = $row['embedding'] ?? null;
   return $out;
 }
 
 function pack_floats(array $floats): string {
-  // pack as little-endian floats
   $bin = '';
-  foreach ($floats as $f) {
-    $bin .= pack('g', (float)$f);
-  }
+  foreach ($floats as $f) $bin .= pack('g', (float)$f); // little-endian float32
   return $bin;
 }
-

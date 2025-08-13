@@ -1,0 +1,20 @@
+CREATE TABLE items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  author TEXT,
+  year INTEGER,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+, display_offset INTEGER DEFAULT 0);
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE chunks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id INTEGER NOT NULL,
+  section TEXT,
+  page_start INTEGER,
+  page_end INTEGER,
+  text TEXT NOT NULL,
+  embedding BLOB,                 -- store as binary-packed floats (smaller) or JSON
+  token_count INTEGER,
+  FOREIGN KEY(item_id) REFERENCES items(id)
+);
+CREATE INDEX idx_chunks_item ON chunks(item_id);
