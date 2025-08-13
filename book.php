@@ -600,9 +600,19 @@ if ($sendRequested) {
     <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <script src="js/theme.js"></script>
+    <script src="node_modules/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
     <style>
         #description { min-height: 200px; resize: vertical; }
     </style>
+    <script>
+        tinymce.init({
+            selector: '#description',
+            license_key: 'gpl',
+            promotion: false,
+            branding: false,
+            height: 400
+        });
+    </script>
 </head>
 <body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>"<?php if($ebookFileRel): ?> data-ebook-file="<?= htmlspecialchars($ebookFileRel) ?>"<?php endif; ?><?php if(!empty($book['isbn'])): ?> data-isbn="<?= htmlspecialchars($book['isbn']) ?>"<?php endif; ?>>
 <?php include "navbar_other.php"; ?>

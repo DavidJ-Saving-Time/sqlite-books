@@ -56,6 +56,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const descriptionInput = document.getElementById('description');
   const titleInput = document.getElementById('title');
 
+  function setDescriptionValue(val) {
+    const editor = window.tinymce?.get('description');
+    if (editor) {
+      editor.setContent(val);
+      editor.save();
+    } else if (descriptionInput) {
+      descriptionInput.value = val;
+    }
+  }
+
   if (recommendSection.dataset.saved) {
     recommendSection.innerHTML = renderRecommendations(recommendSection.dataset.saved);
   }
@@ -102,24 +112,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const bookId = synopsisBtn.dataset.bookId;
     const authors = synopsisBtn.dataset.authors;
     const title = synopsisBtn.dataset.title;
-    if (descriptionInput) {
-      descriptionInput.value = 'Loading...';
-    }
+    setDescriptionValue('Loading...');
     fetch('json_endpoints/synopsis.php?book_id=' + encodeURIComponent(bookId) +
           '&authors=' + encodeURIComponent(authors) + '&title=' + encodeURIComponent(title))
       .then(resp => resp.json())
       .then(data => {
         if (descriptionInput) {
           if (data.output) {
-            descriptionInput.value = data.output;
+            setDescriptionValue(data.output);
           } else {
-            descriptionInput.value = data.error || 'Error';
+            setDescriptionValue(data.error || 'Error');
           }
         }
       })
       .catch(() => {
         if (descriptionInput) {
-          descriptionInput.value = 'Error fetching synopsis';
+          setDescriptionValue('Error fetching synopsis');
         }
       });
   });
@@ -208,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateAuthorSort();
           }
           if (data.comments && descriptionInput) {
-            descriptionInput.value = data.comments;
+            setDescriptionValue(data.comments);
           }
         })
         .catch(() => { alert('Error reading metadata'); });
