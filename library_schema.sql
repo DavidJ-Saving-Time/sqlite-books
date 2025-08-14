@@ -14,7 +14,16 @@ CREATE TABLE chunks (
   page_end INTEGER,
   text TEXT NOT NULL,
   embedding BLOB,                 -- store as binary-packed floats (smaller) or JSON
-  token_count INTEGER,
+  token_count INTEGER, display_start INTEGER, display_end   INTEGER,
   FOREIGN KEY(item_id) REFERENCES items(id)
 );
 CREATE INDEX idx_chunks_item ON chunks(item_id);
+CREATE TABLE page_map (
+  item_id INTEGER NOT NULL,
+  pdf_page INTEGER NOT NULL,
+  display_label TEXT,
+  display_number INTEGER,
+  method TEXT,
+  confidence REAL,
+  PRIMARY KEY (item_id, pdf_page)
+);
