@@ -169,7 +169,8 @@ if (is_file($dbListPath)) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
 </head>
-<body>
+<body class="pt-5">
+<?php include 'navbar.php'; ?>
 <div class="container py-4">
 <h1 class="mb-4"><i class="fa-solid fa-file-pdf me-2"></i>Research AI PDF Ingest</h1>
 <form method="POST" enctype="multipart/form-data">

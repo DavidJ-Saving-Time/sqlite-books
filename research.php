@@ -176,7 +176,7 @@ if ($searchTerm !== '' && $bookDirs) {
     </style>
 </head>
 <body class="pt-5">
-<?php include 'navbar_other.php'; ?>
+<?php include 'research/navbar.php'; ?>
 <div class="container my-4">
     <h1>Research</h1>
 
