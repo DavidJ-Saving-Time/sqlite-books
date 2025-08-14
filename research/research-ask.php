@@ -15,17 +15,20 @@
 
 ini_set('memory_limit', '1G');
 
-$answer  = '';
-$sources = [];
-$error   = '';
+$answer      = '';
+$sources     = [];
+$error       = '';
+$question    = trim($_POST['question'] ?? '');
+$bookIds     = array_filter(array_map('intval', preg_split('/\s*,\s*/', $_POST['book_ids'] ?? '', -1, PREG_SPLIT_NO_EMPTY)));
+$maxChunks   = max(1, (int)($_POST['max_chunks'] ?? 8));
+$useWhich    = strtolower(trim($_POST['use'] ?? 'claude'));
+$modelName   = trim($_POST['model'] ?? '');
+$minDistinct = max(1, (int)($_POST['min_distinct'] ?? 1));
+$perBookCap  = max(1, (int)($_POST['per_book_cap'] ?? $maxChunks));
+$verboseMode = !empty($_POST['verbose']);
+$debugChunks = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $question  = trim($_POST['question'] ?? '');
-    $bookIds   = array_filter(array_map('intval', preg_split('/\s*,\s*/', $_POST['book_ids'] ?? '', -1, PREG_SPLIT_NO_EMPTY)));
-    $maxChunks = max(1, (int)($_POST['max_chunks'] ?? 8));
-    $useWhich  = strtolower(trim($_POST['use'] ?? 'claude'));
-    $modelName = trim($_POST['model'] ?? '');
-
     try {
         if ($question === '') {
             throw new Exception('Question is required.');
@@ -62,18 +65,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute($params);
 
         // 3) Compute cosine similarity and rank
-        $top = [];
+        $candidates = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $vec = unpack_floats($row['embedding']);
             if (!$vec) continue;
             $sim = cosine($qVec, $vec);
             $row['sim'] = $sim;
-            $top[] = $row;
+            $candidates[] = $row;
         }
-        usort($top, fn($a,$b)=> $b['sim']<=>$a['sim']);
-        $top = array_slice($top, 0, $maxChunks);
+        usort($candidates, fn($a,$b)=> $b['sim']<=>$a['sim']);
 
-        if (empty($top) || $top[0]['sim'] < 0.25) {
+        $top = [];
+        $perBook = [];
+        foreach ($candidates as $row) {
+            $bid = (int)$row['item_id'];
+            $count = $perBook[$bid] ?? 0;
+            if ($count >= $perBookCap) continue;
+            $perBook[$bid] = $count + 1;
+            $top[] = $row;
+            if (count($top) >= $maxChunks) break;
+        }
+        if ($verboseMode) {
+            $debugChunks = $top;
+        }
+
+        if (empty($top) || $top[0]['sim'] < 0.25 || count($perBook) < $minDistinct) {
             $answer = 'Not in library (retrieval too weak).';
         } else {
             // 4) Build grounded prompt
@@ -150,8 +166,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </select>
         </div>
         <div class="col-md-3 mb-3">
-            <label for="model" class="form-label">Model (optional)</label>
-            <input type="text" id="model" name="model" class="form-control" value="<?= htmlspecialchars($_POST['model'] ?? '') ?>">
+            <label for="model" class="form-label">Model</label>
+            <?php $m = $_POST['model'] ?? ''; ?>
+            <select id="model" name="model" class="form-select">
+                <option value="" <?= $m===''?'selected':'' ?>>Auto</option>
+                <option value="deepseek/deepseek-r1-0528:free" <?= $m==='deepseek/deepseek-r1-0528:free'?'selected':'' ?>>deepseek/deepseek-r1-0528:free</option>
+                <option value="deepseek/deepseek-r1" <?= $m==='deepseek/deepseek-r1'?'selected':'' ?>>deepseek/deepseek-r1</option>
+                <option value="anthropic/claude-3.7-sonnet" <?= $m==='anthropic/claude-3.7-sonnet'?'selected':'' ?>>anthropic/claude-3.7-sonnet</option>
+                <option value="mistralai/mistral-medium-3.1" <?= $m==='mistralai/mistral-medium-3.1'?'selected':'' ?>>mistralai/mistral-medium-3.1</option>
+                <option value="google/gemini-2.5-flash" <?= $m==='google/gemini-2.5-flash'?'selected':'' ?>>google/gemini-2.5-flash</option>
+                <option value="anthropic/claude-sonnet-4" <?= $m==='anthropic/claude-sonnet-4'?'selected':'' ?>>anthropic/claude-sonnet-4</option>
+            </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-2 mb-3">
+            <label for="min_distinct" class="form-label">Min Distinct</label>
+            <input type="number" id="min_distinct" name="min_distinct" class="form-control" value="<?= htmlspecialchars($_POST['min_distinct'] ?? '1') ?>">
+        </div>
+        <div class="col-md-2 mb-3">
+            <label for="per_book_cap" class="form-label">Per Book Cap</label>
+            <input type="number" id="per_book_cap" name="per_book_cap" class="form-control" value="<?= htmlspecialchars($_POST['per_book_cap'] ?? $maxChunks) ?>">
+        </div>
+        <div class="col-md-2 mb-3 d-flex align-items-end">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="verbose" name="verbose" <?= !empty($_POST['verbose'])?'checked':'' ?>>
+                <label class="form-check-label" for="verbose">Verbose</label>
+            </div>
         </div>
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
@@ -162,7 +203,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <?php if ($answer): ?>
 <div class="card mb-3">
     <div class="card-header">Answer</div>
-    <div class="card-body"><pre class="mb-0"><?= htmlspecialchars($answer) ?></pre></div>
+    <div class="card-body">
+        <div id="answer-md"></div>
+    </div>
 </div>
 <?php endif; ?>
 <?php if ($sources): ?>
@@ -175,8 +218,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </ul>
 </div>
 <?php endif; ?>
+<?php if ($verboseMode && $debugChunks): ?>
+<div class="card mt-3">
+    <div class="card-header">Debug Chunks</div>
+    <div class="card-body">
+        <?php foreach ($debugChunks as $i=>$c): ?>
+            <pre><?= htmlspecialchars('[CTX '.$i.'] '.$c['title'].' p.'.$c['page_start'].'–'.$c['page_end'].' [sim='.sprintf('%.3f',$c['sim']).']\n'.$c['text']) ?></pre>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<?php if ($answer): ?>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+<script>
+  const rawAns = <?= json_encode($answer) ?>;
+  document.getElementById('answer-md').innerHTML = DOMPurify.sanitize(marked.parse(rawAns));
+</script>
+<?php endif; ?>
 </body>
 </html>
 <?php
