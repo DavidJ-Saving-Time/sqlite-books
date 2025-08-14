@@ -7,6 +7,7 @@
  * generates an answer using either OpenRouter (Claude) or OpenAI.
  * Optional parameters min_distinct and per_book_cap (default 3) control
  * the minimum number of distinct books and the cap per book when selecting context.
+ * Pass show_pdf_pages=1 to include raw PDF page numbers alongside adjusted ones.
  *
  * Requirements:
  *   - PHP PDO SQLite
@@ -42,6 +43,7 @@ $useWhich   = strtolower(trim($req['use'] ?? 'claude'));
 $modelName  = trim($req['model'] ?? '');
 $minDistinct = max(1, (int)($req['min_distinct'] ?? $req['min-distinct'] ?? 3));
 $perBookCap  = max(1, (int)($req['per_book_cap'] ?? $req['per-book-cap'] ?? 3));
+$showPdfPages = !empty($req['show_pdf_pages'] ?? $req['show-pdf-pages']);
 
 if ($question !== '') {
     try {
@@ -68,7 +70,7 @@ if ($question !== '') {
 
         // 2) Fetch candidate chunks
         $sql = "SELECT c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
-                       i.title, i.author, i.year
+                       i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset
                 FROM chunks c JOIN items i ON c.item_id = i.id";
         $params = [];
         if (!empty($bookIds)) {
@@ -138,20 +140,25 @@ if ($question !== '') {
 
             $ctx = '';
             foreach ($top as $i=>$c) {
-                $meta = sprintf("%s, %s (%s) pp.%d–%d",
+                $pdfStart = (int)$c['page_start'];
+                $pdfEnd   = (int)$c['page_end'];
+                $dispStart = $pdfStart + (int)$c['display_offset'];
+                $dispEnd   = $pdfEnd   + (int)$c['display_offset'];
+                $pageStr = $showPdfPages
+                    ? sprintf('pp.%d–%d (PDF %d–%d)', $dispStart ?: $pdfStart, $dispEnd ?: $pdfEnd, $pdfStart, $pdfEnd)
+                    : sprintf('pp.%d–%d', $dispStart ?: $pdfStart, $dispEnd ?: $pdfEnd);
+                $meta = sprintf('%s, %s (%s) %s',
                     $c['author'] ?: 'Unknown',
                     $c['title'],
                     $c['year'] ?: 'n.d.',
-                    $c['page_start'] ?: 0,
-                    $c['page_end'] ?: 0
+                    $pageStr
                 );
                 $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
-                $sources[] = sprintf('%s, %s (%s) pp.%d–%d [sim=%.3f]',
+                $sources[] = sprintf('%s, %s (%s) %s [sim=%.3f]',
                     $c['author'] ?: 'Unknown',
                     $c['title'],
                     $c['year'] ?: 'n.d.',
-                    $c['page_start'] ?: 0,
-                    $c['page_end'] ?: 0,
+                    $pageStr,
                     $c['sim']);
             }
             $user = "Question: " . $question . "\n\nContext:\n" . $ctx;
@@ -241,6 +248,10 @@ if ($question !== '') {
             <label for="per_book_cap" class="form-label">Per Book Cap</label>
             <input type="number" id="per_book_cap" name="per_book_cap" class="form-control" value="<?= htmlspecialchars($_REQUEST['per_book_cap'] ?? ($_REQUEST['per-book-cap'] ?? '3')) ?>">
         </div>
+    </div>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="show_pdf_pages" name="show_pdf_pages" value="1" <?= (!empty($_REQUEST['show_pdf_pages'] ?? $_REQUEST['show-pdf-pages'] ?? '')) ? 'checked' : '' ?>>
+        <label class="form-check-label" for="show_pdf_pages">Show PDF page numbers</label>
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
 </form>
