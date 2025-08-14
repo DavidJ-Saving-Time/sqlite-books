@@ -34,9 +34,10 @@ if (isset($req['book_id']) || isset($req['book-id'])) {
 } elseif (isset($req['book_ids'])) { // backward compatibility
     $bookIds = array_filter(array_map('intval', preg_split('/\s*,\s*/', $req['book_ids'], -1, PREG_SPLIT_NO_EMPTY)));
 }
-$maxChunks = max(1, (int)($req['max_chunks'] ?? $req['max-chunks'] ?? 8));
-$useWhich  = strtolower(trim($req['use'] ?? 'claude'));
-$modelName = trim($req['model'] ?? '');
+$maxChunks  = max(1, (int)($req['max_chunks'] ?? $req['max-chunks'] ?? 8));
+$maxTokens  = max(1, (int)($req['max_tokens'] ?? $req['max-tokens'] ?? 2000));
+$useWhich   = strtolower(trim($req['use'] ?? 'claude'));
+$modelName  = trim($req['model'] ?? '');
 
 if ($question !== '') {
     try {
@@ -113,7 +114,7 @@ if ($question !== '') {
             $user = "Question: " . $question . "\n\nContext:\n" . $ctx;
 
             // 5) Generate answer
-            $maxOut = 2000;
+            $maxOut = $maxTokens;
             if ($useWhich === 'claude') {
                 $answerModel = $modelName ?: 'anthropic/claude-sonnet-4';
                 $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxOut);
@@ -167,13 +168,25 @@ if ($question !== '') {
             <label for="max_chunks" class="form-label">Max Chunks</label>
             <input type="number" id="max_chunks" name="max_chunks" class="form-control" value="<?= htmlspecialchars($_REQUEST['max_chunks'] ?? '8') ?>">
         </div>
-        <div class="col-md-3 mb-3">
+        <div class="col-md-2 mb-3">
+            <label for="max_tokens" class="form-label">Max Tokens</label>
+            <input type="number" id="max_tokens" name="max_tokens" class="form-control" value="<?= htmlspecialchars($_REQUEST['max_tokens'] ?? '2000') ?>">
+        </div>
+        <div class="col-md-2 mb-3">
             <label for="use" class="form-label">Provider</label>
             <input type="text" id="use" name="use" class="form-control" value="<?= htmlspecialchars($_REQUEST['use'] ?? 'claude') ?>">
         </div>
-        <div class="col-md-3 mb-3">
+        <div class="col-md-2 mb-3">
             <label for="model" class="form-label">Model</label>
-            <input type="text" id="model" name="model" class="form-control" value="<?= htmlspecialchars($_REQUEST['model'] ?? '') ?>" placeholder="Auto">
+            <select id="model" name="model" class="form-select">
+                <option value="" <?= (($_REQUEST['model'] ?? '') === '') ? 'selected' : '' ?>>Auto</option>
+                <option value="deepseek/deepseek-r1-0528:free" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-r1-0528:free') ? 'selected' : '' ?>>deepseek/deepseek-r1-0528:free</option>
+                <option value="deepseek/deepseek-r1" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-r1') ? 'selected' : '' ?>>deepseek/deepseek-r1</option>
+                <option value="anthropic/claude-3.7-sonnet" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-3.7-sonnet') ? 'selected' : '' ?>>anthropic/claude-3.7-sonnet</option>
+                <option value="mistralai/mistral-medium-3.1" <?= (($_REQUEST['model'] ?? '') === 'mistralai/mistral-medium-3.1') ? 'selected' : '' ?>>mistralai/mistral-medium-3.1</option>
+                <option value="google/gemini-2.5-flash" <?= (($_REQUEST['model'] ?? '') === 'google/gemini-2.5-flash') ? 'selected' : '' ?>>google/gemini-2.5-flash</option>
+                <option value="anthropic/claude-sonnet-4" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-sonnet-4') ? 'selected' : '' ?>>anthropic/claude-sonnet-4</option>
+            </select>
         </div>
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
