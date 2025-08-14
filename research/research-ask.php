@@ -132,23 +132,26 @@ if ($question !== '') {
             // 4) Build grounded prompt
             $sys = "You are a research assistant. Answer ONLY using the provided context. " .
                    "If not answerable, reply exactly: Not in library. " .
-                   "Cite every factual claim like [Title, Year, p.X–Y]. " .
+                   "Use Oxford referencing style with footnotes. For each factual claim, add a superscript number and provide " .
+                   "a footnote in the format: Author, *Title* (Year), pp. X–Y. Use Markdown footnote syntax. " .
                    "Start with 3–5 bullet points, then details.";
 
             $ctx = '';
             foreach ($top as $i=>$c) {
-                $meta = sprintf("%s (%s%s) p.%d–%d",
+                $meta = sprintf("%s, %s (%s) pp.%d–%d",
+                    $c['author'] ?: 'Unknown',
                     $c['title'],
-                    $c['author'] ? $c['author'] . ', ' : '',
                     $c['year'] ?: 'n.d.',
-                    $c['page_start'] ?: 0, $c['page_end'] ?: 0
+                    $c['page_start'] ?: 0,
+                    $c['page_end'] ?: 0
                 );
                 $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
-                $sources[] = sprintf('%s (%s%s) p.%d–%d [sim=%.3f]',
+                $sources[] = sprintf('%s, %s (%s) pp.%d–%d [sim=%.3f]',
+                    $c['author'] ?: 'Unknown',
                     $c['title'],
-                    $c['author'] ? $c['author'] . ', ' : '',
                     $c['year'] ?: 'n.d.',
-                    $c['page_start'] ?: 0, $c['page_end'] ?: 0,
+                    $c['page_start'] ?: 0,
+                    $c['page_end'] ?: 0,
                     $c['sim']);
             }
             $user = "Question: " . $question . "\n\nContext:\n" . $ctx;
