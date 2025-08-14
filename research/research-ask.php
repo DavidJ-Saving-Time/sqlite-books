@@ -5,6 +5,8 @@
  * This is a browser-friendly version of the CLI script located at the project root.
  * It embeds the user's question, finds relevant chunks from library.sqlite, and
  * generates an answer using either OpenRouter (Claude) or OpenAI.
+ * Optional parameters min_distinct and per_book_cap (default 3) control
+ * the minimum number of distinct books and the cap per book when selecting context.
  *
  * Requirements:
  *   - PHP PDO SQLite
@@ -38,6 +40,8 @@ $maxChunks  = max(1, (int)($req['max_chunks'] ?? $req['max-chunks'] ?? 8));
 $maxTokens  = max(1, (int)($req['max_tokens'] ?? $req['max-tokens'] ?? 2000));
 $useWhich   = strtolower(trim($req['use'] ?? 'claude'));
 $modelName  = trim($req['model'] ?? '');
+$minDistinct = max(1, (int)($req['min_distinct'] ?? $req['min-distinct'] ?? 3));
+$perBookCap  = max(1, (int)($req['per_book_cap'] ?? $req['per-book-cap'] ?? 3));
 
 if ($question !== '') {
     try {
@@ -84,7 +88,43 @@ if ($question !== '') {
             $top[] = $row;
         }
         usort($top, fn($a,$b)=> $b['sim']<=>$a['sim']);
-        $top = array_slice($top, 0, $maxChunks);
+
+        // Enforce per-book cap and ensure a minimum number of distinct books
+        $grouped = [];
+        foreach ($top as $row) {
+            $bid = $row['item_id'];
+            if (!isset($grouped[$bid])) $grouped[$bid] = [];
+            if (count($grouped[$bid]) < $perBookCap) {
+                $grouped[$bid][] = $row;
+            }
+        }
+
+        // Take one chunk from each book (best similarity) up to minDistinct
+        $firstChunks = [];
+        foreach ($grouped as $rows) {
+            $firstChunks[] = $rows[0];
+        }
+        usort($firstChunks, fn($a,$b)=> $b['sim'] <=> $a['sim']);
+        $initial  = array_slice($firstChunks, 0, $minDistinct);
+        $selected = $initial;
+        foreach ($initial as $r) {
+            $bid = $r['item_id'];
+            array_shift($grouped[$bid]);
+            if (empty($grouped[$bid])) unset($grouped[$bid]);
+        }
+
+        // Fill remaining slots by highest-similarity chunks respecting per-book cap
+        $remaining = $maxChunks - count($selected);
+        if ($remaining > 0) {
+            $rest = [];
+            foreach ($grouped as $rows) {
+                foreach ($rows as $r) $rest[] = $r;
+            }
+            usort($rest, fn($a,$b)=> $b['sim'] <=> $a['sim']);
+            $selected = array_merge($selected, array_slice($rest, 0, $remaining));
+        }
+
+        $top = $selected;
 
         if (empty($top) || $top[0]['sim'] < 0.25) {
             $answer = 'Not in library (retrieval too weak).';
@@ -187,6 +227,16 @@ if ($question !== '') {
                 <option value="google/gemini-2.5-flash" <?= (($_REQUEST['model'] ?? '') === 'google/gemini-2.5-flash') ? 'selected' : '' ?>>google/gemini-2.5-flash</option>
                 <option value="anthropic/claude-sonnet-4" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-sonnet-4') ? 'selected' : '' ?>>anthropic/claude-sonnet-4</option>
             </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-2 mb-3">
+            <label for="min_distinct" class="form-label">Min Distinct</label>
+            <input type="number" id="min_distinct" name="min_distinct" class="form-control" value="<?= htmlspecialchars($_REQUEST['min_distinct'] ?? ($_REQUEST['min-distinct'] ?? '3')) ?>">
+        </div>
+        <div class="col-md-2 mb-3">
+            <label for="per_book_cap" class="form-label">Per Book Cap</label>
+            <input type="number" id="per_book_cap" name="per_book_cap" class="form-control" value="<?= htmlspecialchars($_REQUEST['per_book_cap'] ?? ($_REQUEST['per-book-cap'] ?? '3')) ?>">
         </div>
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
