@@ -182,8 +182,13 @@ $meta = sprintf('%s, %s (%s) %s',
 );
 
 $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
-    $pdfUrl = isset($c['library_book_id']) && $c['library_book_id']
-        ? pdf_url_for_book((int)$c['library_book_id']) : null;
+    $pdfUrl = null;
+    if (!empty($c['library_book_id'])) {
+        $pdfUrl = pdf_url_for_book((int)$c['library_book_id']);
+        if ($pdfUrl && $pdfStart) {
+            $pdfUrl .= '#page=' . $pdfStart;
+        }
+    }
 
     $sources[] = [
         'text' => sprintf('%s, %s (%s) %s [sim=%.3f]',
@@ -458,12 +463,15 @@ function pdf_url_for_book(int $bookId): ?string {
     $stmt->execute([$bookId]);
     $path = $stmt->fetchColumn();
     if (!$path) return null;
-    $stmt = $pdo->prepare('SELECT name FROM data WHERE book = ? AND format = "PDF" LIMIT 1');
+    $stmt = $pdo->prepare('SELECT name FROM data WHERE book = ? AND format = "PDF" ORDER BY LENGTH(name) DESC, id DESC LIMIT 1');
     $stmt->execute([$bookId]);
     $name = $stmt->fetchColumn();
     if (!$name) return null;
     $rel = $path . '/' . $name . '.pdf';
-    $encoded = implode('/', array_map('rawurlencode', explode('/', $rel)));
+    $encoded = implode('/', array_map(function ($seg) {
+      $enc = rawurlencode($seg);
+      return str_replace(['%28','%29'], ['(',')'], $enc);
+    }, explode('/', $rel)));
     return getLibraryWebPath() . '/' . $encoded;
   } catch (Exception $e) {
     return null;
