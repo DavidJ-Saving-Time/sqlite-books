@@ -30,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bookAuthor = trim($_POST['author'] ?? '');
     $bookYear   = (int)($_POST['year'] ?? 0);
     $displayOffset = (int)($_POST['page_offset'] ?? 0);
+    $libraryBookId = isset($_POST['library_book_id']) && $_POST['library_book_id'] !== ''
+        ? (int)$_POST['library_book_id'] : null;
 
     if ($bookTitle === '' || !isset($_FILES['pdf'])) {
         out('Title and PDF are required.');
@@ -63,6 +65,7 @@ CREATE TABLE IF NOT EXISTS items (
   author TEXT,
   year INTEGER,
   display_offset INTEGER DEFAULT 0,
+  library_book_id INTEGER,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS chunks (
@@ -92,6 +95,7 @@ CREATE TABLE IF NOT EXISTS page_map (
 );
 ");
     ensure_chunk_label_cols($db);
+    ensure_library_book_id_col($db);
     out('Database ready.');
 
     // ---- Page count via pdfinfo ----
@@ -116,8 +120,8 @@ CREATE TABLE IF NOT EXISTS page_map (
     out('Text extracted.');
 
     // ---- Insert item ----
-    $insItem = $db->prepare("INSERT INTO items (title, author, year, display_offset) VALUES (:t,:a,:y,:o)");
-    $insItem->execute([':t'=>$bookTitle, ':a'=>$bookAuthor, ':y'=>$bookYear, ':o'=>$displayOffset]);
+    $insItem = $db->prepare("INSERT INTO items (title, author, year, display_offset, library_book_id) VALUES (:t,:a,:y,:o,:l)");
+    $insItem->execute([':t'=>$bookTitle, ':a'=>$bookAuthor, ':y'=>$bookYear, ':o'=>$displayOffset, ':l'=>$libraryBookId]);
     $itemId = (int)$db->lastInsertId();
 
     // ---- Populate page_map with PDF labels or detected headers/footers ----
@@ -193,7 +197,7 @@ if (is_file($dbListPath)) {
     try {
         $dbList = new PDO('sqlite:' . $dbListPath);
         $dbList->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $rows = $dbList->query('SELECT id, title, author, year, created_at FROM items ORDER BY created_at DESC')->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $dbList->query('SELECT id, title, author, year, library_book_id, created_at FROM items ORDER BY created_at DESC')->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) {
             $id = (int)$r['id'];
             $r['pages'] = (int)$dbList->query('SELECT MAX(page_end) FROM chunks WHERE item_id = ' . $id)->fetchColumn();
@@ -237,6 +241,10 @@ if (is_file($dbListPath)) {
         <input class="form-control" type="number" name="year" id="year">
     </div>
     <div class="mb-3">
+        <label for="library_book_id" class="form-label">Library Book ID</label>
+        <input class="form-control" type="number" name="library_book_id" id="library_book_id">
+    </div>
+    <div class="mb-3">
         <label for="page_offset" class="form-label">Page Offset</label>
         <input class="form-control" type="number" name="page_offset" id="page_offset" value="0">
     </div>
@@ -251,6 +259,7 @@ if (is_file($dbListPath)) {
             <th>Title</th>
             <th>Author</th>
             <th>Year</th>
+            <th>Library ID</th>
             <th>Pages</th>
             <th>Chunks</th>
             <th>Endpoint</th>
@@ -264,6 +273,7 @@ if (is_file($dbListPath)) {
             <td><?= htmlspecialchars($b['title']) ?></td>
             <td><?= htmlspecialchars($b['author']) ?></td>
             <td><?= htmlspecialchars($b['year']) ?></td>
+            <td><?= htmlspecialchars($b['library_book_id'] ?? '') ?></td>
             <td><?= htmlspecialchars($b['pages'] ?: 'n/a') ?></td>
             <td><?= htmlspecialchars($b['chunks']) ?></td>
             <td><?= htmlspecialchars($b['endpoint']) ?></td>
@@ -395,6 +405,14 @@ function ensure_chunk_label_cols(PDO $db): void {
   if (!in_array('display_end', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end INTEGER");
   if (!in_array('display_start_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_start_label TEXT");
   if (!in_array('display_end_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end_label TEXT");
+}
+
+function ensure_library_book_id_col(PDO $db): void {
+  $cols = $db->query("PRAGMA table_info(items)")->fetchAll(PDO::FETCH_ASSOC);
+  $names = array_column($cols, 'name');
+  if (!in_array('library_book_id', $names, true)) {
+    $db->exec("ALTER TABLE items ADD COLUMN library_book_id INTEGER");
+  }
 }
 
 function roman_to_int(string $roman): int {
