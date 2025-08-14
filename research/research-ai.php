@@ -74,10 +74,24 @@ CREATE TABLE IF NOT EXISTS chunks (
   text TEXT NOT NULL,
   embedding BLOB,
   token_count INTEGER,
+  display_start INTEGER,
+  display_end INTEGER,
+  display_start_label TEXT,
+  display_end_label TEXT,
   FOREIGN KEY(item_id) REFERENCES items(id)
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_item ON chunks(item_id);
+CREATE TABLE IF NOT EXISTS page_map (
+  item_id INTEGER NOT NULL,
+  pdf_page INTEGER NOT NULL,
+  display_label TEXT,
+  display_number INTEGER,
+  method TEXT,
+  confidence REAL,
+  PRIMARY KEY (item_id, pdf_page)
+);
 ");
+    ensure_chunk_label_cols($db);
     out('Database ready.');
 
     // ---- Page count via pdfinfo ----
@@ -106,6 +120,37 @@ CREATE INDEX IF NOT EXISTS idx_chunks_item ON chunks(item_id);
     $insItem->execute([':t'=>$bookTitle, ':a'=>$bookAuthor, ':y'=>$bookYear, ':o'=>$displayOffset]);
     $itemId = (int)$db->lastInsertId();
 
+    // ---- Populate page_map with PDF labels or detected headers/footers ----
+    $labels = [];
+    $script = __DIR__ . '/extract_page_labels.py';
+    if (is_file($script)) {
+        $outLabels = trim(shell_exec('python3 ' . escapeshellarg($script) . ' ' . escapeshellarg($tmpPdf)));
+        $labels = json_decode($outLabels, true) ?: [];
+    }
+    $insMap = $db->prepare("INSERT INTO page_map (item_id,pdf_page,display_label,display_number,method,confidence) VALUES (:i,:p,:l,:n,:m,:c)");
+    for ($p=1; $p <= $pagesCount; $p++) {
+        $label = $labels[$p] ?? detect_header_footer_label($pages[$p]);
+        $method = isset($labels[$p]) ? 'pdf_label' : ($label ? 'header' : 'offset');
+        $conf = isset($labels[$p]) ? 1.0 : ($label ? 0.6 : 0.4);
+        $num = null;
+        if ($label !== null) {
+            if (preg_match('/^\d+$/', $label)) {
+                $num = (int)$label;
+            } elseif (preg_match('/^[ivxlcdm]+$/i', $label)) {
+                $num = roman_to_int($label);
+            } else {
+                $label = null;
+            }
+        }
+        if ($label === null) {
+            $num = $p + $displayOffset;
+            $label = (string)$num;
+            $method = 'offset';
+            $conf = 0.4;
+        }
+        $insMap->execute([':i'=>$itemId, ':p'=>$p, ':l'=>$label, ':n'=>$num, ':m'=>$method, ':c'=>$conf]);
+    }
+
     // ---- Build chunks ----
     $targetTokens = 1000;
     $chunks = build_chunks_from_pages($pages, $targetTokens);
@@ -119,8 +164,8 @@ CREATE INDEX IF NOT EXISTS idx_chunks_item ON chunks(item_id);
         foreach ($batch as $j => $chunk) {
             $embedding = $vectors[$j] ?? null; if (!$embedding) continue;
             $bin = pack_floats($embedding);
-            $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count)
-                                  VALUES (:item,:section,:ps,:pe,:text,:emb,:tok)");
+            $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count, display_start, display_end, display_start_label, display_end_label)
+                                  VALUES (:item,:section,:ps,:pe,:text,:emb,:tok,NULL,NULL,NULL,NULL)");
             $stmt->bindValue(':item', $itemId, PDO::PARAM_INT);
             $stmt->bindValue(':section', $chunk['section']);
             $stmt->bindValue(':ps', $chunk['page_start'], PDO::PARAM_INT);
@@ -134,6 +179,7 @@ CREATE INDEX IF NOT EXISTS idx_chunks_item ON chunks(item_id);
         usleep(200000); // throttle a bit
     }
 
+    recompute_chunk_display_ranges($db, $itemId);
     out("Ingest complete. Book ID: $itemId");
     out("Pages: $pagesCount | Chunks: " . count($chunks));
     echo "</pre>";
@@ -340,5 +386,61 @@ function pack_floats(array $floats): string {
   $bin = '';
   foreach ($floats as $f) $bin .= pack('g', (float)$f); // little-endian float32
   return $bin;
+}
+
+function ensure_chunk_label_cols(PDO $db): void {
+  $cols = $db->query("PRAGMA table_info(chunks)")->fetchAll(PDO::FETCH_ASSOC);
+  $names = array_column($cols, 'name');
+  if (!in_array('display_start', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_start INTEGER");
+  if (!in_array('display_end', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end INTEGER");
+  if (!in_array('display_start_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_start_label TEXT");
+  if (!in_array('display_end_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end_label TEXT");
+}
+
+function roman_to_int(string $roman): int {
+  $map = ['I'=>1,'V'=>5,'X'=>10,'L'=>50,'C'=>100,'D'=>500,'M'=>1000];
+  $roman = strtoupper($roman);
+  $total = 0; $prev = 0;
+  for ($i = strlen($roman)-1; $i >= 0; $i--) {
+    $curr = $map[$roman[$i]] ?? 0;
+    if ($curr < $prev) $total -= $curr; else $total += $curr;
+    $prev = $curr;
+  }
+  return $total;
+}
+
+function detect_header_footer_label(string $txt): ?string {
+  $lines = preg_split('/\n/u', trim($txt));
+  if (!$lines) return null;
+  $candidates = array_merge(array_slice($lines, 0, 2), array_slice($lines, -2));
+  foreach ($candidates as $l) {
+    $l = trim($l);
+    if ($l === '') continue;
+    if (preg_match('/^\d{1,4}$/', $l)) return $l;
+    if (preg_match('/^[ivxlcdm]+$/i', $l)) return $l;
+  }
+  return null;
+}
+
+function recompute_chunk_display_ranges(PDO $db, int $itemId): void {
+  $dispOffset = (int)$db->query("SELECT display_offset FROM items WHERE id=".$itemId)->fetchColumn();
+  $q = $db->prepare("SELECT id, page_start, page_end FROM chunks WHERE item_id=:i");
+  $q->execute([':i'=>$itemId]);
+  $sel = $db->prepare("SELECT display_label, display_number FROM page_map WHERE item_id=:i AND pdf_page=:p");
+  $upd = $db->prepare("UPDATE chunks SET display_start=:ds, display_end=:de, display_start_label=:dsl, display_end_label=:del WHERE id=:cid");
+  while ($row = $q->fetch(PDO::FETCH_ASSOC)) {
+    $s = (int)$row['page_start']; $e = (int)$row['page_end'];
+    $sel->execute([':i'=>$itemId, ':p'=>$s]); $start = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
+    $sel->execute([':i'=>$itemId, ':p'=>$e]); $end = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
+    $startLabel = $start['display_label'] ?? null;
+    $startNum = $start['display_number'] ?? null;
+    if ($startLabel === null) { $startNum = $s + $dispOffset; $startLabel = (string)$startNum; }
+    if ($startNum === null && preg_match('/^[ivxlcdm]+$/i', $startLabel)) $startNum = roman_to_int($startLabel);
+    $endLabel = $end['display_label'] ?? null;
+    $endNum = $end['display_number'] ?? null;
+    if ($endLabel === null) { $endNum = $e + $dispOffset; $endLabel = (string)$endNum; }
+    if ($endNum === null && preg_match('/^[ivxlcdm]+$/i', $endLabel)) $endNum = roman_to_int($endLabel);
+    $upd->execute([':ds'=>$startNum, ':de'=>$endNum, ':dsl'=>$startLabel, ':del'=>$endLabel, ':cid'=>$row['id']]);
+  }
 }
 ?>
