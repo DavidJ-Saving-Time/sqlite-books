@@ -99,15 +99,21 @@ foreach ($paras as $idx=>$para) {
   }
 
   // 3) Build system + user messages; ask for strict JSON
-  $system = "You are an academic assistant for a historian. "
-    ."Match the paragraph with supporting sources ONLY from the provided context. "
-    ."Return Oxford-style footnotes and bibliography entries using ONLY sources present in context. "
-    ."Use exact page ranges from context metadata. "
-    ."Do NOT invent sources, authors, years, publishers, or page numbers. "
-    ."If publisher/place is unknown, omit it rather than guessing. "
-    ."Output STRICT JSON (no extra text) with this schema:\n"
-    ."{\"footnotes\": [{\"source_id\": <item_id>, \"text\": \"Oxford footnote text\"}], "
-    ."\"bibliography\": [{\"source_id\": <item_id>, \"text\": \"Oxford bibliography entry\"}]}";
+$system =
+"You are an academic assistant for a historian. " .
+"Read the provided draft text and match ideas or facts with supporting sources ONLY from the provided context. " .
+"Use Oxford-style footnotes (superscript numbers) within the draft text, placed immediately after the relevant sentence or clause. " .
+"After the annotated text, produce a bibliography titled 'References' in Oxford format, listing only sources actually cited in the text. " .
+"Use exact page ranges from the context metadata (p.xx–yy). " .
+"Do NOT invent sources, authors, years, publishers, or page numbers. " .
+"If publisher/place is unknown, omit it rather than guessing. " .
+"Return the result as plain readable text — NOT JSON — with the structure:\n" .
+"---\n" .
+"[Annotated Draft Text]\n" .
+"\n" .
+"References\n" .
+"[Oxford-formatted bibliography]\n" .
+"---";
 
   // Build context blocks
   $ctx = "Paragraph:\n".$para."\n\nContext:\n";

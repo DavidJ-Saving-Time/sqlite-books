@@ -1,78 +1,79 @@
 <?php
 /**
- * ask.php — Retrieval-augmented QA over your ingested books.
+ * ask.php — Retrieval-augmented QA with printed page numbers.
  *
  * Examples:
- *   php ask.php "Explain remanence vs coercivity in thin films."
- *   php ask.php "..." --book-id=5 --max-chunks=10
- *   php ask.php "..." --use=claude               # use OpenRouter (Claude Sonnet 4)
- *   php ask.php "..." --use=openai --model=gpt-4o-mini
+ *   php ask.php "What boundary conditions apply in rectangular waveguides?"
+ *   php ask.php "..." --book-id=12 --book-id=19
+ *   php ask.php "..." --use=claude --model=anthropic/claude-sonnet-4 --max-chunks=10 --max-out=2000 --show-pdf-pages
  *
  * ENV:
- *   OPENAI_API_KEY=sk-...             (required for embeddings; also for OpenAI answering)
- *   OPENAI_EMBED_MODEL=text-embedding-3-small   (MUST match ingest model)//
- *   OPENROUTER_API_KEY=...            (required only if --use=claude)
- *
- * DB:
- *   library.sqlite with tables: items, chunks (created by your ingest script)
+ *   OPENAI_API_KEY=...                 (required for embeddings; also for OpenAI answering if used)
+ *   OPENAI_EMBED_MODEL=text-embedding-3-large   (MUST match ingest model)
+ *   OPENROUTER_API_KEY=...             (required if --use=claude)
  */
 
 ini_set('memory_limit', '1G');
 
 if ($argc < 2) {
-  fwrite(STDERR, "Usage: php ask.php \"your question\" [--book-id=ID] [--max-chunks=8] [--use=claude|openai] [--model=MODEL]\n");
+  fwrite(STDERR, "Usage: php ask.php \"question\" [--book-id=N ...] [--max-chunks=8] [--use=claude|openai] [--model=ID] [--max-out=1200] [--show-pdf-pages]\n");
   exit(1);
 }
 
-$question   = $argv[1];
-$bookIds = [];
-$maxChunks  = 8;
-$useWhich   = 'claude';                 // default to Claude via OpenRouter (change if you want)
-$modelName  = null;                     // optional override for answering model
+
+$verbose = false;
+$question    = $argv[1];
+$bookIds     = [];
+$maxChunks   = 12;
+$useWhich    = 'claude'; // default to OpenRouter Claude
+$modelName   = 'anthropic/claude-sonnet-4';
+$maxOut      = 2000;
+$showPdf     = false;
+
+$minDistinct = 3;   // default; change if you like
+$perBookCap  = 3;   // default per-book cap
 
 for ($i=2; $i<$argc; $i++) {
-//  if (preg_match('/^--book-id=(\d+)/', $argv[$i], $m)) $bookId = (int)$m[1];
-  if (preg_match('/^--book-id=(\d+)/', $argv[$i], $m)) {
-    $bookIds[] = (int)$m[1];
-}
+  if (preg_match('/^--book-id=(\d+)/', $argv[$i], $m)) $bookIds[] = (int)$m[1];
   if (preg_match('/^--max-chunks=(\d+)/', $argv[$i], $m)) $maxChunks = max(1,(int)$m[1]);
-  if (preg_match('/^--use=(\w+)/', $argv[$i], $m)) $useWhich = strtolower($m[1]);
-  if (preg_match('/^--model=(.+)/', $argv[$i], $m)) $modelName = trim($m[1]);
+  if (preg_match('/^--use=(\w+)/', $argv[$i], $m))       $useWhich = strtolower($m[1]);
+  if (preg_match('/^--model=(.+)/', $argv[$i], $m))      $modelName = trim($m[1]);
+  if (preg_match('/^--max-out=(\d+)/', $argv[$i], $m))   $maxOut = max(1,(int)$m[1]);
+  if (preg_match('/^--min-distinct=(\d+)/', $argv[$i], $m)) $minDistinct = max(1,(int)$m[1]);
+  if (preg_match('/^--per-book-cap=(\d+)/',  $argv[$i], $m)) $perBookCap  = max(1,(int)$m[1]);
+  if ($argv[$i] === '--verbose') $verbose = true;
+  if ($argv[$i] === '--show-pdf-pages') $showPdf = true;
+
 }
 
-$openaiKey   = getenv('OPENAI_API_KEY');
-$embedModel  = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-large';
-$orKey       = getenv('OPENROUTER_API_KEY');
+$openaiKey  = getenv('OPENAI_API_KEY') ?: die("Set OPENAI_API_KEY\n");
+$embedModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small';
+$orKey      = getenv('OPENROUTER_API_KEY');
 
-if (!$openaiKey) die("Set OPENAI_API_KEY for embeddings.\n");
-if ($useWhich === 'claude' && !$orKey) die("Set OPENROUTER_API_KEY when using --use=claude.\n");
+if ($useWhich === 'claude' && !$orKey) die("Set OPENROUTER_API_KEY for --use=claude\n");
 
-// DB connect
+// --- DB connect
 $db = new PDO('sqlite:library.sqlite');
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// 1) Embed the question (OpenAI embeddings)
+// 1) Embed the question with the SAME embedding model used at ingest
 $qVec = embed_with_openai($question, $embedModel, $openaiKey);
 
-// 2) Pull candidate chunks (optionally filter by book)
+// 2) Load candidate chunks (JOIN items to get display_offset)
 $sql = "SELECT c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
-               i.title, i.author, i.year
-        FROM chunks c JOIN items i ON c.item_id = i.id";
+               i.title, i.author, i.year, i.display_offset
+        FROM chunks c
+        JOIN items i ON c.item_id = i.id";
 $params = [];
-//if ($bookId !== null) { $sql .= " WHERE c.item_id = :bid"; $params[':bid'] = $bookId; }
-
 if (!empty($bookIds)) {
-    $in = implode(',', array_fill(0, count($bookIds), '?'));
-    $sql .= " WHERE c.item_id IN ($in)";
-    $params = $bookIds;
+  $in = implode(',', array_fill(0, count($bookIds), '?'));
+  $sql .= " WHERE c.item_id IN ($in)";
+  $params = $bookIds;
 }
-
-
-
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 
-// 3) Compute cosine similarity and rank
+// 3) Cosine similarity & rank
 $top = [];
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
   $vec = unpack_floats($row['embedding']);
@@ -81,16 +82,92 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
   $row['sim'] = $sim;
   $top[] = $row;
 }
-usort($top, fn($a,$b)=> $b['sim']<=>$a['sim']);
-$top = array_slice($top, 0, $maxChunks);
+// Sort all candidates by similarity (desc)
+usort($top, fn($a,$b)=> $b['sim'] <=> $a['sim']);
 
-// Optional guardrail: if best similarity is very low, bail out
+// Diversity-aware selection:
+//  1) ensure at least $minDistinct different books (one chunk per unseen book)
+//  2) then fill remaining slots up to $maxChunks, but no more than $perBookCap per book
+$selected = [];
+$seenBooks = [];
+$perCount = [];
+
+// Pass A: hit minDistinct with best-from-new-books
+foreach ($top as $row) {
+  if (count($selected) >= $maxChunks) break;
+  $book = (int)$row['item_id'];
+  if (!isset($seenBooks[$book])) {
+    $selected[] = $row;
+    $seenBooks[$book] = true;
+    $perCount[$book] = 1;
+    if (count($seenBooks) >= $minDistinct && count($selected) >= $minDistinct) break;
+  }
+}
+
+// Pass B: fill up to maxChunks with best remaining, respecting per-book cap
+foreach ($top as $row) {
+  if (count($selected) >= $maxChunks) break;
+  $book = (int)$row['item_id'];
+  if (!isset($perCount[$book])) $perCount[$book] = 0;
+  // skip if we already picked this exact chunk (by id)
+  $already = false;
+  foreach ($selected as $s) { if ((int)$s['id'] === (int)$row['id']) { $already = true; break; } }
+  if ($already) continue;
+
+  if ($perCount[$book] < $perBookCap) {
+    $selected[] = $row;
+    $perCount[$book]++;
+  }
+}
+
+// Pass C (relax): if still short (e.g., tiny corpus), just take best remaining regardless of caps
+if (count($selected) < $maxChunks) {
+  foreach ($top as $row) {
+    if (count($selected) >= $maxChunks) break;
+    $already = false;
+    foreach ($selected as $s) { if ((int)$s['id'] === (int)$row['id']) { $already = true; break; } }
+    if (!$already) $selected[] = $row;
+  }
+}
+
+// Use $selected as your final top list
+$top = $selected;
+$distinctBooks = count(array_unique(array_map(fn($r)=> (int)$r['item_id'], $top)));
+if ($verbose) {
+    $byBook = [];
+    foreach ($top as $r) { $byBook[$r['item_id']] = ($byBook[$r['item_id']] ?? 0) + 1; }
+    $pairs = [];
+    foreach ($byBook as $bookId => $cnt) { $pairs[] = "$bookId:$cnt"; }
+    fwrite(STDERR, "[DEBUG] Context chunks: ".count($top)." | distinct books: $distinctBooks | per-book: ".implode(", ", $pairs)."\n");
+}
+
+if ($verbose) {
+    $peek = array_slice($top, 0, min(5, count($top)));
+    $titles = array_map(
+        fn($t)=> $t['title']." (id ".$t['item_id'].") p.".$t['page_start']."–".$t['page_end']." (sim=".round($t['sim'],3).")",
+        $peek
+    );
+    fwrite(STDERR, "[DEBUG] Top preview: ".implode(" | ", $titles)."\n");
+}
+
+// Optional: bail if still weak
 if (empty($top) || $top[0]['sim'] < 0.25) {
   echo "Q: $question\n\nNot in library (retrieval too weak).\n";
   exit(0);
 }
 
-// 4) Build grounded prompt text (user message will carry Q + context)
+// (Optional) Debug: show distinct book count in context
+$distinctBooks = count(array_unique(array_map(fn($r)=> (int)$r['item_id'], $top)));
+fwrite(STDERR, "[DEBUG] Context chunks: ".count($top)." | distinct books: $distinctBooks\n");
+
+
+// Optional guardrail: if best similarity is too low, bail out
+if (empty($top) || $top[0]['sim'] < 0.25) {
+  echo "Q: $question\n\nNot in library (retrieval too weak).\n";
+  exit(0);
+}
+
+// 4) Build grounded prompt
 $sys = "You are a research assistant. Answer ONLY using the provided context. ".
        "If not answerable, reply exactly: Not in library. ".
        "Cite every factual claim like [Title, Year, p.X–Y]. ".
@@ -98,40 +175,56 @@ $sys = "You are a research assistant. Answer ONLY using the provided context. ".
 
 $ctx = "";
 foreach ($top as $i=>$c) {
-  $meta = sprintf("%s (%s%s) p.%d–%d",
-    $c['title'],
-    $c['author'] ? $c['author'].", " : "",
-    $c['year'] ?: "n.d.",
-    $c['page_start'] ?: 0, $c['page_end'] ?: 0
-  );
+  // Printed pages = PDF page + display_offset
+  $dispStart = (int)$c['page_start'] + (int)$c['display_offset'];
+  $dispEnd   = (int)$c['page_end']   + (int)$c['display_offset'];
+
+  // clamp (fallback to pdf pages if offset sends it <= 0)
+  if ($dispStart <= 0 && $c['page_start'] !== null) $dispStart = (int)$c['page_start'];
+  if ($dispEnd   <= 0 && $c['page_end']   !== null) $dispEnd   = (int)$c['page_end'];
+
+  $printed = "p.$dispStart-$dispEnd";
+  $pdfTag  = $showPdf ? " [PDF p.{$c['page_start']}–{$c['page_end']}]" : "";
+
+  $meta = sprintf("%s (%s%s) %s%s",
+                  $c['title'],
+                  $c['author'] ? $c['author'].", " : "",
+                  $c['year'] ?: "n.d.",
+                  $printed,
+                  $pdfTag);
   $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
 }
+
 $user = "Question: ".$question."\n\nContext:\n".$ctx;
 
-// 5) Generate answer via chosen provider
+// 5) Generate via chosen provider
 $answer = '';
-$maxOut = 2000; // or make this a CLI flag: --max-out=2000
-
 if ($useWhich === 'claude') {
-  // OpenRouter (Claude Sonnet 4 by default)
   $answerModel = $modelName ?: 'anthropic/claude-sonnet-4';
   $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxOut);
 } else {
-  // OpenAI Responses API (fallback)
   $answerModel = $modelName ?: 'gpt-4o-mini';
   $answer = generate_with_openai($answerModel, $sys, $user, $openaiKey, 0.1, $maxOut);
 }
 
-// 6) Output neatly with sources
+// 6) Print neatly with printed pages in Sources
 echo "Q: $question\n\n";
 echo trim($answer)."\n\n";
 echo "Sources used:\n";
 foreach ($top as $c) {
-  $meta = sprintf("- %s (%s%s) p.%d–%d [sim=%.3f]",
+  $dispStart = (int)$c['page_start'] + (int)$c['display_offset'];
+  $dispEnd   = (int)$c['page_end']   + (int)$c['display_offset'];
+  if ($dispStart <= 0 && $c['page_start'] !== null) $dispStart = (int)$c['page_start'];
+  if ($dispEnd   <= 0 && $c['page_end']   !== null) $dispEnd   = (int)$c['page_end'];
+  $printed = "p.$dispStart-$dispEnd";
+  $pdfPart = $showPdf ? " [PDF p.{$c['page_start']}–{$c['page_end']}]" : "";
+
+  $meta = sprintf("- %s (%s%s) %s%s [sim=%.3f]",
       $c['title'],
       $c['author'] ? $c['author'].", " : "",
       $c['year'] ?: "n.d.",
-      $c['page_start'] ?: 0, $c['page_end'] ?: 0,
+      $printed,
+      $pdfPart,
       $c['sim']);
   echo $meta."\n";
 }
@@ -160,76 +253,51 @@ function embed_with_openai(string $text, string $model, string $apiKey): array {
 
 // OpenAI (Responses API) answering
 function generate_with_openai(string $model, string $system, string $user, string $apiKey, float $temp=0.1, int $maxTokens=1200): string {
-  $input = $system."\n\n".$user; // simple concat; Responses API also supports messages, but keep it minimal
+  $input = $system."\n\n".$user;
   $payload = ['model'=>$model, 'input'=>$input, 'temperature'=>$temp, 'max_output_tokens'=>$maxTokens];
   $res = http_post_json("https://api.openai.com/v1/responses", $payload, [
     "Content-Type: application/json",
-    "Authorization: Bearer $apiKey"
-  ]);
+    "Authorization: Bearer $apiKey
+  "]);
   if (isset($res['output'][0]['content'][0]['text'])) return $res['output'][0]['content'][0]['text'];
   if (isset($res['content'][0]['text'])) return $res['content'][0]['text'];
-  // fallback parse for chat-like shapes
   if (isset($res['choices'][0]['message']['content'])) return $res['choices'][0]['message']['content'];
   return json_encode($res);
 }
 
-// OpenRouter (Chat Completions) answering — Claude Sonnet 4, etc.
-function generate_with_openrouter(
-    string $model,
-    string $system,
-    string $user,
-    string $apiKey,
-    float $temp = 0.1,
-    int $maxTokens = 2000
-): string {
-    $payload = [
-        'model' => $model,
-        'messages' => [
-            ['role' => 'system', 'content' => $system],
-            ['role' => 'user',   'content' => $user]
-        ],
-        'temperature' => $temp,
-        'max_tokens'  => $maxTokens,
-        // ask OpenRouter to include token usage in the response
-        'usage'       => ['include' => true],
-    ];
+// OpenRouter (Chat Completions) answering — Claude Sonnet 4, etc. (with usage logs)
+function generate_with_openrouter(string $model, string $system, string $user, string $apiKey, float $temp=0.1, int $maxTokens=1200): string {
+  $payload = [
+    'model' => $model,
+    'messages' => [
+      ['role'=>'system', 'content'=>$system],
+      ['role'=>'user',   'content'=>$user]
+    ],
+    'temperature' => $temp,
+    'max_tokens'  => $maxTokens,
+    'usage'       => ['include' => true],
+  ];
+  $res = http_post_json("https://openrouter.ai/api/v1/chat/completions", $payload, [
+    "Content-Type: application/json",
+    "Authorization: Bearer $apiKey",
+    "HTTP-Referer: https://your-site.example",
+    "X-Title: Your App Name"
+  ]);
 
-    $res = http_post_json("https://openrouter.ai/api/v1/chat/completions", $payload, [
-        "Content-Type: application/json",
-        "Authorization: Bearer $apiKey",
-        // optional analytics headers:
-        "HTTP-Referer: https://your-site.example",
-        "X-Title: Your App Name"
-    ]);
-
-    // ---- usage + finish reason logging ----
-    $usage  = $res['usage'] ?? [];
-    // OpenRouter may use either set of keys; handle both
-    $in  = $usage['input_tokens']      ?? $usage['prompt_tokens']     ?? '?';
-    $out = $usage['output_tokens']     ?? $usage['completion_tokens'] ?? '?';
-    $tot = $usage['total_tokens']      ?? (($in !== '?' && $out !== '?') ? ($in + $out) : '?');
-
-    if ($in !== '?' || $out !== '?') {
-        fwrite(STDERR, "[Token usage] Input: $in | Output: $out | Total: $tot\n");
-    } else {
-        fwrite(STDERR, "[Token usage] (not provided)\n");
+  if (isset($res['usage'])) {
+    $in  = $res['usage']['input_tokens']  ?? $res['usage']['prompt_tokens'] ?? '?';
+    $out = $res['usage']['output_tokens'] ?? $res['usage']['completion_tokens'] ?? '?';
+    $fin = $res['choices'][0]['finish_reason'] ?? '';
+    fwrite(STDERR, "[Token usage] Input: $in | Output: $out | Finish: $fin\n");
+    if (is_numeric($out) && (int)$out === (int)$maxTokens) {
+      fwrite(STDERR, "[Warning] Output hit max_tokens=$maxTokens — may be truncated.\n");
     }
+  }
 
-    $finish = $res['choices'][0]['finish_reason'] ?? ($res['finish_reason'] ?? null);
-    if ($finish) {
-        fwrite(STDERR, "[Finish reason] $finish\n");
-    }
-    if ($finish === 'length' || (is_numeric($out) && (int)$out === (int)$maxTokens)) {
-        fwrite(STDERR, "[Warning] Output hit the max_tokens limit ($maxTokens) — may be truncated.\n");
-    }
-
-    // ---- return content ----
-    if (isset($res['choices'][0]['message']['content'])) {
-        return $res['choices'][0]['message']['content'];
-    }
-    // fallback: dump JSON if shape is unexpected
-    return json_encode($res);
+  if (isset($res['choices'][0]['message']['content'])) return $res['choices'][0]['message']['content'];
+  return json_encode($res);
 }
+
 function http_post_json(string $url, array $payload, array $headers): array {
   $ch = curl_init($url);
   curl_setopt_array($ch, [
@@ -237,7 +305,7 @@ function http_post_json(string $url, array $payload, array $headers): array {
     CURLOPT_HTTPHEADER     => $headers,
     CURLOPT_POST           => true,
     CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
-    CURLOPT_TIMEOUT        => 120
+    CURLOPT_TIMEOUT        => 180
   ]);
   $res = curl_exec($ch);
   if ($res === false) throw new Exception("cURL error: ".curl_error($ch));
@@ -247,4 +315,3 @@ function http_post_json(string $url, array $payload, array $headers): array {
   $json = json_decode($res, true);
   return is_array($json) ? $json : [];
 }
-

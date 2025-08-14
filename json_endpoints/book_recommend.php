@@ -16,11 +16,11 @@ function get_book_recommendations(string $preferences): string {
             ],
             [
                 'role' => 'user',
-                'content' => "I enjoy {$preferences}. Can you recommend 5 similar books with a one-sentence reason for each?"
+                'content' => "I enjoy {$preferences}. Can you recommend 7 similar books with a one-sentence reason for each?"
             ]
         ],
         'temperature' => 0.7,
-        'max_tokens' => 500
+        'max_tokens' => 800
     ];
 
     $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');

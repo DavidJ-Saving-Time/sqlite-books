@@ -79,9 +79,14 @@ if ($question !== '') {
         $qVec = embed_with_openai($question, $embedModel, $openaiKey);
 
         // 2) Fetch candidate chunks
-        $sql = "SELECT c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
-                       i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset
-                FROM chunks c JOIN items i ON c.item_id = i.id";
+
+        $sql = "SELECT
+          c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
+          c.display_start, c.display_end,
+          i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset
+        FROM chunks c
+        JOIN items i ON c.item_id = i.id";
+        
         $params = [];
         if (!empty($bookIds)) {
             $in = implode(',', array_fill(0, count($bookIds), '?'));
@@ -150,26 +155,38 @@ if ($question !== '') {
 
             $ctx = '';
             foreach ($top as $i=>$c) {
-                $pdfStart = (int)$c['page_start'];
-                $pdfEnd   = (int)$c['page_end'];
-                $dispStart = $pdfStart + (int)$c['display_offset'];
-                $dispEnd   = $pdfEnd   + (int)$c['display_offset'];
-                $pageStr = $showPdfPages
-                    ? sprintf('pp.%d–%d (PDF %d–%d)', $dispStart ?: $pdfStart, $dispEnd ?: $pdfEnd, $pdfStart, $pdfEnd)
-                    : sprintf('pp.%d–%d', $dispStart ?: $pdfStart, $dispEnd ?: $pdfEnd);
-                $meta = sprintf('%s, %s (%s) %s',
-                    $c['author'] ?: 'Unknown',
-                    $c['title'],
-                    $c['year'] ?: 'n.d.',
-                    $pageStr
-                );
-                $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
-                $sources[] = sprintf('%s, %s (%s) %s [sim=%.3f]',
-                    $c['author'] ?: 'Unknown',
-                    $c['title'],
-                    $c['year'] ?: 'n.d.',
-                    $pageStr,
-                    $c['sim']);
+ $pdfStart = (int)$c['page_start'];
+$pdfEnd   = (int)$c['page_end'];
+
+// Prefer the true printed page numbers if present
+$dispStart = (isset($c['display_start']) && $c['display_start'] !== null) ? (int)$c['display_start'] : null;
+$dispEnd   = (isset($c['display_end'])   && $c['display_end']   !== null) ? (int)$c['display_end']   : null;
+
+// Fallback to legacy offset only if display_* are missing
+if ($dispStart === null || $dispEnd === null) {
+    $dispStart = $pdfStart + (int)$c['display_offset'];
+    $dispEnd   = $pdfEnd   + (int)$c['display_offset'];
+}
+
+$pageStr = $showPdfPages
+    ? sprintf('pp.%s–%s (PDF %d–%d)', $dispStart, $dispEnd, $pdfStart, $pdfEnd)
+    : sprintf('pp.%s–%s', $dispStart, $dispEnd);
+
+$meta = sprintf('%s, %s (%s) %s',
+    $c['author'] ?: 'Unknown',
+    $c['title'],
+    $c['year'] ?: 'n.d.',
+    $pageStr
+);
+
+$ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
+
+$sources[] = sprintf('%s, %s (%s) %s [sim=%.3f]',
+    $c['author'] ?: 'Unknown',
+    $c['title'],
+    $c['year'] ?: 'n.d.',
+    $pageStr,
+    $c['sim']);
             }
             $user = "Question: " . $question . "\n\nContext:\n" . $ctx;
 
