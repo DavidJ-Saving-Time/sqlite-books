@@ -215,6 +215,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
 
   if ($action === 'bulk_rule') {
+    $romanStartPdf     = max(1, (int)($_POST['roman_start_pdf'] ?? 1));     // e.g., PDF 3
     $romanUntilPdf     = max(0, (int)($_POST['roman_until_pdf'] ?? 0));     // e.g., PDF 12
     $romanStartAt      = max(1, (int)($_POST['roman_start_at'] ?? 1));      // usually 1
     $romanLower        = isset($_POST['roman_case']) && $_POST['roman_case']==='lower';
@@ -232,8 +233,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 
     $db->beginTransaction();
     if ($romanUntilPdf > 0) {
-      for ($p=1; $p <= min($romanUntilPdf, $maxPdf); $p++) {
-        $n = $romanStartAt + ($p-1);
+      for ($p=$romanStartPdf; $p <= min($romanUntilPdf, $maxPdf); $p++) {
+        $n = $romanStartAt + ($p - $romanStartPdf);
         $label = $romanPrefix . int_to_roman($n, $romanLower);
         $stmt = $db->prepare("INSERT INTO page_map(item_id,pdf_page,display_label,display_number,method,confidence)
           VALUES (:i,:p,:l,NULL,'rule',0.95)
@@ -388,6 +389,10 @@ function snippet_for_page(PDO $db, int $itemId, int $pdfPage): string {
           <form method="post" class="row g-3">
             <input type="hidden" name="action" value="bulk_rule">
             <input type="hidden" name="item_id" value="<?= (int)$itemId ?>">
+            <div class="col-md-2">
+              <label class="form-label">Roman starts at PDF page</label>
+              <input class="form-control" type="number" name="roman_start_pdf" value="1">
+            </div>
             <div class="col-md-2">
               <label class="form-label">Roman until PDF page</label>
               <input class="form-control" type="number" name="roman_until_pdf" placeholder="e.g. 12">
