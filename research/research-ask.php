@@ -17,6 +17,7 @@
  */
 
 ini_set('memory_limit', '1G');
+require_once __DIR__ . '/../db.php';
 
 $answer  = '';
 $sources = [];
@@ -83,7 +84,8 @@ if ($question !== '') {
         $sql = "SELECT
           c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
           c.display_start, c.display_end,
-          i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset
+          i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset,
+          i.library_book_id
         FROM chunks c
         JOIN items i ON c.item_id = i.id";
         
@@ -180,13 +182,19 @@ $meta = sprintf('%s, %s (%s) %s',
 );
 
 $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
+    $pdfUrl = isset($c['library_book_id']) && $c['library_book_id']
+        ? pdf_url_for_book((int)$c['library_book_id']) : null;
 
-$sources[] = sprintf('%s, %s (%s) %s [sim=%.3f]',
-    $c['author'] ?: 'Unknown',
-    $c['title'],
-    $c['year'] ?: 'n.d.',
-    $pageStr,
-    $c['sim']);
+    $sources[] = [
+        'text' => sprintf('%s, %s (%s) %s [sim=%.3f]',
+            $c['author'] ?: 'Unknown',
+            $c['title'],
+            $c['year'] ?: 'n.d.',
+            $pageStr,
+            $c['sim']
+        ),
+        'url' => $pdfUrl
+    ];
             }
             $user = "Question: " . $question . "\n\nContext:\n" . $ctx;
 
@@ -212,7 +220,11 @@ $sources[] = sprintf('%s, %s (%s) %s [sim=%.3f]',
             echo trim($answer) . "\n\n";
             if ($sources) {
                 echo "Sources used:\n";
-                foreach ($sources as $s) echo $s . "\n";
+                foreach ($sources as $s) {
+                    echo $s['text'];
+                    if (!empty($s['url'])) echo ' ' . $s['url'];
+                    echo "\n";
+                }
             }
         }
         exit;
@@ -328,7 +340,13 @@ $sources[] = sprintf('%s, %s (%s) %s [sim=%.3f]',
     <div class="card-header">Sources used</div>
     <ul class="list-group list-group-flush">
         <?php foreach ($sources as $s): ?>
-        <li class="list-group-item"><?= htmlspecialchars($s) ?></li>
+        <li class="list-group-item">
+            <?php if (!empty($s['url'])): ?>
+                <a href="<?= htmlspecialchars($s['url']) ?>" target="_blank"><?= htmlspecialchars($s['text']) ?></a>
+            <?php else: ?>
+                <?= htmlspecialchars($s['text']) ?>
+            <?php endif; ?>
+        </li>
         <?php endforeach; ?>
     </ul>
 </div>
@@ -428,5 +446,27 @@ function http_post_json(string $url, array $payload, array $headers): array {
   if ($code < 200 || $code >= 300) throw new Exception('HTTP ' . $code . ': ' . $res);
   $json = json_decode($res, true);
   return is_array($json) ? $json : [];
+}
+
+function pdf_url_for_book(int $bookId): ?string {
+  static $pdo = null;
+  try {
+    if ($pdo === null) {
+      $pdo = getDatabaseConnection();
+    }
+    $stmt = $pdo->prepare('SELECT path FROM books WHERE id = ?');
+    $stmt->execute([$bookId]);
+    $path = $stmt->fetchColumn();
+    if (!$path) return null;
+    $stmt = $pdo->prepare('SELECT name FROM data WHERE book = ? AND format = "PDF" LIMIT 1');
+    $stmt->execute([$bookId]);
+    $name = $stmt->fetchColumn();
+    if (!$name) return null;
+    $rel = $path . '/' . $name . '.pdf';
+    $encoded = implode('/', array_map('rawurlencode', explode('/', $rel)));
+    return getLibraryWebPath() . '/' . $encoded;
+  } catch (Exception $e) {
+    return null;
+  }
 }
 ?>

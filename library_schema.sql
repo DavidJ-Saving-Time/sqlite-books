@@ -3,8 +3,10 @@ CREATE TABLE items (
   title TEXT NOT NULL,
   author TEXT,
   year INTEGER,
+  display_offset INTEGER DEFAULT 0,
+  library_book_id INTEGER,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
-, display_offset INTEGER DEFAULT 0);
+);
 CREATE TABLE sqlite_sequence(name,seq);
 CREATE TABLE chunks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
