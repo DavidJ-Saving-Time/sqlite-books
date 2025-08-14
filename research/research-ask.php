@@ -459,22 +459,49 @@ function pdf_url_for_book(int $bookId): ?string {
     if ($pdo === null) {
       $pdo = getDatabaseConnection();
     }
+    // Get relative directory for the book
     $stmt = $pdo->prepare('SELECT path FROM books WHERE id = ?');
     $stmt->execute([$bookId]);
     $path = $stmt->fetchColumn();
     if (!$path) return null;
-    $stmt = $pdo->prepare('SELECT name FROM data WHERE book = ? AND format = "PDF" ORDER BY LENGTH(name) DESC, id DESC LIMIT 1');
+
+    $library = getLibraryPath();
+    $dir = rtrim($library, '/') . '/' . $path;
+
+    // Try using names recorded in the data table first
+    $stmt = $pdo->prepare('SELECT name FROM data WHERE book = ? AND format = "PDF" ORDER BY id DESC');
     $stmt->execute([$bookId]);
-    $name = $stmt->fetchColumn();
-    if (!$name) return null;
-    $rel = $path . '/' . $name . '.pdf';
-    $encoded = implode('/', array_map(function ($seg) {
-      $enc = rawurlencode($seg);
-      return str_replace(['%28','%29'], ['(',')'], $enc);
-    }, explode('/', $rel)));
-    return getLibraryWebPath() . '/' . $encoded;
+    $names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($names as $name) {
+      $candidate = $dir . '/' . $name . '.pdf';
+      if (is_file($candidate)) {
+        $rel = $path . '/' . $name . '.pdf';
+        $encoded = implode('/', array_map(function ($seg) {
+          $enc = rawurlencode($seg);
+          return str_replace(['%28','%29'], ['(',')'], $enc);
+        }, explode('/', $rel)));
+        return getLibraryWebPath() . '/' . $encoded;
+      }
+    }
+
+    // Fallback: scan directory for any PDF files
+    if (is_dir($dir)) {
+      $files = glob($dir . '/*.pdf');
+      if ($files) {
+        // Prefer the longest filename (likely "Title - Author.pdf")
+        usort($files, fn($a, $b) => strlen(basename($b)) <=> strlen(basename($a)));
+        $file = basename($files[0]);
+        $rel = $path . '/' . $file;
+        $encoded = implode('/', array_map(function ($seg) {
+          $enc = rawurlencode($seg);
+          return str_replace(['%28','%29'], ['(',')'], $enc);
+        }, explode('/', $rel)));
+        return getLibraryWebPath() . '/' . $encoded;
+      }
+    }
   } catch (Exception $e) {
-    return null;
+    // ignore and fall through to null return
   }
+  return null;
 }
 ?>
