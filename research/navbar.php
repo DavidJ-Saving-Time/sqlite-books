@@ -11,6 +11,7 @@
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item"><a class="nav-link" href="/research.php">Search</a></li>
         <li class="nav-item"><a class="nav-link" href="/research/research-ask.php">Ask</a></li>
+        <li class="nav-item"><a class="nav-link" href="/research/research-cite.php">Cite</a></li>
         <li class="nav-item"><a class="nav-link" href="/research/research-ai.php">AI Ingest</a></li>
         <li class="nav-item"><a class="nav-link" href="/research/research-verifyPDF.php">Verify PDF</a></li>
       </ul>
