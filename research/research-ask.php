@@ -45,6 +45,16 @@ $minDistinct = max(1, (int)($req['min_distinct'] ?? $req['min-distinct'] ?? 3));
 $perBookCap  = max(1, (int)($req['per_book_cap'] ?? $req['per-book-cap'] ?? 3));
 $showPdfPages = !empty($req['show_pdf_pages'] ?? $req['show-pdf-pages']);
 
+// Fetch list of all books for the selection modal
+$bookList = [];
+try {
+    $dbList = new PDO('sqlite:' . __DIR__ . '/../library.sqlite');
+    $stmt = $dbList->query('SELECT id, title FROM items ORDER BY title');
+    $bookList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Ignore if the database is unavailable
+}
+
 if ($question !== '') {
     try {
         if ($question === '') {
@@ -213,7 +223,10 @@ if ($question !== '') {
     <div class="row">
         <div class="col-md-4 mb-3">
             <label for="book_id" class="form-label">Book IDs (comma separated)</label>
-            <input type="text" id="book_id" name="book_id" class="form-control" value="<?= htmlspecialchars($_REQUEST['book_id'] ?? '') ?>">
+            <div class="input-group">
+                <input type="text" id="book_id" name="book_id" class="form-control" value="<?= htmlspecialchars($_REQUEST['book_id'] ?? '') ?>">
+                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#bookModal">Select</button>
+            </div>
         </div>
         <div class="col-md-2 mb-3">
             <label for="max_chunks" class="form-label">Max Chunks</label>
@@ -256,6 +269,32 @@ if ($question !== '') {
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
 </form>
+
+<!-- Book selection modal -->
+<div class="modal fade" id="bookModal" tabindex="-1" aria-labelledby="bookModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="bookModalLabel">Select Books</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="bookSearch" class="form-control mb-3" placeholder="Filter books">
+        <div class="list-group" id="bookList">
+          <?php foreach ($bookList as $b): ?>
+            <label class="list-group-item">
+              <input class="form-check-input me-1 book-checkbox" type="checkbox" value="<?= (int)$b['id'] ?>">
+              <?= htmlspecialchars($b['id']) ?> – <?= htmlspecialchars($b['title']) ?>
+            </label>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="applyBooks" data-bs-dismiss="modal">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
 <?php if ($error): ?>
 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
@@ -278,15 +317,32 @@ if ($question !== '') {
 </div>
 <?php endif; ?>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<?php if ($answer): ?>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <?php if ($answer): ?>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+  <script>
+    const rawAns = <?= json_encode($answer) ?>;
+    document.getElementById('answer-md').innerHTML = DOMPurify.sanitize(marked.parse(rawAns));
+  </script>
+  <?php endif; ?>
 <script>
-  const rawAns = <?= json_encode($answer) ?>;
-  document.getElementById('answer-md').innerHTML = DOMPurify.sanitize(marked.parse(rawAns));
+// Apply selected book IDs to input field
+document.getElementById('applyBooks').addEventListener('click', () => {
+  const ids = Array.from(document.querySelectorAll('.book-checkbox:checked'))
+    .map(cb => cb.value)
+    .join(',');
+  document.getElementById('book_id').value = ids;
+});
+
+// Simple filter for the book list
+document.getElementById('bookSearch').addEventListener('input', (e) => {
+  const term = e.target.value.toLowerCase();
+  document.querySelectorAll('#bookList label').forEach(lbl => {
+    lbl.style.display = lbl.textContent.toLowerCase().includes(term) ? '' : 'none';
+  });
+});
 </script>
-<?php endif; ?>
 </body>
 </html>
 <?php
