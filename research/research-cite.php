@@ -5,13 +5,13 @@
  *
  * This is a browser-friendly version of the CLI script located at the project root.
  * It embeds each paragraph of the draft, retrieves relevant chunks from
- * library.sqlite, and uses OpenRouter (Claude) to produce citations constrained
- * to the provided context.
+ * library.sqlite, and uses either OpenRouter (Claude) or OpenAI to produce
+ * citations constrained to the provided context.
  *
  * Requirements:
  *   - PHP PDO SQLite
- *   - OPENAI_API_KEY + OPENAI_EMBED_MODEL for embeddings
- *   - OPENROUTER_API_KEY for generation via Claude
+ *   - OPENAI_API_KEY + OPENAI_EMBED_MODEL for embeddings (and OpenAI generation)
+ *   - Optional: OPENROUTER_API_KEY when using Claude via OpenRouter
  */
 
 ini_set('memory_limit', '1G');
@@ -33,6 +33,8 @@ if (isset($req['book_id']) || isset($req['book-id'])) {
     }
 }
 $maxChunks = max(1, (int)($req['max_chunks'] ?? $req['max-chunks'] ?? 8));
+$useWhich  = strtolower(trim($req['use'] ?? 'claude'));
+$modelName = trim($req['model'] ?? '');
 
 if ($draft !== '') {
     try {
@@ -40,7 +42,7 @@ if ($draft !== '') {
         $embedModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-large';
         $orKey      = getenv('OPENROUTER_API_KEY');
         if (!$openaiKey) throw new Exception('Set OPENAI_API_KEY.');
-        if (!$orKey)     throw new Exception('Set OPENROUTER_API_KEY.');
+        if ($useWhich === 'claude' && !$orKey) throw new Exception('Set OPENROUTER_API_KEY.');
 
         // Load draft paragraphs
         $paras = preg_split("/\R{2,}/u", trim($draft));
@@ -122,8 +124,14 @@ if ($draft !== '') {
                 $ctx .= "\n[CTX $i] $meta\n{$c['text']}\n";
             }
 
-            // 4) Ask Claude for JSON
-            $jsonStr = generate_with_openrouter_json('anthropic/claude-sonnet-4', $system, $ctx, $orKey, 0.1, 1000);
+            // 4) Ask model for JSON
+            if ($useWhich === 'claude') {
+                $genModel = $modelName ?: 'anthropic/claude-sonnet-4';
+                $jsonStr  = generate_with_openrouter_json($genModel, $system, $ctx, $orKey, 0.1, 1000);
+            } else {
+                $genModel = $modelName ?: 'gpt-4o-mini';
+                $jsonStr  = generate_with_openai_json($genModel, $system, $ctx, $openaiKey, 0.1, 1000);
+            }
             $parsed = json_decode($jsonStr, true);
 
             $fnThisPara = [];
@@ -220,6 +228,22 @@ if ($draft !== '') {
             <label for="max_chunks" class="form-label">Max Chunks</label>
             <input type="number" id="max_chunks" name="max_chunks" class="form-control" value="<?= htmlspecialchars($_REQUEST['max_chunks'] ?? '8') ?>">
         </div>
+        <div class="col-md-2 mb-3">
+            <label for="use" class="form-label">Provider</label>
+            <input type="text" id="use" name="use" class="form-control" value="<?= htmlspecialchars($_REQUEST['use'] ?? 'claude') ?>">
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="model" class="form-label">Model</label>
+            <select id="model" name="model" class="form-select">
+                <option value="" <?= (($_REQUEST['model'] ?? '') === '') ? 'selected' : '' ?>>Auto</option>
+                <option value="deepseek/deepseek-r1-0528:free" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-r1-0528:free') ? 'selected' : '' ?>>deepseek/deepseek-r1-0528:free</option>
+                <option value="deepseek/deepseek-r1" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-r1') ? 'selected' : '' ?>>deepseek/deepseek-r1</option>
+                <option value="anthropic/claude-3.7-sonnet" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-3.7-sonnet') ? 'selected' : '' ?>>anthropic/claude-3.7-sonnet</option>
+                <option value="mistralai/mistral-medium-3.1" <?= (($_REQUEST['model'] ?? '') === 'mistralai/mistral-medium-3.1') ? 'selected' : '' ?>>mistralai/mistral-medium-3.1</option>
+                <option value="google/gemini-2.5-flash" <?= (($_REQUEST['model'] ?? '') === 'google/gemini-2.5-flash') ? 'selected' : '' ?>>google/gemini-2.5-flash</option>
+                <option value="anthropic/claude-sonnet-4" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-sonnet-4') ? 'selected' : '' ?>>anthropic/claude-sonnet-4</option>
+            </select>
+        </div>
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-quote-right"></i> Cite</button>
 </form>
@@ -263,6 +287,23 @@ function embed_with_openai(string $text, string $model, string $apiKey): array {
     'Authorization: Bearer ' . $apiKey
   ]);
   return $res['data'][0]['embedding'] ?? [];
+}
+function generate_with_openai_json(string $model, string $system, string $user, string $apiKey, float $temp=0.1, int $maxTokens=1000): string {
+  $input = $system . "\n\n" . $user;
+  $payload = [
+    'model' => $model,
+    'input' => $input,
+    'temperature' => $temp,
+    'max_output_tokens' => $maxTokens,
+    'response_format' => ['type'=>'json_object'],
+  ];
+  $res = http_post_json('https://api.openai.com/v1/responses', $payload, [
+    'Content-Type: application/json',
+    'Authorization: Bearer ' . $apiKey
+  ]);
+  if (isset($res['output'][0]['content'][0]['text'])) return $res['output'][0]['content'][0]['text'];
+  if (isset($res['choices'][0]['message']['content'])) return $res['choices'][0]['message']['content'];
+  return json_encode($res);
 }
 function generate_with_openrouter_json(string $model, string $system, string $user, string $apiKey, float $temp=0.1, int $maxTokens=1000): string {
   $payload = [
