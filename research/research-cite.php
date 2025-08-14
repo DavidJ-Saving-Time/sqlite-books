@@ -100,15 +100,10 @@ if ($draft !== '') {
             }
 
             // 3) Build system + user messages
-            $system = "You are an academic assistant for a historian. "
-                ."Match the paragraph with supporting sources ONLY from the provided context. "
-                ."Return Oxford-style footnotes and bibliography entries using ONLY sources present in context. "
-                ."Use exact page ranges from context metadata. "
-                ."Do NOT invent sources, authors, years, publishers, or page numbers. "
-                ."If publisher/place is unknown, omit it rather than guessing. "
-                ."Output STRICT JSON (no extra text) with this schema:\n"
-                ."{\"footnotes\": [{\"source_id\": <item_id>, \"text\": \"Oxford footnote text\"}], "
-                ."\"bibliography\": [{\"source_id\": <item_id>, \"text\": \"Oxford bibliography entry\"}]}";
+            $system = <<<SYS
+You are an academic assistant for a historian. Match the paragraph with supporting sources ONLY from the provided context. Return Oxford-style footnotes and bibliography entries using ONLY sources present in the context. Use exact page ranges from context metadata. Do NOT invent sources, authors, years, publishers, or page numbers. If publisher/place is unknown, omit it rather than guessing. Always respond with VALID JSON only. If no relevant sources are found, respond with {"footnotes":[],"bibliography":[]}. Output STRICT JSON (no extra text) with this schema:
+{"footnotes": [{"source_id": <item_id>, "text": "Oxford footnote text"}], "bibliography": [{"source_id": <item_id>, "text": "Oxford bibliography entry"}]}
+SYS;
 
             // Build context blocks
             $ctx = "Paragraph:\n".$para."\n\nContext:\n";
@@ -136,8 +131,8 @@ if ($draft !== '') {
 
             $fnThisPara = [];
             $bibThisPara = [];
-            if (is_array($parsed) && isset($parsed['footnotes'])) {
-                foreach ($parsed['footnotes'] as $fn) {
+            if (is_array($parsed)) {
+                foreach (($parsed['footnotes'] ?? []) as $fn) {
                     if (!isset($fn['text'])) continue;
                     $sid = $fn['source_id'] ?? null;
                     $text = trim($fn['text']);
