@@ -25,6 +25,15 @@ function table_exists(PDO $db, string $t): bool {
 }
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
+function ensure_chunk_label_cols(PDO $db): void {
+  $cols = $db->query("PRAGMA table_info(chunks)")->fetchAll(PDO::FETCH_ASSOC);
+  $names = array_column($cols, 'name');
+  if (!in_array('display_start', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_start INTEGER");
+  if (!in_array('display_end', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end INTEGER");
+  if (!in_array('display_start_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_start_label TEXT");
+  if (!in_array('display_end_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end_label TEXT");
+}
+
 // --- Ensure base tables exist (no CREATE/ALTER if already there) ---
 if (!table_exists($db, 'items') || !table_exists($db, 'chunks')) {
   throw new RuntimeException("Missing required tables 'items' or 'chunks'. Ingest a book first.");
@@ -41,6 +50,8 @@ if (!table_exists($db, 'page_map')) {
   );");
 }
 
+ensure_chunk_label_cols($db);
+
 // --- Roman helper for bulk rules ---
 function int_to_roman(int $n, bool $lower=false): string {
   $map = [1000=>'M',900=>'CM',500=>'D',400=>'CD',100=>'C',90=>'XC',50=>'L',40=>'XL',10=>'X',9=>'IX',5=>'V',4=>'IV',1=>'I'];
@@ -49,26 +60,37 @@ function int_to_roman(int $n, bool $lower=false): string {
 }
 
 // --- Recompute chunk citation ranges from page_map, fallback to display_offset ---
+function roman_to_int(string $roman): int {
+  $map = ['I'=>1,'V'=>5,'X'=>10,'L'=>50,'C'=>100,'D'=>500,'M'=>1000];
+  $roman = strtoupper($roman);
+  $total = 0; $prev = 0;
+  for ($i = strlen($roman)-1; $i >= 0; $i--) {
+    $curr = $map[$roman[$i]] ?? 0;
+    if ($curr < $prev) $total -= $curr; else $total += $curr;
+    $prev = $curr;
+  }
+  return $total;
+}
+
 function recompute_chunk_display_ranges(PDO $db, int $itemId): void {
   $dispOffset = (int)$db->query("SELECT display_offset FROM items WHERE id=".$itemId)->fetchColumn();
-
   $q = $db->prepare("SELECT id, page_start, page_end FROM chunks WHERE item_id=:i");
   $q->execute([':i'=>$itemId]);
-
-  $sel = $db->prepare("SELECT MIN(display_number), MAX(display_number)
-                       FROM page_map WHERE item_id=:i AND pdf_page BETWEEN :s AND :e");
-  $upd = $db->prepare("UPDATE chunks SET display_start=:ds, display_end=:de WHERE id=:cid");
-
+  $sel = $db->prepare("SELECT display_label, display_number FROM page_map WHERE item_id=:i AND pdf_page=:p");
+  $upd = $db->prepare("UPDATE chunks SET display_start=:ds, display_end=:de, display_start_label=:dsl, display_end_label=:del WHERE id=:cid");
   while ($row = $q->fetch(PDO::FETCH_ASSOC)) {
     $s = (int)$row['page_start']; $e = (int)$row['page_end'];
-    $sel->execute([':i'=>$itemId, ':s'=>$s, ':e'=>$e]);
-    [$min, $max] = $sel->fetch(PDO::FETCH_NUM);
-
-    if ($min === null || $max === null) {
-      $min = $s + $dispOffset;
-      $max = $e + $dispOffset;
-    }
-    $upd->execute([':ds'=>$min, ':de'=>$max, ':cid'=>$row['id']]);
+    $sel->execute([':i'=>$itemId, ':p'=>$s]); $start = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
+    $sel->execute([':i'=>$itemId, ':p'=>$e]); $end = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
+    $startLabel = $start['display_label'] ?? null;
+    $startNum = $start['display_number'] ?? null;
+    if ($startLabel === null) { $startNum = $s + $dispOffset; $startLabel = (string)$startNum; }
+    if ($startNum === null && preg_match('/^[ivxlcdm]+$/i', $startLabel)) $startNum = roman_to_int($startLabel);
+    $endLabel = $end['display_label'] ?? null;
+    $endNum = $end['display_number'] ?? null;
+    if ($endLabel === null) { $endNum = $e + $dispOffset; $endLabel = (string)$endNum; }
+    if ($endNum === null && preg_match('/^[ivxlcdm]+$/i', $endLabel)) $endNum = roman_to_int($endLabel);
+    $upd->execute([':ds'=>$startNum, ':de'=>$endNum, ':dsl'=>$startLabel, ':del'=>$endLabel, ':cid'=>$row['id']]);
   }
 }
 

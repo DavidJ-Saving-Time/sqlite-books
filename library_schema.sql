@@ -14,7 +14,11 @@ CREATE TABLE chunks (
   page_end INTEGER,
   text TEXT NOT NULL,
   embedding BLOB,                 -- store as binary-packed floats (smaller) or JSON
-  token_count INTEGER, display_start INTEGER, display_end   INTEGER,
+  token_count INTEGER,
+  display_start INTEGER,
+  display_end INTEGER,
+  display_start_label TEXT,
+  display_end_label TEXT,
   FOREIGN KEY(item_id) REFERENCES items(id)
 );
 CREATE INDEX idx_chunks_item ON chunks(item_id);
