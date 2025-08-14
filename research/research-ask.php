@@ -15,20 +15,30 @@
 
 ini_set('memory_limit', '1G');
 
-$answer      = '';
-$sources     = [];
-$error       = '';
-$question    = trim($_POST['question'] ?? '');
-$bookIds     = array_filter(array_map('intval', preg_split('/\s*,\s*/', $_POST['book_ids'] ?? '', -1, PREG_SPLIT_NO_EMPTY)));
-$maxChunks   = max(1, (int)($_POST['max_chunks'] ?? 8));
-$useWhich    = strtolower(trim($_POST['use'] ?? 'claude'));
-$modelName   = trim($_POST['model'] ?? '');
-$minDistinct = max(1, (int)($_POST['min_distinct'] ?? 1));
-$perBookCap  = max(1, (int)($_POST['per_book_cap'] ?? $maxChunks));
-$verboseMode = !empty($_POST['verbose']);
-$debugChunks = [];
+$answer  = '';
+$sources = [];
+$error   = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$req    = ($method === 'POST') ? $_POST : $_GET;
+
+$question  = trim($req['question'] ?? '');
+$bookIds   = [];
+if (isset($req['book_id']) || isset($req['book-id'])) {
+    $raw = $req['book_id'] ?? $req['book-id'];
+    if (is_array($raw)) {
+        $bookIds = array_map('intval', $raw);
+    } else {
+        $bookIds = array_filter(array_map('intval', preg_split('/\s*,\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY)));
+    }
+} elseif (isset($req['book_ids'])) { // backward compatibility
+    $bookIds = array_filter(array_map('intval', preg_split('/\s*,\s*/', $req['book_ids'], -1, PREG_SPLIT_NO_EMPTY)));
+}
+$maxChunks = max(1, (int)($req['max_chunks'] ?? $req['max-chunks'] ?? 8));
+$useWhich  = strtolower(trim($req['use'] ?? 'claude'));
+$modelName = trim($req['model'] ?? '');
+
+if ($question !== '') {
     try {
         if ($question === '') {
             throw new Exception('Question is required.');
@@ -65,31 +75,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute($params);
 
         // 3) Compute cosine similarity and rank
-        $candidates = [];
+        $top = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $vec = unpack_floats($row['embedding']);
             if (!$vec) continue;
-            $sim = cosine($qVec, $vec);
-            $row['sim'] = $sim;
-            $candidates[] = $row;
-        }
-        usort($candidates, fn($a,$b)=> $b['sim']<=>$a['sim']);
-
-        $top = [];
-        $perBook = [];
-        foreach ($candidates as $row) {
-            $bid = (int)$row['item_id'];
-            $count = $perBook[$bid] ?? 0;
-            if ($count >= $perBookCap) continue;
-            $perBook[$bid] = $count + 1;
+            $row['sim'] = cosine($qVec, $vec);
             $top[] = $row;
-            if (count($top) >= $maxChunks) break;
         }
-        if ($verboseMode) {
-            $debugChunks = $top;
-        }
+        usort($top, fn($a,$b)=> $b['sim']<=>$a['sim']);
+        $top = array_slice($top, 0, $maxChunks);
 
-        if (empty($top) || $top[0]['sim'] < 0.25 || count($perBook) < $minDistinct) {
+        if (empty($top) || $top[0]['sim'] < 0.25) {
             $answer = 'Not in library (retrieval too weak).';
         } else {
             // 4) Build grounded prompt
@@ -129,6 +125,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Exception $e) {
         $error = $e->getMessage();
     }
+    if ($method === 'GET') {
+        header('Content-Type: text/plain; charset=utf-8');
+        if ($error) {
+            echo "Error: $error\n";
+        } else {
+            echo "Q: $question\n\n";
+            echo trim($answer) . "\n\n";
+            if ($sources) {
+                echo "Sources used:\n";
+                foreach ($sources as $s) echo $s . "\n";
+            }
+        }
+        exit;
+    }
 }
 ?>
 <!doctype html>
@@ -146,53 +156,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <form method="post" class="mb-4">
     <div class="mb-3">
         <label for="question" class="form-label">Question</label>
-        <textarea id="question" name="question" class="form-control" rows="3" required><?= htmlspecialchars($_POST['question'] ?? '') ?></textarea>
+        <textarea id="question" name="question" class="form-control" rows="3" required><?= htmlspecialchars($_REQUEST['question'] ?? '') ?></textarea>
     </div>
     <div class="row">
         <div class="col-md-4 mb-3">
-            <label for="book_ids" class="form-label">Book IDs (comma separated)</label>
-            <input type="text" id="book_ids" name="book_ids" class="form-control" value="<?= htmlspecialchars($_POST['book_ids'] ?? '') ?>">
+            <label for="book_id" class="form-label">Book IDs (comma separated)</label>
+            <input type="text" id="book_id" name="book_id" class="form-control" value="<?= htmlspecialchars($_REQUEST['book_id'] ?? '') ?>">
         </div>
         <div class="col-md-2 mb-3">
             <label for="max_chunks" class="form-label">Max Chunks</label>
-            <input type="number" id="max_chunks" name="max_chunks" class="form-control" value="<?= htmlspecialchars($_POST['max_chunks'] ?? '8') ?>">
+            <input type="number" id="max_chunks" name="max_chunks" class="form-control" value="<?= htmlspecialchars($_REQUEST['max_chunks'] ?? '8') ?>">
         </div>
         <div class="col-md-3 mb-3">
             <label for="use" class="form-label">Provider</label>
-            <select id="use" name="use" class="form-select">
-                <?php $u = $_POST['use'] ?? 'claude'; ?>
-                <option value="claude" <?= $u==='claude'? 'selected':'' ?>>Claude (OpenRouter)</option>
-                <option value="openai" <?= $u==='openai'? 'selected':'' ?>>OpenAI</option>
-            </select>
+            <input type="text" id="use" name="use" class="form-control" value="<?= htmlspecialchars($_REQUEST['use'] ?? 'claude') ?>">
         </div>
         <div class="col-md-3 mb-3">
             <label for="model" class="form-label">Model</label>
-            <?php $m = $_POST['model'] ?? ''; ?>
-            <select id="model" name="model" class="form-select">
-                <option value="" <?= $m===''?'selected':'' ?>>Auto</option>
-                <option value="deepseek/deepseek-r1-0528:free" <?= $m==='deepseek/deepseek-r1-0528:free'?'selected':'' ?>>deepseek/deepseek-r1-0528:free</option>
-                <option value="deepseek/deepseek-r1" <?= $m==='deepseek/deepseek-r1'?'selected':'' ?>>deepseek/deepseek-r1</option>
-                <option value="anthropic/claude-3.7-sonnet" <?= $m==='anthropic/claude-3.7-sonnet'?'selected':'' ?>>anthropic/claude-3.7-sonnet</option>
-                <option value="mistralai/mistral-medium-3.1" <?= $m==='mistralai/mistral-medium-3.1'?'selected':'' ?>>mistralai/mistral-medium-3.1</option>
-                <option value="google/gemini-2.5-flash" <?= $m==='google/gemini-2.5-flash'?'selected':'' ?>>google/gemini-2.5-flash</option>
-                <option value="anthropic/claude-sonnet-4" <?= $m==='anthropic/claude-sonnet-4'?'selected':'' ?>>anthropic/claude-sonnet-4</option>
-            </select>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-2 mb-3">
-            <label for="min_distinct" class="form-label">Min Distinct</label>
-            <input type="number" id="min_distinct" name="min_distinct" class="form-control" value="<?= htmlspecialchars($_POST['min_distinct'] ?? '1') ?>">
-        </div>
-        <div class="col-md-2 mb-3">
-            <label for="per_book_cap" class="form-label">Per Book Cap</label>
-            <input type="number" id="per_book_cap" name="per_book_cap" class="form-control" value="<?= htmlspecialchars($_POST['per_book_cap'] ?? $maxChunks) ?>">
-        </div>
-        <div class="col-md-2 mb-3 d-flex align-items-end">
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="verbose" name="verbose" <?= !empty($_POST['verbose'])?'checked':'' ?>>
-                <label class="form-check-label" for="verbose">Verbose</label>
-            </div>
+            <input type="text" id="model" name="model" class="form-control" value="<?= htmlspecialchars($_REQUEST['model'] ?? '') ?>" placeholder="Auto">
         </div>
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
@@ -216,16 +197,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <li class="list-group-item"><?= htmlspecialchars($s) ?></li>
         <?php endforeach; ?>
     </ul>
-</div>
-<?php endif; ?>
-<?php if ($verboseMode && $debugChunks): ?>
-<div class="card mt-3">
-    <div class="card-header">Debug Chunks</div>
-    <div class="card-body">
-        <?php foreach ($debugChunks as $i=>$c): ?>
-            <pre><?= htmlspecialchars('[CTX '.$i.'] '.$c['title'].' p.'.$c['page_start'].'–'.$c['page_end'].' [sim='.sprintf('%.3f',$c['sim']).']\n'.$c['text']) ?></pre>
-        <?php endforeach; ?>
-    </div>
 </div>
 <?php endif; ?>
 </div>
