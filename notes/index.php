@@ -12,6 +12,7 @@
         <ul id="noteList" class="list-group"></ul>
     </div>
     <div class="flex-grow-1 d-flex flex-column">
+
         <div id="topBar" class="border-bottom p-1 d-flex align-items-center">
             <div id="openTabs" class="flex-grow-1"></div>
             <button id="saveBtn" class="btn btn-sm btn-success me-2">Save</button>
@@ -21,6 +22,7 @@
             <textarea id="editor"></textarea>
             <div id="viewer" class="h-100 w-100 overflow-auto p-2" style="display:none;"></div>
         </div>
+
     </div>
 <script>
     tinymce.init({ selector:'#editor', height:'100%', menubar:false, branding:false });
@@ -28,7 +30,9 @@
     const notesCache = {};
     const openNotes = [];
     let activeId = null;
+
     let viewing = false;
+
 
     async function loadList(q='') {
         const url = q ? `api.php?q=${encodeURIComponent(q)}` : 'api.php';
@@ -59,6 +63,7 @@
         tinymce.get('editor').setContent(notesCache[id].text || '');
         localStorage.setItem('currentNote', id);
         highlightTabs();
+
         if (viewing) {
             document.getElementById('viewer').style.display = 'none';
             tinymce.get('editor').getContainer().style.display = '';
@@ -66,6 +71,7 @@
             document.getElementById('saveBtn').disabled = false;
             viewing = false;
         }
+
     }
 
     function renderTabs() {
@@ -138,6 +144,7 @@
             if (openNotes[idx]) openNote(openNotes[idx]);
         }
     });
+
 
     document.getElementById('saveBtn').onclick = saveNote;
     document.getElementById('viewBtn').onclick = toggleView;
