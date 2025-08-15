@@ -350,6 +350,7 @@ if ($sources) {
                 <option value="mistralai/mistral-medium-3.1" <?= (($_REQUEST['model'] ?? '') === 'mistralai/mistral-medium-3.1') ? 'selected' : '' ?>>mistralai/mistral-medium-3.1</option>
                 <option value="google/gemini-2.5-flash" <?= (($_REQUEST['model'] ?? '') === 'google/gemini-2.5-flash') ? 'selected' : '' ?>>google/gemini-2.5-flash</option>
                 <option value="anthropic/claude-sonnet-4" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-sonnet-4') ? 'selected' : '' ?>>anthropic/claude-sonnet-4</option>
+                 <option value="x-ai/grok-4" <?= (($_REQUEST['model'] ?? '') === 'x-ai/grok-4') ? 'selected' : '' ?>>x-ai/grok-4</option>
             </select>
         </div>
     </div>
