@@ -28,8 +28,11 @@
             <button id="saveBtn" class="btn btn-sm btn-success me-2">
                 <i class="fa-solid fa-floppy-disk me-1"></i> Save
             </button>
-            <button id="viewBtn" class="btn btn-sm btn-outline-secondary">
+            <button id="viewBtn" class="btn btn-sm btn-outline-secondary me-2">
                 <i class="fa-solid fa-eye me-1"></i> View
+            </button>
+            <button id="deleteBtn" class="btn btn-sm btn-danger">
+                <i class="fa-solid fa-trash me-1"></i> Delete
             </button>
         </div>
 
@@ -58,9 +61,11 @@
             const li = document.createElement('li');
             li.className = 'list-group-item list-group-item-action';
             li.textContent = n.title;
+            li.dataset.id = n.id;
             li.onclick = () => openNote(n.id);
             list.appendChild(li);
         });
+        highlightList();
     }
 
     async function openNote(id) {
@@ -77,6 +82,7 @@
         tinymce.get('editor').setContent(notesCache[id].text || '');
         localStorage.setItem('currentNote', id);
         highlightTabs();
+        highlightList();
 
         if (viewing) toggleView(); // auto switch back to edit mode
     }
@@ -120,6 +126,14 @@
             const id = openNotes[i];
             tabs[i].classList.toggle('btn-primary', id === activeId);
             tabs[i].classList.toggle('btn-outline-secondary', id !== activeId);
+        }
+    }
+
+    function highlightList() {
+        const items = document.getElementById('noteList').children;
+        for (let i = 0; i < items.length; i++) {
+            const id = parseInt(items[i].dataset.id);
+            items[i].classList.toggle('active', id === activeId);
         }
     }
 
@@ -175,6 +189,14 @@
 
     document.getElementById('saveBtn').onclick = saveNote;
     document.getElementById('viewBtn').onclick = toggleView;
+    document.getElementById('deleteBtn').onclick = async () => {
+        if (!activeId) return;
+        if (!confirm('Delete this note?')) return;
+        await fetch('api.php/' + activeId, { method: 'DELETE' });
+        delete notesCache[activeId];
+        closeTab(activeId);
+        loadList();
+    };
 
     document.getElementById('newNote').onclick = async () => {
         const title = prompt('Title for new note');
