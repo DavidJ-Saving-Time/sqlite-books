@@ -69,5 +69,12 @@ if ($method === 'POST' && ctype_digit($path)) {
     exit;
 }
 
+if ($method === 'DELETE' && ctype_digit($path)) {
+    $stmt = $pdo->prepare('DELETE FROM notepad WHERE id = ?');
+    $stmt->execute([$path]);
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 http_response_code(400);
 echo json_encode(['error' => 'Bad request']);
