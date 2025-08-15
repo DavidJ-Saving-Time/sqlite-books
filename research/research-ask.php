@@ -44,6 +44,7 @@ $useWhich   = strtolower(trim($req['use'] ?? 'claude'));
 $modelName  = trim($req['model'] ?? '');
 $minDistinct = max(1, (int)($req['min_distinct'] ?? $req['min-distinct'] ?? 3));
 $showPdfPages = !empty($req['show_pdf_pages'] ?? $req['show-pdf-pages']);
+$simpleTerms = !empty($req['simple_terms'] ?? $req['simple-terms']);
 
 
 function ftsTermsFromQuestion(string $q, int $maxTerms = 12): array {
@@ -258,9 +259,22 @@ usort($top, fn($a,$b) => $b['sim'] <=> $a['sim']);
             $answer = 'Not in library (retrieval too weak).';
         } else {
             // 4) Build grounded prompt
-$sys = "You are a research assistant. 
-Answer ONLY using the provided context. 
-If the answer is not in the provided context, reply exactly: Not in library. 
+            $sysSimple = "You are a research assistant and teacher.
+You MUST answer ONLY using the provided context chunks.
+If the answer is not present in the provided chunks, reply exactly: Not in library.
+
+Your goal is to explain concepts in clear, simple language, as if teaching a curious beginner, while still being accurate and precise. Avoid jargon unless you explain it in plain terms.
+
+Use Oxford referencing style with footnotes. For each factual claim, add a superscript number and provide a footnote in the format: Author, *Title* (Year), pp. X–Y. Use Markdown footnote syntax.
+
+Structure your answer:
+1. Begin with 3–5 short bullet points summarising the main points in very simple words.
+2. Then give a plain-language explanation with analogies and step-by-step breakdowns.
+3. Keep every factual statement tied to a chunk and reference it. Do not add outside knowledge.";
+
+            $sysDetailed = "You are a research assistant.
+Answer ONLY using the provided context.
+If the answer is not in the provided context, reply exactly: Not in library.
 
 Tone & style:
 - Maintain an academic, professional, yet readable style.
@@ -290,12 +304,12 @@ Correct output:
 - Einstein's \"theory of relativity\"[^2] changed our view of space and time.
 - Experiments confirm \"the speed of light is constant\"[^3] in all frames of reference.
 
-Physics, described as \"the study of matter and energy\"[^1], forms a foundational pillar of modern science.  
-Einstein's \"theory of relativity\"[^2] provided groundbreaking insights into the nature of space and time, altering long-held assumptions.  
+Physics, described as \"the study of matter and energy\"[^1], forms a foundational pillar of modern science.
+Einstein's \"theory of relativity\"[^2] provided groundbreaking insights into the nature of space and time, altering long-held assumptions.
 It is now accepted that \"the speed of light is constant\"[^3] regardless of the observer's motion, a result verified in numerous experiments.
 
-[^1]: Smith, *History of Science* (2010), pp. 45–46.  
-[^2]: Johnson, *Physics Explained* (2015), pp. 120–122.  
+[^1]: Smith, *History of Science* (2010), pp. 45–46.
+[^2]: Johnson, *Physics Explained* (2015), pp. 120–122.
 [^3]: Lee, *Modern Physics* (2018), pp. 300–305.
 
 Incorrect output:
@@ -304,6 +318,8 @@ Incorrect output:
 - Bullet points without grounding in the provided context.
 - Using more or fewer than 3–5 bullet points.
 - Replying with anything other than 'Not in library' when context support is missing.";
+
+            $sys = $simpleTerms ? $sysSimple : $sysDetailed;
 
 
             $ctx = '';
@@ -463,6 +479,10 @@ if ($sources) {
     <div class="form-check form-switch mb-3">
         <input class="form-check-input" type="checkbox" id="show_pdf_pages" name="show_pdf_pages" value="1" <?= (!empty($_REQUEST['show_pdf_pages'] ?? $_REQUEST['show-pdf-pages'] ?? '')) ? 'checked' : '' ?>>
         <label class="form-check-label" for="show_pdf_pages">Show PDF page numbers</label>
+    </div>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="simple_terms" name="simple_terms" value="1" <?= (!empty($_REQUEST['simple_terms'] ?? $_REQUEST['simple-terms'] ?? '')) ? 'checked' : '' ?>>
+        <label class="form-check-label" for="simple_terms">In simple terms</label>
     </div>
     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
 </form>
