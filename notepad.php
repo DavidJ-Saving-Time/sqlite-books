@@ -404,73 +404,84 @@ document.addEventListener('DOMContentLoaded', function () {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <?php if ($action === 'view' && $id > 0): ?>
     <script>
-    function convertFootnotesToHarvard() {
+    function convertFootnotesToHarvard(blockMaps = {}) {
         const container = document.getElementById('noteContent');
         if (!container) return;
 
-        const map = {};
+        const processBlock = block => {
+            const blockId = block.dataset.blockId || block.id || 'default';
+            const map = blockMaps[blockId] || (blockMaps[blockId] = {});
 
-        // First, handle footnotes rendered as an explicit .footnotes list
-        const footnotesSection = container.querySelector('.footnotes');
-        if (footnotesSection) {
-            const items = Array.from(footnotesSection.querySelectorAll('li'));
-            items.forEach((li, idx) => {
-                const num = li.id.replace(/\D+/g, '') || String(idx + 1);
-                let text = li.textContent.trim().replace(/↩︎?|↩/g, '').trim();
-                const m = text.match(/^([^,]+),\s*.*\((\d{4})\)(?:,\s*(pp?\.\s*[^.]+))?/i);
-                if (m) {
-                    map[num] = { author: m[1].trim(), year: m[2].trim(), pages: (m[3] || '').trim() };
-                } else {
-                    map[num] = { raw: text };
-                }
-            });
-            footnotesSection.remove();
-        } else {
-            // Fallback: parse markdown-style footnotes embedded in plain text
-            container.querySelectorAll('p').forEach(p => {
-                let html = p.innerHTML;
-                let changed = false;
-                html = html.replace(/\[\^(\d+)\]:\s*([\s\S]*?)(?=(?:<br\s*\/?>|\n|\r|$))/g, (match, num, content) => {
-                    const text = content.replace(/<[^>]+>/g, '').trim();
+            // First, handle footnotes rendered as an explicit .footnotes list
+            const footnotesSection = block.querySelector('.footnotes');
+            if (footnotesSection) {
+                const items = Array.from(footnotesSection.querySelectorAll('li'));
+                items.forEach((li, idx) => {
+                    const num = li.id.replace(/\D+/g, '') || String(idx + 1);
+                    let text = li.textContent.trim().replace(/↩︎?|↩/g, '').trim();
                     const m = text.match(/^([^,]+),\s*.*\((\d{4})\)(?:,\s*(pp?\.\s*[^.]+))?/i);
                     if (m) {
                         map[num] = { author: m[1].trim(), year: m[2].trim(), pages: (m[3] || '').trim() };
                     } else {
                         map[num] = { raw: text };
                     }
-                    changed = true;
-                    return '';
                 });
-                if (changed) {
-                    html = html.replace(/^(?:<br\s*\/?>|\s|\n|\r)+/, '').replace(/(?:<br\s*\/?>|\s|\n|\r)+$/, '');
-                    if (html.trim() === '') {
-                        p.remove();
-                    } else {
-                        p.innerHTML = html;
+                footnotesSection.remove();
+            } else {
+                // Fallback: parse markdown-style footnotes embedded in plain text
+                block.querySelectorAll('p').forEach(p => {
+                    let html = p.innerHTML;
+                    let changed = false;
+                    html = html.replace(/\[\^(\d+)\]:\s*([\s\S]*?)(?=(?:<br\s*\/?>|\n|\r|$))/g, (match, num, content) => {
+                        const text = content.replace(/<[^>]+>/g, '').trim();
+                        const m = text.match(/^([^,]+),\s*.*\((\d{4})\)(?:,\s*(pp?\.\s*[^.]+))?/i);
+                        if (m) {
+                            map[num] = { author: m[1].trim(), year: m[2].trim(), pages: (m[3] || '').trim() };
+                        } else {
+                            map[num] = { raw: text };
+                        }
+                        changed = true;
+                        return '';
+                    });
+                    if (changed) {
+                        html = html.replace(/^(?:<br\s*\/?>|\s|\n|\r)+/, '').replace(/(?:<br\s*\/?>|\s|\n|\r)+$/, '');
+                        if (html.trim() === '') {
+                            p.remove();
+                        } else {
+                            p.innerHTML = html;
+                        }
                     }
-                }
-            });
-        }
-
-        // Replace in-text markers with Harvard-style references
-        container.innerHTML = container.innerHTML.replace(/(["”])?\[\^(\d+)\]/g, (match, quote, num) => {
-            const info = map[num];
-            if (!info) return match;
-            let citation = '';
-            if (info.author && info.year) {
-                citation = '(' + info.author + ' ' + info.year;
-                if (info.pages) citation += ', ' + info.pages;
-                citation += ')';
-            } else if (info.raw) {
-                citation = '(' + info.raw + ')';
+                });
             }
-            return `${quote || ''}<span class="reference">${citation}</span>`;
-        });
 
-        // Clean up any empty paragraphs left over after removing footnotes
-        container.querySelectorAll('p').forEach(p => {
-            if (p.textContent.trim() === '') p.remove();
-        });
+            // Replace in-text markers with Harvard-style references for this block
+            block.innerHTML = block.innerHTML.replace(/(["”])?\[\^(\d+)\]/g, (match, quote, num) => {
+                const info = map[num];
+                if (!info) return match;
+                let citation = '';
+                if (info.author && info.year) {
+                    citation = '(' + info.author + ' ' + info.year;
+                    if (info.pages) citation += ', ' + info.pages;
+                    citation += ')';
+                } else if (info.raw) {
+                    citation = '(' + info.raw + ')';
+                }
+                return `${quote || ''}<span class="reference">${citation}</span>`;
+            });
+
+            // Clean up any empty paragraphs left over after removing footnotes
+            block.querySelectorAll('p').forEach(p => {
+                if (p.textContent.trim() === '') p.remove();
+            });
+        };
+
+        // Process each block separately to avoid footnote collisions
+        const blocks = container.querySelectorAll('[data-block-id]');
+        if (blocks.length) {
+            blocks.forEach(processBlock);
+        } else {
+            processBlock(container);
+        }
 
         const btn = document.getElementById('harvardBtn');
         if (btn) btn.disabled = true;
