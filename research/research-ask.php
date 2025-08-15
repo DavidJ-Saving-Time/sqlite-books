@@ -51,11 +51,18 @@ $bookList = [];
 // Fetch list of existing notes for saving answers
 $noteList = [];
 try {
+    // Books are stored in the embedding database used for retrieval
     $dbList = new PDO('sqlite:' . __DIR__ . '/../library.sqlite');
     $stmt = $dbList->query('SELECT id, title FROM items ORDER BY title');
     $bookList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Ignore if the database is unavailable
+}
 
-    $noteStmt = $dbList->query('SELECT id, title FROM notepad ORDER BY title');
+try {
+    // Notes live in the main metadata database
+    $noteDb = getDatabaseConnection();
+    $noteStmt = $noteDb->query('SELECT id, title FROM notepad ORDER BY title');
     $noteList = $noteStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Ignore if the database is unavailable
