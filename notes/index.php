@@ -4,37 +4,46 @@
     <meta charset="UTF-8">
     <title>Notes</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 6.5 Retail -->
     <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
 </head>
 <body class="vh-100 d-flex">
-    <div id="sidebar" class="border-end p-2" style="width:250px; overflow-y:auto;">
-        <button id="newNote" class="btn btn-sm btn-success w-100 mb-2">New Note</button>
-        <ul id="noteList" class="list-group"></ul>
+    <!-- Sidebar -->
+    <div id="sidebar" class="border-end bg-light p-2 d-flex flex-column" style="width:250px; overflow-y:auto;">
+        <button id="newNote" class="btn btn-sm btn-success w-100 mb-2">
+            <i class="fa-solid fa-plus me-1"></i> New Note
+        </button>
+        <ul id="noteList" class="list-group list-group-flush flex-grow-1"></ul>
     </div>
-    <div class="flex-grow-1 d-flex flex-column">
 
+    <!-- Main content -->
+    <div class="flex-grow-1 d-flex flex-column">
+        <!-- Top Bar -->
         <div id="topBar" class="border-bottom p-1 d-flex align-items-center">
-            <div id="openTabs" class="flex-grow-1"></div>
-            <button id="saveBtn" class="btn btn-sm btn-success me-2">Save</button>
-            <button id="viewBtn" class="btn btn-sm btn-outline-secondary">View</button>
+            <div class="me-2 text-muted small">Open Notes:</div>
+            <div id="openTabs" class="flex-grow-1 d-flex align-items-center"></div>
+            <button id="saveBtn" class="btn btn-sm btn-success me-2">
+                <i class="fa-solid fa-floppy-disk me-1"></i> Save
+            </button>
+            <button id="viewBtn" class="btn btn-sm btn-outline-secondary">
+                <i class="fa-solid fa-eye me-1"></i> View
+            </button>
         </div>
+
+        <!-- Editor / Viewer -->
         <div id="editorPane" class="flex-grow-1 position-relative">
             <textarea id="editor"></textarea>
-            <div id="viewer" class="h-100 w-100 overflow-auto p-2" style="display:none;"></div>
+            <div id="viewer" class="h-100 w-100 overflow-auto p-3 bg-white border rounded" style="display:none;"></div>
         </div>
-
     </div>
+
 <script>
     tinymce.init({ selector:'#editor', height:'100%', menubar:false, branding:false });
 
     const notesCache = {};
     const openNotes = [];
     let activeId = null;
-
     let viewing = false;
-
 
     async function loadList(q='') {
         const url = q ? `api.php?q=${encodeURIComponent(q)}` : 'api.php';
@@ -66,14 +75,7 @@
         localStorage.setItem('currentNote', id);
         highlightTabs();
 
-        if (viewing) {
-            document.getElementById('viewer').style.display = 'none';
-            tinymce.get('editor').getContainer().style.display = '';
-            document.getElementById('viewBtn').textContent = 'View';
-            document.getElementById('saveBtn').disabled = false;
-            viewing = false;
-        }
-
+        if (viewing) toggleView(); // auto switch back to edit mode
     }
 
     function renderTabs() {
@@ -81,13 +83,13 @@
         tabs.innerHTML = '';
         openNotes.forEach(id => {
             const btn = document.createElement('button');
-            btn.className = 'btn btn-sm btn-outline-secondary me-1 d-inline-flex align-items-center';
+            btn.className = 'btn btn-sm btn-outline-secondary d-inline-flex align-items-center text-truncate me-1';
+            btn.style.maxWidth = '150px';
             btn.onclick = () => openNote(id);
-            btn.textContent = notesCache[id]?.title || ('Note ' + id);
-            const icon = document.createElement('i');
-            icon.className = 'fa-solid fa-xmark ms-2';
-            icon.onclick = (e) => { e.stopPropagation(); closeTab(id); };
-            btn.appendChild(icon);
+            btn.innerHTML = `
+                <span class="me-1 flex-grow-1 text-truncate">${notesCache[id]?.title || ('Note ' + id)}</span>
+                <i class="fa-solid fa-xmark ms-2"></i>`;
+            btn.querySelector('i').onclick = (e) => { e.stopPropagation(); closeTab(id); };
             tabs.appendChild(btn);
         });
         highlightTabs();
@@ -100,9 +102,8 @@
             renderTabs();
             if (activeId === id) {
                 activeId = openNotes[idx] || openNotes[idx - 1] || null;
-                if (activeId) {
-                    openNote(activeId);
-                } else {
+                if (activeId) openNote(activeId);
+                else {
                     tinymce.get('editor').setContent('');
                     localStorage.removeItem('currentNote');
                 }
@@ -137,6 +138,8 @@
         const viewer = document.getElementById('viewer');
         const editor = tinymce.get('editor');
         const btn = document.getElementById('viewBtn');
+        const sidebar = document.getElementById('sidebar');
+
         if (!viewing) {
             const res = await fetch('api.php/' + activeId);
             if (!res.ok) return;
@@ -145,36 +148,38 @@
             viewer.innerHTML = data.text || '';
             viewer.style.display = 'block';
             editor.getContainer().style.display = 'none';
-            btn.textContent = 'Edit';
+            btn.innerHTML = `<i class="fa-solid fa-pen me-1"></i>Edit`;
             document.getElementById('saveBtn').disabled = true;
+            sidebar.style.display = 'none'; // collapse sidebar
             viewing = true;
         } else {
             viewer.style.display = 'none';
             editor.getContainer().style.display = '';
-            btn.textContent = 'View';
+            btn.innerHTML = `<i class="fa-solid fa-eye me-1"></i>View`;
             document.getElementById('saveBtn').disabled = false;
+            sidebar.style.display = ''; // restore sidebar
             viewing = false;
         }
     }
 
     document.addEventListener('keydown', e => {
-        if (e.ctrlKey && e.key === 's') {
-            e.preventDefault();
-            saveNote();
-        }
+        if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveNote(); }
         if (e.altKey && e.key >= '1' && e.key <= '9') {
             const idx = parseInt(e.key) - 1;
             if (openNotes[idx]) openNote(openNotes[idx]);
         }
     });
 
-
     document.getElementById('saveBtn').onclick = saveNote;
     document.getElementById('viewBtn').onclick = toggleView;
 
     document.getElementById('newNote').onclick = async () => {
         const title = prompt('Title for new note');
-        const res = await fetch('api.php/0', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({title: title || 'Untitled', text: ''}) });
+        const res = await fetch('api.php/0', { 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body: JSON.stringify({title: title || 'Untitled', text: ''}) 
+        });
         const data = await res.json();
         await loadList();
         openNote(data.id);
@@ -186,3 +191,4 @@
 </script>
 </body>
 </html>
+
