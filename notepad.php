@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Replace in-text markers with Harvard-style references
-        container.innerHTML = container.innerHTML.replace(/\[\^(\d+)\]/g, (match, num) => {
+        container.innerHTML = container.innerHTML.replace(/(["”])?\[\^(\d+)\]/g, (match, quote, num) => {
             const info = map[num];
             if (!info) return match;
             let citation = '';
@@ -464,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (info.raw) {
                 citation = '(' + info.raw + ')';
             }
-            return `<span class="reference">${citation}</span>`;
+            return `${quote || ''}<span class="reference">${citation}</span>`;
         });
 
         // Clean up any empty paragraphs left over after removing footnotes
