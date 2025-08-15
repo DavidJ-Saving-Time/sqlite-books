@@ -247,6 +247,21 @@ $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
         exit;
     }
 }
+
+$sources_note_html = '';
+if ($sources) {
+    $sources_note_html .= "<h2>Sources used</h2><ul>";
+    foreach ($sources as $s) {
+        $text = htmlspecialchars($s['text'], ENT_QUOTES);
+        if (!empty($s['url'])) {
+            $url = htmlspecialchars($s['url'], ENT_QUOTES);
+            $sources_note_html .= "<li><a href=\"{$url}\" target=\"_blank\">{$text}</a></li>";
+        } else {
+            $sources_note_html .= "<li>{$text}</li>";
+        }
+    }
+    $sources_note_html .= '</ul>';
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -412,6 +427,8 @@ $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
   <script>
     const rawAns = <?= json_encode($answer) ?>;
     const answerHTML = DOMPurify.sanitize(marked.parse(rawAns));
+    const questionFirstLine = <?= json_encode(preg_split('/\r?\n/', $question)[0] ?? '') ?>;
+    const sourcesHTML = <?= json_encode($sources_note_html) ?>;
     document.getElementById('answer-md').innerHTML = answerHTML;
 
     document.getElementById('noteSelect').addEventListener('change', function(){
@@ -422,7 +439,9 @@ $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
       const noteId = document.getElementById('noteSelect').value;
       const title = document.getElementById('newNoteTitle').value.trim();
       const params = new URLSearchParams();
-      params.append('text', answerHTML);
+      const header = `<h1>${DOMPurify.sanitize(questionFirstLine)}</h1>`;
+      const fullHtml = header + answerHTML + sourcesHTML;
+      params.append('text', fullHtml);
       if (noteId) {
         params.append('mode', 'append');
         params.append('id', noteId);
