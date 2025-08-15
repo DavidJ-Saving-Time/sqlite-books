@@ -26,7 +26,7 @@ $question    = $argv[1];
 $bookIds     = [];
 $maxChunks   = 12;
 $useWhich    = 'claude'; // default to OpenRouter Claude
-$modelName   = 'anthropic/claude-sonnet-4';
+$modelName   = 'anthropic/claude-3.7-sonnet';
 $maxOut      = 2000;
 $showPdf     = false;
 
