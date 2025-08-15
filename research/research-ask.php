@@ -48,10 +48,15 @@ $showPdfPages = !empty($req['show_pdf_pages'] ?? $req['show-pdf-pages']);
 
 // Fetch list of all books for the selection modal
 $bookList = [];
+// Fetch list of existing notes for saving answers
+$noteList = [];
 try {
     $dbList = new PDO('sqlite:' . __DIR__ . '/../library.sqlite');
     $stmt = $dbList->query('SELECT id, title FROM items ORDER BY title');
     $bookList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $noteStmt = $dbList->query('SELECT id, title FROM notepad ORDER BY title');
+    $noteList = $noteStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Ignore if the database is unavailable
 }
@@ -334,10 +339,46 @@ $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
 <?php endif; ?>
 <?php if ($answer): ?>
 <div class="card mb-3">
-    <div class="card-header">Answer</div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Answer</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="saveAnswerBtn" data-bs-toggle="modal" data-bs-target="#saveNoteModal">
+            <i class="fa-solid fa-floppy-disk"></i> Save
+        </button>
+    </div>
     <div class="card-body">
         <div id="answer-md"></div>
     </div>
+</div>
+
+<!-- Save answer modal -->
+<div class="modal fade" id="saveNoteModal" tabindex="-1" aria-labelledby="saveNoteLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="saveNoteLabel">Save to Notepad</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="noteSelect" class="form-label">Existing Note</label>
+          <select id="noteSelect" class="form-select">
+            <option value="">-- New Note --</option>
+            <?php foreach ($noteList as $n): ?>
+              <option value="<?= (int)$n['id'] ?>"><?= htmlspecialchars($n['title']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-3" id="newNoteTitleGroup">
+          <label for="newNoteTitle" class="form-label">Title</label>
+          <input type="text" id="newNoteTitle" class="form-control" placeholder="Enter title">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveNoteConfirm">Save</button>
+      </div>
+    </div>
+  </div>
 </div>
 <?php endif; ?>
 <?php if ($sources): ?>
@@ -363,7 +404,44 @@ $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
   <script>
     const rawAns = <?= json_encode($answer) ?>;
-    document.getElementById('answer-md').innerHTML = DOMPurify.sanitize(marked.parse(rawAns));
+    const answerHTML = DOMPurify.sanitize(marked.parse(rawAns));
+    document.getElementById('answer-md').innerHTML = answerHTML;
+
+    document.getElementById('noteSelect').addEventListener('change', function(){
+      document.getElementById('newNoteTitleGroup').style.display = this.value === '' ? '' : 'none';
+    });
+
+    document.getElementById('saveNoteConfirm').addEventListener('click', async () => {
+      const noteId = document.getElementById('noteSelect').value;
+      const title = document.getElementById('newNoteTitle').value.trim();
+      const params = new URLSearchParams();
+      params.append('text', answerHTML);
+      if (noteId) {
+        params.append('mode', 'append');
+        params.append('id', noteId);
+      } else {
+        params.append('mode', 'new');
+        params.append('title', title);
+      }
+      try {
+        const res = await fetch('/json_endpoints/save_note.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString()
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          alert('Saved');
+          const modalEl = document.getElementById('saveNoteModal');
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          modal.hide();
+        } else {
+          alert('Error: ' + (data.error || 'unknown'));
+        }
+      } catch (e) {
+        alert('Error saving note');
+      }
+    });
   </script>
   <?php endif; ?>
 <script>
