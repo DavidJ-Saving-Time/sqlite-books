@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Notes</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6.5 Retail -->
+    <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
 </head>
 <body class="vh-100 d-flex">
@@ -79,12 +81,33 @@
         tabs.innerHTML = '';
         openNotes.forEach(id => {
             const btn = document.createElement('button');
-            btn.className = 'btn btn-sm btn-outline-secondary me-1';
-            btn.textContent = notesCache[id]?.title || ('Note ' + id);
+            btn.className = 'btn btn-sm btn-outline-secondary me-1 d-inline-flex align-items-center';
             btn.onclick = () => openNote(id);
+            btn.textContent = notesCache[id]?.title || ('Note ' + id);
+            const icon = document.createElement('i');
+            icon.className = 'fa-solid fa-xmark ms-2';
+            icon.onclick = (e) => { e.stopPropagation(); closeTab(id); };
+            btn.appendChild(icon);
             tabs.appendChild(btn);
         });
         highlightTabs();
+    }
+
+    function closeTab(id) {
+        const idx = openNotes.indexOf(id);
+        if (idx !== -1) {
+            openNotes.splice(idx, 1);
+            renderTabs();
+            if (activeId === id) {
+                activeId = openNotes[idx] || openNotes[idx - 1] || null;
+                if (activeId) {
+                    openNote(activeId);
+                } else {
+                    tinymce.get('editor').setContent('');
+                    localStorage.removeItem('currentNote');
+                }
+            }
+        }
     }
 
     function highlightTabs() {
