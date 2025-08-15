@@ -6,6 +6,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
+    <style>
+        #noteList .list-group-item { cursor: pointer; }
+    </style>
 </head>
 <body class="vh-100 d-flex">
     <!-- Sidebar -->
@@ -150,14 +153,14 @@
             editor.getContainer().style.display = 'none';
             btn.innerHTML = `<i class="fa-solid fa-pen me-1"></i>Edit`;
             document.getElementById('saveBtn').disabled = true;
-            sidebar.style.display = 'none'; // collapse sidebar
+            sidebar.classList.add('d-none'); // collapse sidebar
             viewing = true;
         } else {
             viewer.style.display = 'none';
             editor.getContainer().style.display = '';
             btn.innerHTML = `<i class="fa-solid fa-eye me-1"></i>View`;
             document.getElementById('saveBtn').disabled = false;
-            sidebar.style.display = ''; // restore sidebar
+            sidebar.classList.remove('d-none'); // restore sidebar
             viewing = false;
         }
     }
