@@ -108,7 +108,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
 
         <!-- WordPro Button -->
         <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/notepad.php">
+          <a class="btn btn-primary" href="/notes/">
             <i class="fa-solid fa-pen-nib me-1"></i> WordPro
           </a>
         </li>
