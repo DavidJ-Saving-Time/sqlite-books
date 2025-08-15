@@ -5,8 +5,8 @@
  * This is a browser-friendly version of the CLI script located at the project root.
  * It embeds the user's question, finds relevant chunks from library.sqlite, and
  * generates an answer using either OpenRouter (Claude) or OpenAI.
- * Optional parameters min_distinct and per_book_cap (default 3) control
- * the minimum number of distinct books and the cap per book when selecting context.
+ * Optional parameter min_distinct (default 3) controls
+ * the minimum number of distinct books when selecting context.
  * Pass show_pdf_pages=1 to include raw PDF page numbers alongside adjusted ones.
  *
  * Requirements:
@@ -43,7 +43,6 @@ $maxTokens  = max(1, (int)($req['max_tokens'] ?? $req['max-tokens'] ?? 2000));
 $useWhich   = strtolower(trim($req['use'] ?? 'claude'));
 $modelName  = trim($req['model'] ?? '');
 $minDistinct = max(1, (int)($req['min_distinct'] ?? $req['min-distinct'] ?? 3));
-$perBookCap  = max(1, (int)($req['per_book_cap'] ?? $req['per-book-cap'] ?? 3));
 $showPdfPages = !empty($req['show_pdf_pages'] ?? $req['show-pdf-pages']);
 
 // Fetch list of all books for the selection modal
@@ -120,14 +119,12 @@ if ($question !== '') {
         }
         usort($top, fn($a,$b)=> $b['sim']<=>$a['sim']);
 
-        // Enforce per-book cap and ensure a minimum number of distinct books
+        // Group chunks by book
         $grouped = [];
         foreach ($top as $row) {
             $bid = $row['item_id'];
             if (!isset($grouped[$bid])) $grouped[$bid] = [];
-            if (count($grouped[$bid]) < $perBookCap) {
-                $grouped[$bid][] = $row;
-            }
+            $grouped[$bid][] = $row;
         }
 
         // Take one chunk from each book (best similarity) up to minDistinct
@@ -144,7 +141,7 @@ if ($question !== '') {
             if (empty($grouped[$bid])) unset($grouped[$bid]);
         }
 
-        // Fill remaining slots by highest-similarity chunks respecting per-book cap
+        // Fill remaining slots by highest-similarity chunks
         $remaining = $maxChunks - count($selected);
         if ($remaining > 0) {
             $rest = [];
@@ -318,10 +315,6 @@ if ($sources) {
         <div class="col-md-2 mb-3">
             <label for="min_distinct" class="form-label">Min Distinct</label>
             <input type="number" id="min_distinct" name="min_distinct" class="form-control" value="<?= htmlspecialchars($_REQUEST['min_distinct'] ?? ($_REQUEST['min-distinct'] ?? '3')) ?>">
-        </div>
-        <div class="col-md-2 mb-3">
-            <label for="per_book_cap" class="form-label">Per Book Cap</label>
-            <input type="number" id="per_book_cap" name="per_book_cap" class="form-control" value="<?= htmlspecialchars($_REQUEST['per_book_cap'] ?? ($_REQUEST['per-book-cap'] ?? '3')) ?>">
         </div>
     </div>
     <div class="form-check form-switch mb-3">
