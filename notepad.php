@@ -299,10 +299,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             <div class="bg-white p-4 shadow rounded">
                 <h2><?= $title ?></h2>
-                <div><?= $text ?></div>
+                <div id="noteContent"><?= $text ?></div>
                 <div class="d-flex justify-content-between align-items-center mt-3 no-print">
                     <a href="notepad.php" class="btn btn-secondary">Back</a>
                     <div>
+                        <button type="button" id="harvardBtn" onclick="convertFootnotesToHarvard()" class="btn btn-outline-secondary me-2">Change to Harvard</button>
                         <button type="button" onclick="window.print()" class="btn btn-outline-secondary me-2">Print</button>
                         <a href="notepad.php?id=<?= (int)$id ?>" class="btn btn-primary">Edit</a>
                     </div>
@@ -401,6 +402,60 @@ document.addEventListener('DOMContentLoaded', function () {
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<?php if ($action === 'view' && $id > 0): ?>
+    <script>
+    function convertFootnotesToHarvard() {
+        const container = document.getElementById('noteContent');
+        if (!container) return;
+
+        const footnotesSection = container.querySelector('.footnotes');
+        const items = footnotesSection ? Array.from(footnotesSection.querySelectorAll('li')) : [];
+        const map = {};
+
+        items.forEach((li, idx) => {
+            const num = li.id.replace(/\D+/g, '') || String(idx + 1);
+            let text = li.textContent.trim().replace(/↩︎?|↩/g, '').trim();
+            const m = text.match(/^([^,]+),\s*.*\((\d{4})\)(?:,\s*(pp?\.\s*[^.]+))?/i);
+            if (m) {
+                map[num] = { author: m[1].trim(), year: m[2].trim(), pages: (m[3] || '').trim() };
+            } else {
+                map[num] = { raw: text };
+            }
+        });
+
+        container.querySelectorAll('a[href^="#fn"]').forEach(a => {
+            const numMatch = (a.getAttribute('href') || '').match(/fn(\d+)/);
+            const num = numMatch ? numMatch[1] : null;
+            const info = num ? map[num] : null;
+
+            let citation = '';
+            if (info) {
+                if (info.author && info.year) {
+                    citation = '(' + info.author + ' ' + info.year;
+                    if (info.pages) citation += ', ' + info.pages;
+                    citation += ')';
+                } else if (info.raw) {
+                    citation = '(' + info.raw + ')';
+                }
+            }
+
+            const sup = a.closest('sup');
+            const span = document.createElement('span');
+            span.className = 'reference';
+            span.textContent = citation;
+            if (sup) {
+                sup.replaceWith(span);
+            } else {
+                a.replaceWith(span);
+            }
+        });
+
+        if (footnotesSection) footnotesSection.remove();
+        const btn = document.getElementById('harvardBtn');
+        if (btn) btn.disabled = true;
+    }
+    </script>
+<?php endif; ?>
     <script>
     document.addEventListener('click', async ev => {
         const btn = ev.target.closest('.delete-note');
