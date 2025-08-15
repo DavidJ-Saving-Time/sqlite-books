@@ -299,12 +299,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             <div class="bg-white p-4 shadow rounded">
                 <h2><?= $title ?></h2>
-                <div id="noteContent"><?= $text ?></div>
+                <div><?= $text ?></div>
                 <div class="d-flex justify-content-between align-items-center mt-3 no-print">
                     <a href="notepad.php" class="btn btn-secondary">Back</a>
                     <div>
                         <button type="button" onclick="window.print()" class="btn btn-outline-secondary me-2">Print</button>
-                        <button type="button" id="convertHarvardBtn" class="btn btn-outline-secondary me-2">Change to Harvard</button>
                         <a href="notepad.php?id=<?= (int)$id ?>" class="btn btn-primary">Edit</a>
                     </div>
                 </div>
@@ -399,32 +398,6 @@ document.addEventListener('DOMContentLoaded', function () {
             <?php endif; ?>
         <?php endif; ?>
     </div>
-
-    <?php if ($action === 'view' && $id > 0): ?>
-    <script>
-    document.getElementById('convertHarvardBtn')?.addEventListener('click', async () => {
-        const btn = document.getElementById('convertHarvardBtn');
-        const noteEl = document.getElementById('noteContent');
-        btn.disabled = true;
-        btn.textContent = 'Converting...';
-        try {
-            const res = await fetch('json_endpoints/convert_reference_style.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: new URLSearchParams({ id: <?= (int)$id ?>, style: 'harvard' })
-            });
-            const data = await res.json();
-            if (data.status === 'ok' && data.text) {
-                noteEl.innerHTML = data.text;
-            }
-        } catch (err) {
-            console.error(err);
-        }
-        btn.disabled = false;
-        btn.textContent = 'Change to Harvard';
-    });
-    </script>
-    <?php endif; ?>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
