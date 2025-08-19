@@ -128,11 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $authorsInput = trim($_POST['authors'] ?? '');
     $authorSortInput = trim($_POST['author_sort'] ?? '');
     $descriptionInput = trim($_POST['description'] ?? '');
-    $seriesIdInput = $_POST['series_id'] ?? '';
-    $newSeriesName = trim($_POST['new_series'] ?? '');
+    $seriesNameInput = trim($_POST['series'] ?? '');
     $seriesIndexInput = trim($_POST['series_index'] ?? '');
-    $subseriesIdInput = $_POST['subseries_id'] ?? '';
-    $newSubseriesName = trim($_POST['new_subseries'] ?? '');
+    $subseriesNameInput = trim($_POST['subseries'] ?? '');
     $subseriesIndexInput = trim($_POST['subseries_index'] ?? '');
     $publisherInput = trim($_POST['publisher'] ?? '');
     $pubdateInput = trim($_POST['pubdate'] ?? '');
@@ -208,18 +206,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Handle series update
     $seriesIndex = $seriesIndexInput !== '' ? (float)$seriesIndexInput : (float)$book['series_index'];
-    if ($seriesIdInput === '' && $newSeriesName === '') {
+    if ($seriesNameInput === '') {
         $pdo->prepare('DELETE FROM books_series_link WHERE book = :book')
             ->execute([':book' => $id]);
     } else {
-        if ($seriesIdInput === 'new' || ($seriesIdInput === '' && $newSeriesName !== '')) {
-            $stmt = $pdo->prepare('INSERT OR IGNORE INTO series (name, sort) VALUES (:name, :sort)');
-            $stmt->execute([':name' => $newSeriesName, ':sort' => $newSeriesName]);
-            $stmt = $pdo->prepare('SELECT id FROM series WHERE name = :name');
-            $stmt->execute([':name' => $newSeriesName]);
-            $seriesId = (int)$stmt->fetchColumn();
-        } else {
-            $seriesId = (int)$seriesIdInput;
+        $stmt = $pdo->prepare('SELECT id FROM series WHERE name = :name');
+        $stmt->execute([':name' => $seriesNameInput]);
+        $seriesId = $stmt->fetchColumn();
+        if ($seriesId === false) {
+            $stmt = $pdo->prepare('INSERT INTO series (name, sort) VALUES (:name, :sort)');
+            $stmt->execute([':name' => $seriesNameInput, ':sort' => $seriesNameInput]);
+            $seriesId = $pdo->lastInsertId();
         }
         $pdo->prepare('DELETE FROM books_series_link WHERE book = :book')
             ->execute([':book' => $id]);
@@ -231,41 +228,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($hasSubseries) {
         $subIndex = $subseriesIndexExists ? ($subseriesIndexInput !== '' ? (float)$subseriesIndexInput : ($book['subseries_index'] !== null ? (float)$book['subseries_index'] : null)) : null;
-        if ($subseriesIdInput === '' && $newSubseriesName === '') {
+        if ($subseriesNameInput === '') {
             if ($subseriesIsCustom) {
                 $pdo->prepare("DELETE FROM $subseriesLinkTable WHERE book = :book")
                     ->execute([':book' => $id]);
             } else {
                 $pdo->prepare('DELETE FROM books_subseries_link WHERE book = :book')
                     ->execute([':book' => $id]);
-            }
-            if (!$subseriesIsCustom && $subseriesIndexExists) {
-                $pdo->prepare('UPDATE books SET subseries_index = NULL WHERE id = :id')
-                    ->execute([':id' => $id]);
+                if ($subseriesIndexExists) {
+                    $pdo->prepare('UPDATE books SET subseries_index = NULL WHERE id = :id')
+                        ->execute([':id' => $id]);
+                }
             }
         } else {
-            if ($subseriesIdInput === 'new' || ($subseriesIdInput === '' && $newSubseriesName !== '')) {
-                if ($subseriesIsCustom) {
-                    $stmt = $pdo->prepare("INSERT OR IGNORE INTO $subseriesValueTable (value) VALUES (:val)");
-                    $stmt->execute([':val' => $newSubseriesName]);
-                    $stmt = $pdo->prepare("SELECT id FROM $subseriesValueTable WHERE value = :val");
-                    $stmt->execute([':val' => $newSubseriesName]);
-                    $subId = (int)$stmt->fetchColumn();
-                } else {
-                    $stmt = $pdo->prepare('INSERT OR IGNORE INTO subseries (name, sort) VALUES (:name, :sort)');
-                    $stmt->execute([':name' => $newSubseriesName, ':sort' => $newSubseriesName]);
-                    $stmt = $pdo->prepare('SELECT id FROM subseries WHERE name = :name');
-                    $stmt->execute([':name' => $newSubseriesName]);
-                    $subId = (int)$stmt->fetchColumn();
-                }
-            } else {
-                $subId = (int)$subseriesIdInput;
-            }
-
             if ($subseriesIsCustom) {
+                $stmt = $pdo->prepare("INSERT OR IGNORE INTO $subseriesValueTable (value) VALUES (:val)");
+                $stmt->execute([':val' => $subseriesNameInput]);
+                $stmt = $pdo->prepare("SELECT id FROM $subseriesValueTable WHERE value = :val");
+                $stmt->execute([':val' => $subseriesNameInput]);
+                $subId = (int)$stmt->fetchColumn();
                 $pdo->prepare("DELETE FROM $subseriesLinkTable WHERE book = :book")
                     ->execute([':book' => $id]);
-                if ($subseriesIndexColumn) {
+                if ($subseriesIndexColumn && $subIndex !== null) {
                     $pdo->prepare("INSERT INTO $subseriesLinkTable (book, value, $subseriesIndexColumn) VALUES (:book, :val, :idx)")
                         ->execute([':book' => $id, ':val' => $subId, ':idx' => $subIndex]);
                 } else {
@@ -273,11 +257,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ->execute([':book' => $id, ':val' => $subId]);
                 }
             } else {
+                $stmt = $pdo->prepare('INSERT OR IGNORE INTO subseries (name, sort) VALUES (:name, :sort)');
+                $stmt->execute([':name' => $subseriesNameInput, ':sort' => $subseriesNameInput]);
+                $stmt = $pdo->prepare('SELECT id FROM subseries WHERE name = :name');
+                $stmt->execute([':name' => $subseriesNameInput]);
+                $subId = (int)$stmt->fetchColumn();
                 $pdo->prepare('DELETE FROM books_subseries_link WHERE book = :book')
                     ->execute([':book' => $id]);
                 $pdo->prepare('INSERT OR REPLACE INTO books_subseries_link (book, subseries) VALUES (:book, :sub)')
                     ->execute([':book' => $id, ':sub' => $subId]);
-                if (!$subseriesIsCustom && $subseriesIndexExists) {
+                if ($subseriesIndexExists) {
                     $pdo->prepare('UPDATE books SET subseries_index = :idx WHERE id = :id')
                         ->execute([':idx' => $subIndex, ':id' => $id]);
                 }
@@ -444,28 +433,6 @@ if (!empty($book['pubdate'])) {
     }
 }
 
-// Fetch list of all series for dropdown
-$seriesList = [];
-try {
-    $stmt = $pdo->query('SELECT id, name FROM series ORDER BY name COLLATE NOCASE');
-    $seriesList = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $seriesList = [];
-}
-
-$subseriesList = [];
-if ($hasSubseries) {
-    try {
-        if ($subseriesIsCustom) {
-            $stmt = $pdo->query("SELECT id, value AS name FROM $subseriesValueTable ORDER BY value COLLATE NOCASE");
-        } else {
-            $stmt = $pdo->query('SELECT id, name FROM subseries ORDER BY name COLLATE NOCASE');
-        }
-        $subseriesList = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        $subseriesList = [];
-    }
-}
 
 // Fetch saved recommendations if present
 try {
@@ -833,22 +800,12 @@ if ($sendRequested) {
 
                             <!-- Series Info -->
                             <div class="tab-pane fade" id="tabSeries">
-                                <div class="mb-3">
-                                    <label for="series" class="form-label">
+                                <div class="mb-3 position-relative">
+                                    <label for="seriesInput" class="form-label">
                                         <i class="fa-solid fa-layer-group me-1 text-primary"></i> Series
                                     </label>
-                                    <div class="input-group">
-                                        <select id="series" name="series_id" class="form-select">
-                                            <option value=""<?= empty($book['series_id']) ? ' selected' : '' ?>>None</option>
-                                            <?php foreach ($seriesList as $s): ?>
-                                                <option value="<?= htmlspecialchars($s['id']) ?>"<?= (int)$book['series_id'] === (int)$s['id'] ? ' selected' : '' ?>><?= htmlspecialchars($s['name']) ?></option>
-                                            <?php endforeach; ?>
-                                            <option value="new">Add new series...</option>
-                                        </select>
-                                        <button type="button" id="addSeriesBtn" class="btn btn-outline-primary"><i class="fa-solid fa-plus"></i></button>
-                                        <button type="button" id="editSeriesBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-pen"></i></button>
-                                    </div>
-                                    <input type="text" id="newSeriesInput" name="new_series" class="form-control mt-2" placeholder="New series name" style="display:none">
+                                    <input type="text" id="seriesInput" name="series" value="<?= htmlspecialchars($book['series']) ?>" class="form-control" autocomplete="off">
+                                    <ul id="seriesSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
                                 </div>
                                 <div class="mb-3">
                                     <label for="seriesIndex" class="form-label">
@@ -857,22 +814,12 @@ if ($sendRequested) {
                                     <input type="number" step="0.1" id="seriesIndex" name="series_index" value="<?= htmlspecialchars($book['series_index']) ?>" class="form-control">
                                 </div>
                                 <?php if ($hasSubseries): ?>
-                                <div class="mb-3">
-                                    <label for="subseries" class="form-label">
+                                <div class="mb-3 position-relative">
+                                    <label for="subseriesInput" class="form-label">
                                         <i class="fa-solid fa-diagram-project me-1 text-primary"></i> Subseries
                                     </label>
-                                    <div class="input-group">
-                                        <select id="subseries" name="subseries_id" class="form-select">
-                                            <option value=""<?= empty($book['subseries_id']) ? ' selected' : '' ?>>None</option>
-                                            <?php foreach ($subseriesList as $ss): ?>
-                                                <option value="<?= htmlspecialchars($ss['id']) ?>"<?= (int)($book['subseries_id'] ?? 0) === (int)$ss['id'] ? ' selected' : '' ?>><?= htmlspecialchars($ss['name']) ?></option>
-                                            <?php endforeach; ?>
-                                            <option value="new">Add new subseries...</option>
-                                        </select>
-                                        <button type="button" id="addSubseriesBtn" class="btn btn-outline-primary"><i class="fa-solid fa-plus"></i></button>
-                                        <button type="button" id="editSubseriesBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-pen"></i></button>
-                                    </div>
-                                    <input type="text" id="newSubseriesInput" name="new_subseries" class="form-control mt-2" placeholder="New subseries name" style="display:none">
+                                    <input type="text" id="subseriesInput" name="subseries" value="<?= htmlspecialchars($book['subseries'] ?? '') ?>" class="form-control" autocomplete="off">
+                                    <ul id="subseriesSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
                                 </div>
                                 <?php if ($subseriesIndexExists): ?>
                                 <div class="mb-3">

@@ -483,148 +483,91 @@ document.addEventListener('DOMContentLoaded', () => {
     applySortBtn.addEventListener('click', updateAuthorSort);
   }
 
-  const seriesSelect = document.getElementById('series');
-  const newSeriesInput = document.getElementById('newSeriesInput');
-  const addSeriesBtn = document.getElementById('addSeriesBtn');
-  const editSeriesBtn = document.getElementById('editSeriesBtn');
+  const seriesInput = document.getElementById('seriesInput');
+  const subseriesInput = document.getElementById('subseriesInput');
   const seriesIndexInput = document.getElementById('seriesIndex');
-  function toggleSeriesInput() {
-    if (!seriesSelect) return;
-    if (seriesSelect.value === 'new') {
-      newSeriesInput.style.display = '';
-    } else {
-      newSeriesInput.style.display = 'none';
-      if (seriesSelect.value !== 'new') newSeriesInput.value = '';
-    }
-    if (editSeriesBtn) {
-      editSeriesBtn.style.display = (seriesSelect.value && seriesSelect.value !== 'new') ? '' : 'none';
-    }
-  }
-  if (seriesSelect && newSeriesInput) {
-    seriesSelect.addEventListener('change', toggleSeriesInput);
-    toggleSeriesInput();
-  }
-  if (addSeriesBtn) {
-    addSeriesBtn.addEventListener('click', () => {
-      if (seriesSelect) {
-        seriesSelect.value = 'new';
-        toggleSeriesInput();
-        newSeriesInput.focus();
+  const subseriesIndexInput = document.getElementById('subseriesIndex');
+  const seriesSuggestions = document.getElementById('seriesSuggestions');
+  const subseriesSuggestions = document.getElementById('subseriesSuggestions');
+
+  function setupAutocomplete(input, listEl, endpoint) {
+    if (!input || !listEl) return;
+    let debounceTimer;
+    let selectedIndex = -1;
+    const clear = () => {
+      listEl.innerHTML = '';
+      listEl.style.display = 'none';
+      selectedIndex = -1;
+    };
+    const render = items => {
+      clear();
+      if (!items.length) return;
+      items.forEach(name => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item list-group-item-action';
+        li.textContent = name;
+        li.addEventListener('mousedown', e => {
+          e.preventDefault();
+          input.value = name;
+          clear();
+        });
+        listEl.appendChild(li);
+      });
+      listEl.style.display = 'block';
+    };
+    const fetchSuggestions = async () => {
+      const term = input.value.trim();
+      if (term.length < 2) { clear(); return; }
+      try {
+        const res = await fetch(`json_endpoints/${endpoint}?term=${encodeURIComponent(term)}`);
+        const data = await res.json();
+        render(data);
+      } catch (err) { console.error(err); }
+    };
+    input.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(fetchSuggestions, 300);
+    });
+    input.addEventListener('keydown', e => {
+      const items = listEl.querySelectorAll('li');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex + 1) % items.length;
+        items.forEach((it, idx) => it.classList.toggle('active', idx === selectedIndex));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+        items.forEach((it, idx) => it.classList.toggle('active', idx === selectedIndex));
+      } else if (e.key === 'Enter') {
+        if (selectedIndex >= 0) {
+          e.preventDefault();
+          input.value = items[selectedIndex].textContent;
+          clear();
+        }
+      } else if (e.key === 'Escape') {
+        clear();
       }
     });
-  }
-  if (editSeriesBtn && seriesSelect) {
-    editSeriesBtn.addEventListener('click', async () => {
-      const id = seriesSelect.value;
-      if (!id || id === 'new') return;
-      const option = seriesSelect.options[seriesSelect.selectedIndex];
-      let name = prompt('Rename series:', option.textContent);
-      if (name === null) return;
-      name = name.trim();
-      if (!name || name === option.textContent) return;
-      try {
-        const res = await fetch('json_endpoints/rename_series.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ id, new: name })
-        });
-        const data = await res.json();
-        if (data.status === 'ok') {
-          option.textContent = name;
-        }
-      } catch (err) { console.error(err); }
+    document.addEventListener('click', e => {
+      if (!listEl.contains(e.target) && e.target !== input) clear();
     });
   }
 
-  const subseriesSelect = document.getElementById('subseries');
-  const newSubseriesInput = document.getElementById('newSubseriesInput');
-  const addSubseriesBtn = document.getElementById('addSubseriesBtn');
-  const editSubseriesBtn = document.getElementById('editSubseriesBtn');
-  const subseriesIndexInput = document.getElementById('subseriesIndex');
-  function toggleSubseriesInput() {
-    if (!subseriesSelect) return;
-    if (subseriesSelect.value === 'new') {
-      if (newSubseriesInput) newSubseriesInput.style.display = '';
-    } else {
-      if (newSubseriesInput) {
-        newSubseriesInput.style.display = 'none';
-        if (subseriesSelect.value !== 'new') newSubseriesInput.value = '';
-      }
-    }
-    if (editSubseriesBtn) {
-      editSubseriesBtn.style.display = (subseriesSelect.value && subseriesSelect.value !== 'new') ? '' : 'none';
-    }
-  }
-  if (subseriesSelect) {
-    subseriesSelect.addEventListener('change', toggleSubseriesInput);
-    toggleSubseriesInput();
-  }
-  if (addSubseriesBtn) {
-    addSubseriesBtn.addEventListener('click', () => {
-      if (subseriesSelect) {
-        subseriesSelect.value = 'new';
-        toggleSubseriesInput();
-        if (newSubseriesInput) newSubseriesInput.focus();
-      }
-    });
-  }
-  if (editSubseriesBtn && subseriesSelect) {
-    editSubseriesBtn.addEventListener('click', async () => {
-      const id = subseriesSelect.value;
-      if (!id || id === 'new') return;
-      const option = subseriesSelect.options[subseriesSelect.selectedIndex];
-      let name = prompt('Rename subseries:', option.textContent);
-      if (name === null) return;
-      name = name.trim();
-      if (!name || name === option.textContent) return;
-      try {
-        const res = await fetch('json_endpoints/rename_subseries.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ id, new: name })
-        });
-        const data = await res.json();
-        if (data.status === 'ok') {
-          option.textContent = name;
-        }
-      } catch (err) { console.error(err); }
-    });
-  }
+  setupAutocomplete(seriesInput, seriesSuggestions, 'series_autocomplete.php');
+  setupAutocomplete(subseriesInput, subseriesSuggestions, 'subseries_autocomplete.php');
 
   const swapSeriesSubseriesBtn = document.getElementById('swapSeriesSubseriesBtn');
-  if (swapSeriesSubseriesBtn && seriesSelect && subseriesSelect) {
+  if (swapSeriesSubseriesBtn && seriesInput && subseriesInput) {
     swapSeriesSubseriesBtn.addEventListener('click', () => {
-      const currentSeriesText = seriesSelect.value === 'new'
-        ? (newSeriesInput ? newSeriesInput.value : '')
-        : seriesSelect.options[seriesSelect.selectedIndex]?.text || '';
-      const currentSubseriesText = subseriesSelect.value === 'new'
-        ? (newSubseriesInput ? newSubseriesInput.value : '')
-        : subseriesSelect.options[subseriesSelect.selectedIndex]?.text || '';
-
-      // swap index numbers
+      const tmpSeries = seriesInput.value;
+      seriesInput.value = subseriesInput.value;
+      subseriesInput.value = tmpSeries;
       if (seriesIndexInput && subseriesIndexInput) {
         const tmpIdx = seriesIndexInput.value;
         seriesIndexInput.value = subseriesIndexInput.value;
         subseriesIndexInput.value = tmpIdx;
       }
-
-      // helper to select by text or fallback to 'new'
-      const selectByText = (select, text, newInput) => {
-        const opt = Array.from(select.options).find(o => o.text === text);
-        if (opt) {
-          select.value = opt.value;
-          if (newInput) newInput.value = '';
-        } else {
-          select.value = 'new';
-          if (newInput) newInput.value = text;
-        }
-      };
-
-      selectByText(seriesSelect, currentSubseriesText, newSeriesInput);
-      selectByText(subseriesSelect, currentSeriesText, newSubseriesInput);
-
-      toggleSeriesInput();
-      toggleSubseriesInput();
     });
   }
 });
