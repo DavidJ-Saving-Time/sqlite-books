@@ -165,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const els = await prom;
       nextCache.delete(p);
       if (p <= highestPage) return;
-      els.forEach(el => contentArea.insertBefore(el, bottomSentinel));
+      els.forEach(el => bottomSentinel.parentNode.insertBefore(el, bottomSentinel));
       initCoverDimensions(els);
       highestPage = p;
       prefetchNext();
@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (p >= lowestPage) return;
       const frag = document.createDocumentFragment();
       els.forEach(el => frag.appendChild(el));
-      contentArea.insertBefore(frag, topSentinel.nextSibling);
+      topSentinel.parentNode.insertBefore(frag, topSentinel.nextSibling);
       initCoverDimensions(els);
       lowestPage = p;
       prefetchPrevious();

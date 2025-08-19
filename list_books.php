@@ -72,6 +72,7 @@ $perPage = 20;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
 $sort = $_GET['sort'] ?? 'author_series';
+$view = ($_GET['view'] ?? 'list') === 'grid' ? 'grid' : 'list';
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
 $subseriesId = isset($_GET['subseries_id']) ? (int)$_GET['subseries_id'] : null;
@@ -360,13 +361,15 @@ $prevUrl = $baseUrl . max(1, $page - 1);
 $nextUrl = $baseUrl . min($totalPages, $page + 1);
 
 function render_book_rows(array $books, array $templateData, int $offset = 0): void {
+    global $view;
     foreach ($books as $i => $book) {
         $index = $offset + $i;
         $missing = !bookHasFile($book['path']);
         $firstFile = $missing ? null : firstBookFile($book['path']);
 
         extract($templateData, EXTR_SKIP);
-        include __DIR__ . '/templates/book_row.php';
+        $template = $view === 'grid' ? 'book_tile.php' : 'book_row.php';
+        include __DIR__ . "/templates/$template";
     }
 }
 
@@ -396,6 +399,7 @@ function buildBaseUrl(array $params, array $exclude = []): string {
         'status'    => $GLOBALS['statusName'] ?? '',
         'filetype'  => $GLOBALS['fileType'] ?? '',
         'author_initial' => $GLOBALS['authorInitial'] ?? '',
+        'view' => $GLOBALS['view'] ?? '',
     ];
 
     // Remove excluded keys
@@ -757,9 +761,21 @@ body {
             <!-- Main Content -->
 <div class="col-md-12">
   <div id="contentArea">
+      <div class="d-flex justify-content-end mb-3">
+          <?php $toggleView = $view === 'grid' ? 'list' : 'grid'; ?>
+          <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(buildBaseUrl(['view' => $toggleView, 'page' => 1], ['page'])) ?>">
+              Switch to <?= $toggleView === 'grid' ? 'Grid' : 'List' ?> view
+          </a>
+      </div>
+      <?php if ($view === 'grid'): ?>
+      <div class="row row-cols-2 row-cols-md-4 g-4">
+      <?php endif; ?>
       <div id="topSentinel"></div>
       <?php render_book_rows($books, $rowTemplateData, $offset); ?>
       <div id="bottomSentinel"></div>
+      <?php if ($view === 'grid'): ?>
+      </div>
+      <?php endif; ?>
       <nav id="pageNav" aria-label="Page navigation" class="mt-3">
         <ul class="pagination justify-content-center">
           <li class="page-item <?php if ($page <= 1) echo 'disabled'; ?>">
