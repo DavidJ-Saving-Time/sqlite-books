@@ -178,13 +178,21 @@ CREATE TABLE IF NOT EXISTS page_map (
     $chunks = build_chunks_from_pages($pages, $targetTokens);
     out('Chunks built: ' . count($chunks));
 
-    // ---- Embed chunks ----
-    if ($useOllama) {
-        foreach ($chunks as $idx => $chunk) {
-            $embedding = create_ollama_embedding($chunk['text'], $embedModel, $ollamaUrl);
-            if (!$embedding) continue;
+    // ---- Embed chunks in batches ----
+    $batchSize = 64;
+    for ($i = 0; $i < count($chunks); $i += $batchSize) {
+        $batch = array_slice($chunks, $i, $batchSize);
+        $vectors = create_embeddings_batch(
+            array_column($batch, 'text'),
+            $embedModel,
+            $apiKey,
+            $useOllama ? $ollamaUrl : null
+        );
+        foreach ($batch as $j => $chunk) {
+            $embedding = $vectors[$j] ?? null; if (!$embedding) continue;
             $bin = pack_floats($embedding);
-            $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count, display_start, display_end, display_start_label, display_end_label)" . " VALUES (:item,:section,:ps,:pe,:text,:emb,:tok,NULL,NULL,NULL,NULL)");
+            $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count, display_start, display_end, display_start_label, display_end_label)
+                                  VALUES (:item,:section,:ps,:pe,:text,:emb,:tok,NULL,NULL,NULL,NULL)");
             $stmt->bindValue(':item', $itemId, PDO::PARAM_INT);
             $stmt->bindValue(':section', $chunk['section']);
             $stmt->bindValue(':ps', $chunk['page_start'], PDO::PARAM_INT);
@@ -193,34 +201,9 @@ CREATE TABLE IF NOT EXISTS page_map (
             $stmt->bindValue(':emb', $bin, PDO::PARAM_LOB);
             $stmt->bindValue(':tok', $chunk['approx_tokens'], PDO::PARAM_INT);
             $stmt->execute();
-            out('Embedded chunk ' . ($idx + 1));
-            usleep(200000); // throttle a bit
         }
-    } else {
-        $batchSize = 64;
-        for ($i = 0; $i < count($chunks); $i += $batchSize) {
-            $batch = array_slice($chunks, $i, $batchSize);
-            $vectors = create_embeddings_batch(
-                array_column($batch, 'text'),
-                $embedModel,
-                $apiKey
-            );
-            foreach ($batch as $j => $chunk) {
-                $embedding = $vectors[$j] ?? null; if (!$embedding) continue;
-                $bin = pack_floats($embedding);
-                $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count, display_start, display_end, display_start_label, display_end_label)" . " VALUES (:item,:section,:ps,:pe,:text,:emb,:tok,NULL,NULL,NULL,NULL)");
-                $stmt->bindValue(':item', $itemId, PDO::PARAM_INT);
-                $stmt->bindValue(':section', $chunk['section']);
-                $stmt->bindValue(':ps', $chunk['page_start'], PDO::PARAM_INT);
-                $stmt->bindValue(':pe', $chunk['page_end'], PDO::PARAM_INT);
-                $stmt->bindValue(':text', $chunk['text']);
-                $stmt->bindValue(':emb', $bin, PDO::PARAM_LOB);
-                $stmt->bindValue(':tok', $chunk['approx_tokens'], PDO::PARAM_INT);
-                $stmt->execute();
-            }
-            out('Embedded batch ' . (($i / $batchSize) + 1));
-            usleep(200000); // throttle a bit
-        }
+        out('Embedded batch ' . (($i/$batchSize)+1));
+        usleep(200000); // throttle a bit
     }
 
     recompute_chunk_display_ranges($db, $itemId);
@@ -435,7 +418,30 @@ function build_chunks_from_pages(array $pagesByNum, int $targetTokens): array {
   return $refined;
 }
 
-function create_embeddings_batch(array $texts, string $model, string $apiKey): array {
+function create_embeddings_batch(array $texts, string $model, ?string $apiKey = null, ?string $ollamaUrl = null): array {
+  if ($ollamaUrl) {
+    $out = [];
+    foreach ($texts as $text) {
+      $payload = ['model' => $model, 'prompt' => $text];
+      $ch = curl_init($ollamaUrl);
+      curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ["Content-Type: application/json"],
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+        CURLOPT_TIMEOUT => 120
+      ]);
+      $res = curl_exec($ch);
+      if ($res === false) throw new Exception("cURL error: " . curl_error($ch));
+      $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      curl_close($ch);
+      if ($code < 200 || $code >= 300) throw new Exception("Embeddings API error ($code): $res");
+      $json = json_decode($res, true);
+      $out[] = $json['embedding'] ?? null;
+    }
+    return $out;
+  }
+
   $payload = ['model' => $model, 'input' => array_values($texts)];
   $ch = curl_init("https://api.openai.com/v1/embeddings");
   curl_setopt_array($ch, [
@@ -457,25 +463,6 @@ function create_embeddings_batch(array $texts, string $model, string $apiKey): a
   $out = [];
   foreach ($json['data'] ?? [] as $row) $out[] = $row['embedding'] ?? null;
   return $out;
-}
-
-function create_ollama_embedding(string $text, string $model, string $ollamaUrl): ?array {
-  $payload = ['model' => $model, 'prompt' => $text];
-  $ch = curl_init($ollamaUrl);
-  curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => ["Content-Type: application/json"],
-    CURLOPT_POST => true,
-    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-    CURLOPT_TIMEOUT => 120
-  ]);
-  $res = curl_exec($ch);
-  if ($res === false) throw new Exception("cURL error: " . curl_error($ch));
-  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-  if ($code < 200 || $code >= 300) throw new Exception("Embeddings API error ($code): $res");
-  $json = json_decode($res, true);
-  return $json['embedding'] ?? null;
 }
 
 function pack_floats(array $floats): string {
