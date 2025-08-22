@@ -20,11 +20,17 @@
 
 ini_set('memory_limit', '1G');
 
-$ollamaUrl   = getenv('OLLAMA_URL') ?: '';
-$useOllama   = $ollamaUrl !== '';
-$embedModel  = $useOllama
-    ? (getenv('OLLAMA_MODEL') ?: 'nomic-embed-text')
-    : (getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small');
+$defaultOllamaUrl   = getenv('OLLAMA_URL') ?: 'http://localhost:11434/api/embeddings';
+$defaultOllamaModel = getenv('OLLAMA_MODEL') ?: 'nomic-embed-text';
+$defaultOpenaiModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small';
+
+$provider    = $_POST['provider'] ?? 'openai';
+$useOllama   = ($provider === 'ollama');
+$ollamaUrl   = $_POST['ollama_url']  ?? $defaultOllamaUrl;
+$ollamaModel = $_POST['ollama_model'] ?? $defaultOllamaModel;
+$openaiModel = $_POST['openai_model'] ?? $defaultOpenaiModel;
+
+$embedModel    = $useOllama ? $ollamaModel : $openaiModel;
 $embedEndpoint = $useOllama ? $ollamaUrl : 'openai/v1/embeddings';
 
 function out($msg) {
@@ -265,6 +271,23 @@ if (is_file($dbListPath)) {
         <label for="page_offset" class="form-label">Page Offset</label>
         <input class="form-control" type="number" name="page_offset" id="page_offset" value="0">
     </div>
+    <div class="mb-3">
+        <label for="provider" class="form-label">Embedding Provider</label>
+        <select class="form-select" name="provider" id="provider">
+            <option value="openai" <?= $useOllama ? '' : 'selected' ?>>OpenAI</option>
+            <option value="ollama" <?= $useOllama ? 'selected' : '' ?>>Ollama</option>
+        </select>
+    </div>
+    <div class="mb-3 provider-openai" <?= $useOllama ? 'style="display:none;"' : '' ?>>
+        <label for="openai_model" class="form-label">OpenAI Model</label>
+        <input class="form-control" type="text" name="openai_model" id="openai_model" value="<?= htmlspecialchars($openaiModel) ?>">
+    </div>
+    <div class="mb-3 provider-ollama" <?= $useOllama ? '' : 'style="display:none;"' ?>>
+        <label for="ollama_url" class="form-label">Ollama URL</label>
+        <input class="form-control" type="text" name="ollama_url" id="ollama_url" value="<?= htmlspecialchars($ollamaUrl) ?>">
+        <label for="ollama_model" class="form-label mt-2">Ollama Model</label>
+        <input class="form-control" type="text" name="ollama_model" id="ollama_model" value="<?= htmlspecialchars($ollamaModel) ?>">
+    </div>
     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-upload me-2"></i>Ingest</button>
 </form>
 <?php if ($ingestedBooks): ?>
@@ -304,6 +327,16 @@ if (is_file($dbListPath)) {
 <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const providerSelect = document.getElementById('provider');
+function updateProviderFields() {
+    const useOllama = providerSelect.value === 'ollama';
+    document.querySelector('.provider-openai').style.display = useOllama ? 'none' : '';
+    document.querySelector('.provider-ollama').style.display = useOllama ? '' : 'none';
+}
+providerSelect.addEventListener('change', updateProviderFields);
+updateProviderFields();
+</script>
 </body>
 </html>
 <?php
