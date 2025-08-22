@@ -5,27 +5,18 @@
  * This script provides a simple HTML interface for uploading a PDF and
  * supplying the same options that the CLI version accepts. The ingest logic
  * remains the same: the uploaded PDF is split into chunks, embedded via the
- * OpenAI Embeddings API or a local embedding service, and stored in library.sqlite.
+ * OpenAI Embeddings API, and stored in library.sqlite.
  *
  * Requirements:
  *   - poppler-utils (pdftotext, pdfinfo)
  *   - PHP PDO SQLite
- *   - OPENAI_API_KEY set in environment (unless using OLLAMA_URL)
+ *   - OPENAI_API_KEY set in environment
  *   - Optional: OPENAI_EMBED_MODEL (default text-embedding-3-small)
- *   - Optional: OLLAMA_URL to use a local embeddings endpoint
- *   - Optional: OLLAMA_MODEL (default nomic-embed-text)
  *
  * The SQLite schema is created automatically.
  */
 
 ini_set('memory_limit', '1G');
-
-$ollamaUrl   = getenv('OLLAMA_URL') ?: '';
-$useOllama   = $ollamaUrl !== '';
-$embedModel  = $useOllama
-    ? (getenv('OLLAMA_MODEL') ?: 'nomic-embed-text')
-    : (getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small');
-$embedEndpoint = $useOllama ? $ollamaUrl : 'openai/v1/embeddings';
 
 function out($msg) {
     echo $msg . "\n"; @ob_flush(); @flush();
@@ -59,12 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     out('PDF uploaded.');
 
     // ---- API key and model ----
-    if ($useOllama) {
-        $apiKey = null; // not required
-    } else {
-        $apiKey = getenv('OPENAI_API_KEY');
-        if (!$apiKey) { out('ERROR: Set OPENAI_API_KEY.'); exit; }
-    }
+    $apiKey = getenv('OPENAI_API_KEY');
+    if (!$apiKey) { out('ERROR: Set OPENAI_API_KEY.'); exit; }
+    $embedModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small';
 
     // ---- Open DB and ensure schema ----
     $dbPath = __DIR__ . '/../library.sqlite';
@@ -176,12 +164,7 @@ CREATE TABLE IF NOT EXISTS page_map (
     $batchSize = 64;
     for ($i = 0; $i < count($chunks); $i += $batchSize) {
         $batch = array_slice($chunks, $i, $batchSize);
-        $vectors = create_embeddings_batch(
-            array_column($batch, 'text'),
-            $embedModel,
-            $apiKey,
-            $useOllama ? $ollamaUrl : null
-        );
+        $vectors = create_embeddings_batch(array_column($batch, 'text'), $embedModel, $apiKey);
         foreach ($batch as $j => $chunk) {
             $embedding = $vectors[$j] ?? null; if (!$embedding) continue;
             $bin = pack_floats($embedding);
@@ -219,7 +202,7 @@ if (is_file($dbListPath)) {
             $id = (int)$r['id'];
             $r['pages'] = (int)$dbList->query('SELECT MAX(page_end) FROM chunks WHERE item_id = ' . $id)->fetchColumn();
             $r['chunks'] = (int)$dbList->query('SELECT COUNT(*) FROM chunks WHERE item_id = ' . $id)->fetchColumn();
-            $r['endpoint'] = $embedEndpoint;
+            $r['endpoint'] = 'openai/v1/embeddings';
             $ingestedBooks[] = $r;
         }
     } catch (Exception $e) {
@@ -385,30 +368,7 @@ function build_chunks_from_pages(array $pagesByNum, int $targetTokens): array {
   return $refined;
 }
 
-function create_embeddings_batch(array $texts, string $model, ?string $apiKey = null, ?string $ollamaUrl = null): array {
-  if ($ollamaUrl) {
-    $out = [];
-    foreach ($texts as $text) {
-      $payload = ['model' => $model, 'prompt' => $text];
-      $ch = curl_init($ollamaUrl);
-      curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => ["Content-Type: application/json"],
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_TIMEOUT => 120
-      ]);
-      $res = curl_exec($ch);
-      if ($res === false) throw new Exception("cURL error: " . curl_error($ch));
-      $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-      curl_close($ch);
-      if ($code < 200 || $code >= 300) throw new Exception("Embeddings API error ($code): $res");
-      $json = json_decode($res, true);
-      $out[] = $json['embedding'] ?? null;
-    }
-    return $out;
-  }
-
+function create_embeddings_batch(array $texts, string $model, string $apiKey): array {
   $payload = ['model' => $model, 'input' => array_values($texts)];
   $ch = curl_init("https://api.openai.com/v1/embeddings");
   curl_setopt_array($ch, [
@@ -422,7 +382,7 @@ function create_embeddings_batch(array $texts, string $model, ?string $apiKey = 
     CURLOPT_TIMEOUT => 120
   ]);
   $res = curl_exec($ch);
-  if ($res === false) throw new Exception("cURL error: " . curl_error($ch));
+  if ($res === false) throw new Exception("cURL error: ".curl_error($ch));
   $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   curl_close($ch);
   if ($code < 200 || $code >= 300) throw new Exception("Embeddings API error ($code): $res");
