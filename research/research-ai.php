@@ -126,21 +126,12 @@ CREATE TABLE IF NOT EXISTS page_map (
 
     // ---- Extract text per page ----
     $pages = [];
-    $failedPages = [];
     for ($p = 1; $p <= $pagesCount; $p++) {
         $tmp = tempnam(sys_get_temp_dir(), 'pg_');
         $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
                        $p, $p, escapeshellarg($tmpPdf), escapeshellarg($tmp));
-        $attempt = 0;
-        do {
-            exec($cmd, $_, $rc);
-            if ($rc !== 0) {
-                out("pdftotext failed for page $p (rc=$rc)");
-                if (++$attempt <= 2) out("Retrying page $p...");
-            }
-        } while ($rc !== 0 && $attempt <= 2);
-        $txt = ($rc === 0 && file_exists($tmp)) ? file_get_contents($tmp) : '';
-        if ($rc !== 0) { $failedPages[] = $p; }
+        exec($cmd, $_, $rc);
+        $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
         @unlink($tmp);
         $pages[$p] = normalize_whitespace($txt ?? '');
     }
@@ -188,28 +179,21 @@ CREATE TABLE IF NOT EXISTS page_map (
     out('Chunks built: ' . count($chunks));
 
     // ---- Embed chunks ----
-    $failedChunks = [];
     if ($useOllama) {
         foreach ($chunks as $idx => $chunk) {
-            try {
-                $embedding = create_ollama_embedding($chunk['text'], $embedModel, $ollamaUrl);
-                if (!$embedding) throw new Exception('empty embedding');
-                $bin = pack_floats($embedding);
-                $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count, display_start, display_end, display_start_label, display_end_label)" . " VALUES (:item,:section,:ps,:pe,:text,:emb,:tok,NULL,NULL,NULL,NULL)");
-                $stmt->bindValue(':item', $itemId, PDO::PARAM_INT);
-                $stmt->bindValue(':section', $chunk['section']);
-                $stmt->bindValue(':ps', $chunk['page_start'], PDO::PARAM_INT);
-                $stmt->bindValue(':pe', $chunk['page_end'], PDO::PARAM_INT);
-                $stmt->bindValue(':text', $chunk['text']);
-                $stmt->bindValue(':emb', $bin, PDO::PARAM_LOB);
-                $stmt->bindValue(':tok', $chunk['approx_tokens'], PDO::PARAM_INT);
-                $stmt->execute();
-                out('Embedded chunk ' . ($idx + 1));
-            } catch (Exception $e) {
-                out('Embedding failed for chunk ' . ($idx + 1) . ': ' . $e->getMessage());
-                $failedChunks[] = $idx + 1;
-                continue;
-            }
+            $embedding = create_ollama_embedding($chunk['text'], $embedModel, $ollamaUrl);
+            if (!$embedding) continue;
+            $bin = pack_floats($embedding);
+            $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count, display_start, display_end, display_start_label, display_end_label)" . " VALUES (:item,:section,:ps,:pe,:text,:emb,:tok,NULL,NULL,NULL,NULL)");
+            $stmt->bindValue(':item', $itemId, PDO::PARAM_INT);
+            $stmt->bindValue(':section', $chunk['section']);
+            $stmt->bindValue(':ps', $chunk['page_start'], PDO::PARAM_INT);
+            $stmt->bindValue(':pe', $chunk['page_end'], PDO::PARAM_INT);
+            $stmt->bindValue(':text', $chunk['text']);
+            $stmt->bindValue(':emb', $bin, PDO::PARAM_LOB);
+            $stmt->bindValue(':tok', $chunk['approx_tokens'], PDO::PARAM_INT);
+            $stmt->execute();
+            out('Embedded chunk ' . ($idx + 1));
             usleep(200000); // throttle a bit
         }
     } else {
@@ -242,8 +226,6 @@ CREATE TABLE IF NOT EXISTS page_map (
     recompute_chunk_display_ranges($db, $itemId);
     out("Ingest complete. Book ID: $itemId");
     out("Pages: $pagesCount | Chunks: " . count($chunks));
-    out('Failed pages: ' . ($failedPages ? implode(', ', $failedPages) : 'none'));
-    out('Failed chunks: ' . ($failedChunks ? implode(', ', $failedChunks) : 'none'));
     echo "</pre>";
     @unlink($tmpPdf);
     exit;
