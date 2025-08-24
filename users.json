@@ -11,11 +11,11 @@
     "david": {
         "password": "david",
         "prefs": {
-            "db_path": "david_ebooks\/metadata.db",
-            "library_path": "david_ebooks",
+            "db_path": "\/srv\/http\/calibre-nilla\/david_ebooks\/metadata.db",
+            "library_path": "\/srv\/http\/calibre-nilla\/david_ebooks",
             "reading_goal_2025": 40,
             "REMOTE_DIR": "\/mnt\/onboard\/.hidebooks\/",
-            "DEVICE": "10.0.0.146"
+            "DEVICE": "10.0.0.143"
         }
     },
     "test": {
@@ -36,5 +36,4 @@
             "DEVICE": ""
         }
     }
-
 }

@@ -480,7 +480,12 @@ if (count($breadcrumbs) === 1) {
             max-width: 700px;
             word-break: break-word;
         }
-        
+        .object-fit-cover { object-fit: cover; }
+.line-clamp-2 {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.ratio-2x3 { --bs-aspect-ratio: 150%; } /* height/width = 3/2 */
 /* Modern full-width book blocks */
 [data-book-block-id] {
     background: var(--bs-card-bg);
@@ -768,7 +773,7 @@ body {
           </a>
       </div>
       <?php if ($view === 'grid'): ?>
-      <div class="row row-cols-2 row-cols-md-4 g-4">
+      <div class="row row-cols-2 row-cols-md-6 g-4">
       <?php endif; ?>
       <div id="topSentinel"></div>
       <?php render_book_rows($books, $rowTemplateData, $offset); ?>
