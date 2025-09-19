@@ -22,7 +22,45 @@ function out($msg) {
     echo $msg . "\n"; @ob_flush(); @flush();
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$statusMessage = null;
+$errorMessage = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POST['delete_id'] !== '') {
+    $deleteId = (int)$_POST['delete_id'];
+    $dbPath = __DIR__ . '/../library.sqlite';
+    if (!is_file($dbPath)) {
+        $errorMessage = 'Database not found. Cannot delete book.';
+    } else {
+        try {
+            $db = new PDO('sqlite:' . $dbPath);
+            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $db->beginTransaction();
+
+            $sel = $db->prepare('SELECT title FROM items WHERE id = :id');
+            $sel->execute([':id' => $deleteId]);
+            $book = $sel->fetch(PDO::FETCH_ASSOC);
+
+            if (!$book) {
+                $db->rollBack();
+                $errorMessage = 'Book not found; nothing deleted.';
+            } else {
+                $params = [':id' => $deleteId];
+                $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
+                $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
+                $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
+                $db->commit();
+                $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
+            }
+        } catch (Exception $e) {
+            if (isset($db) && $db->inTransaction()) {
+                $db->rollBack();
+            }
+            $errorMessage = 'Failed to delete book: ' . $e->getMessage();
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !(isset($_POST['delete_id']) && $_POST['delete_id'] !== '')) {
     echo "<pre>"; // easier to show streaming output
 
     // ---- Collect form data ----
@@ -222,6 +260,18 @@ if (is_file($dbListPath)) {
 <body class="pt-5">
 <?php include 'navbar.php'; ?>
 <div class="container py-4">
+<?php if ($statusMessage): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <?= htmlspecialchars($statusMessage) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+<?php endif; ?>
+<?php if ($errorMessage): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <?= htmlspecialchars($errorMessage) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+<?php endif; ?>
 <h1 class="mb-4"><i class="fa-solid fa-file-pdf me-2"></i>Research AI PDF Ingest</h1>
 <form method="POST" enctype="multipart/form-data">
     <div class="mb-3">
@@ -264,6 +314,7 @@ if (is_file($dbListPath)) {
             <th>Chunks</th>
             <th>Endpoint</th>
             <th>Ingested</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -278,6 +329,14 @@ if (is_file($dbListPath)) {
             <td><?= htmlspecialchars($b['chunks']) ?></td>
             <td><?= htmlspecialchars($b['endpoint']) ?></td>
             <td><?= htmlspecialchars($b['created_at']) ?></td>
+            <td>
+                <form method="POST" class="d-inline" onsubmit="return confirm('Delete this book and all embeddings?');">
+                    <input type="hidden" name="delete_id" value="<?= (int)$b['id'] ?>">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="fa-solid fa-trash-can me-1"></i>Delete
+                    </button>
+                </form>
+            </td>
         </tr>
     <?php endforeach; ?>
     </tbody>
