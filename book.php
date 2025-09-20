@@ -555,6 +555,15 @@ if (!$missingFile && $book['path'] !== '') {
         $epubFileRel = $epubPath;
     }
 }
+$pdfExists = false;
+if ($epubFileRel !== '') {
+    $libraryBasePath = rtrim(getLibraryPath(), '/');
+    $epubFullPath = $libraryBasePath . '/' . ltrim($epubFileRel, '/');
+    $pdfFullPath = dirname($epubFullPath) . '/' . pathinfo($epubFullPath, PATHINFO_FILENAME) . '.pdf';
+    if (file_exists($pdfFullPath)) {
+        $pdfExists = true;
+    }
+}
 
 if ($sendRequested) {
     $remoteDir = getUserPreference(currentUser(), 'REMOTE_DIR', getPreference('REMOTE_DIR', ''));
@@ -720,7 +729,7 @@ if ($sendRequested) {
             <button type="button" id="ebookMetaBtn" class="btn btn-secondary">File Metadata</button>
             <?php endif; ?>
         </div>
-        <?php if ($epubFileRel): ?>
+        <?php if ($epubFileRel && !$pdfExists): ?>
             <form method="post" class="btn-group me-2 mb-2">
                 <input type="hidden" name="convert_to_pdf" value="1">
                 <button type="submit" class="btn btn-secondary">
