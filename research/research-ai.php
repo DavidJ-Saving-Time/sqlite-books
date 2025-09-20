@@ -36,6 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
             $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $db->beginTransaction();
 
+            if (!table_exists($db, 'items')) {
+                throw new RuntimeException('Required table "items" is missing.');
+            }
+
             $sel = $db->prepare('SELECT title FROM items WHERE id = :id');
             $sel->execute([':id' => $deleteId]);
             $book = $sel->fetch(PDO::FETCH_ASSOC);
@@ -44,12 +48,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 $db->rollBack();
                 $errorMessage = 'Book not found; nothing deleted.';
             } else {
+                $debugDeletes = [];
                 $params = [':id' => $deleteId];
-                $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
-                $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
+
+                if (table_exists($db, 'chunks')) {
+                    $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
+                } else {
+                    $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
+                }
+
+                if (table_exists($db, 'page_map')) {
+                    $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
+                } else {
+                    $debugDeletes[] = 'Skipped deleting from missing table "page_map".';
+                }
+
                 $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
                 $db->commit();
+
                 $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
+                if ($debugDeletes) {
+                    $statusMessage .= ' ' . implode(' ', $debugDeletes);
+                }
             }
         } catch (Exception $e) {
             if (isset($db) && $db->inTransaction()) {
@@ -455,6 +475,12 @@ function pack_floats(array $floats): string {
   $bin = '';
   foreach ($floats as $f) $bin .= pack('g', (float)$f); // little-endian float32
   return $bin;
+}
+
+function table_exists(PDO $db, string $table): bool {
+  $stmt = $db->prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = :name");
+  $stmt->execute([':name' => $table]);
+  return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
 }
 
 function ensure_chunk_label_cols(PDO $db): void {
