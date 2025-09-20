@@ -16,6 +16,8 @@
  * The SQLite schema is created automatically.
  */
 
+require_once __DIR__ . '/../db.php';
+
 ini_set('memory_limit', '1G');
 
 function out($msg) {
@@ -24,6 +26,44 @@ function out($msg) {
 
 $statusMessage = null;
 $errorMessage = null;
+
+$prefillTitle = isset($_GET['title']) ? trim((string)$_GET['title']) : '';
+$prefillAuthor = isset($_GET['author']) ? trim((string)$_GET['author']) : '';
+$prefillYear = '';
+if (isset($_GET['year'])) {
+    $yearCandidate = trim((string)$_GET['year']);
+    if ($yearCandidate !== '' && preg_match('/^-?\d{1,4}$/', $yearCandidate)) {
+        $prefillYear = $yearCandidate;
+    }
+}
+$prefillLibraryId = '';
+if (isset($_GET['library_book_id'])) {
+    $libraryCandidate = trim((string)$_GET['library_book_id']);
+    if ($libraryCandidate !== '' && ctype_digit($libraryCandidate)) {
+        $prefillLibraryId = $libraryCandidate;
+    }
+}
+$prefillPdfPath = '';
+if (isset($_GET['pdf_path'])) {
+    $prefillPdfPath = trim((string)$_GET['pdf_path']);
+    $prefillPdfPath = str_replace(["\r", "\n"], '', $prefillPdfPath);
+}
+$prefillPdfUrl = '';
+if (isset($_GET['pdf_url'])) {
+    $prefillPdfUrl = trim((string)$_GET['pdf_url']);
+    $prefillPdfUrl = str_replace(["\r", "\n"], '', $prefillPdfUrl);
+}
+if ($prefillPdfUrl === '' && $prefillPdfPath !== '') {
+    $prefillPdfUrl = rtrim(getLibraryWebPath(), '/') . '/' . ltrim($prefillPdfPath, '/');
+}
+$prefillPageOffset = '0';
+if (isset($_GET['page_offset'])) {
+    $offsetCandidate = trim((string)$_GET['page_offset']);
+    if ($offsetCandidate === '' || preg_match('/^-?\d+$/', $offsetCandidate)) {
+        $prefillPageOffset = $offsetCandidate === '' ? '0' : $offsetCandidate;
+    }
+}
+$hasPrefill = ($prefillTitle !== '' || $prefillAuthor !== '' || $prefillYear !== '' || $prefillLibraryId !== '' || $prefillPdfPath !== '' || $prefillPageOffset !== '0');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POST['delete_id'] !== '') {
     $deleteId = (int)$_POST['delete_id'];
@@ -90,22 +130,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !(isset($_POST['delete_id']) && $_P
     $displayOffset = (int)($_POST['page_offset'] ?? 0);
     $libraryBookId = isset($_POST['library_book_id']) && $_POST['library_book_id'] !== ''
         ? (int)$_POST['library_book_id'] : null;
+    $libraryPdfPath = trim($_POST['library_pdf_path'] ?? '');
+    $libraryPdfPath = str_replace(["\r", "\n"], '', $libraryPdfPath);
 
-    if ($bookTitle === '' || !isset($_FILES['pdf'])) {
-        out('Title and PDF are required.');
+    if ($bookTitle === '') {
+        out('Title is required.');
         exit;
     }
-    if ($_FILES['pdf']['error'] !== UPLOAD_ERR_OK) {
+
+    $tmpPdf = null;
+    $hasUpload = isset($_FILES['pdf']) && is_array($_FILES['pdf']) && ($_FILES['pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+
+    if ($hasUpload && ($_FILES['pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         out('Upload failed: ' . $_FILES['pdf']['error']);
         exit;
     }
-
-    $tmpPdf = sys_get_temp_dir() . '/' . basename($_FILES['pdf']['name']);
-    if (!move_uploaded_file($_FILES['pdf']['tmp_name'], $tmpPdf)) {
-        out('Failed to move uploaded file.');
+    if (!$hasUpload && $libraryPdfPath === '') {
+        out('Title and PDF are required.');
         exit;
     }
-    out('PDF uploaded.');
+
+    if ($hasUpload) {
+        $tmpPdf = tempnam(sys_get_temp_dir(), 'upload_pdf_');
+        if ($tmpPdf === false) {
+            out('Failed to create temporary file.');
+            exit;
+        }
+        if (!move_uploaded_file($_FILES['pdf']['tmp_name'], $tmpPdf)) {
+            out('Failed to move uploaded file.');
+            exit;
+        }
+        out('PDF uploaded.');
+    } else {
+        $libraryBase = rtrim(getLibraryPath(), '/');
+        $candidatePath = $libraryBase . '/' . ltrim($libraryPdfPath, '/');
+        $resolvedPath = realpath($candidatePath);
+        if ($resolvedPath === false || strpos($resolvedPath, $libraryBase) !== 0) {
+            out('Library PDF path is invalid.');
+            exit;
+        }
+        if (!is_file($resolvedPath)) {
+            out('Library PDF not found.');
+            exit;
+        }
+        $tmpPdf = tempnam(sys_get_temp_dir(), 'library_pdf_');
+        if ($tmpPdf === false) {
+            out('Failed to create temporary file.');
+            exit;
+        }
+        if (!copy($resolvedPath, $tmpPdf)) {
+            out('Failed to access library PDF.');
+            exit;
+        }
+        out('Using library PDF from library.');
+    }
 
     // ---- API key and model ----
     $apiKey = getenv('OPENAI_API_KEY');
@@ -247,7 +325,9 @@ CREATE TABLE IF NOT EXISTS page_map (
     out("Ingest complete. Book ID: $itemId");
     out("Pages: $pagesCount | Chunks: " . count($chunks));
     echo "</pre>";
-    @unlink($tmpPdf);
+    if ($tmpPdf !== null && file_exists($tmpPdf)) {
+        @unlink($tmpPdf);
+    }
     exit;
 }
 
@@ -295,30 +375,47 @@ if (is_file($dbListPath)) {
     </div>
 <?php endif; ?>
 <h1 class="mb-4"><i class="fa-solid fa-file-pdf me-2"></i>Research AI PDF Ingest</h1>
+<?php if ($hasPrefill): ?>
+    <div class="alert alert-info" role="alert">
+        <i class="fa-solid fa-circle-info me-2"></i>
+        Form pre-filled with data from the selected library book.
+    </div>
+<?php endif; ?>
 <form method="POST" enctype="multipart/form-data">
+    <?php if ($prefillPdfPath !== ''): ?>
+        <input type="hidden" name="library_pdf_path" value="<?= htmlspecialchars($prefillPdfPath) ?>">
+    <?php endif; ?>
     <div class="mb-3">
         <label for="pdf" class="form-label">PDF File</label>
-        <input class="form-control" type="file" name="pdf" id="pdf" accept="application/pdf" required>
+        <input class="form-control" type="file" name="pdf" id="pdf" accept="application/pdf" <?= $prefillPdfPath === '' ? 'required' : '' ?>>
+        <?php if ($prefillPdfPath !== ''): ?>
+            <div class="form-text">
+                Using library PDF: <code><?= htmlspecialchars($prefillPdfPath) ?></code>
+                <?php if ($prefillPdfUrl !== ''): ?>
+                    (<a href="<?= htmlspecialchars($prefillPdfUrl) ?>" target="_blank" rel="noopener">Open</a>)
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
     </div>
     <div class="mb-3">
         <label for="title" class="form-label">Title</label>
-        <input class="form-control" type="text" name="title" id="title" required>
+        <input class="form-control" type="text" name="title" id="title" value="<?= htmlspecialchars($prefillTitle) ?>" required>
     </div>
     <div class="mb-3">
         <label for="author" class="form-label">Author</label>
-        <input class="form-control" type="text" name="author" id="author">
+        <input class="form-control" type="text" name="author" id="author" value="<?= htmlspecialchars($prefillAuthor) ?>">
     </div>
     <div class="mb-3">
         <label for="year" class="form-label">Year</label>
-        <input class="form-control" type="number" name="year" id="year">
+        <input class="form-control" type="number" name="year" id="year" value="<?= htmlspecialchars($prefillYear) ?>">
     </div>
     <div class="mb-3">
         <label for="library_book_id" class="form-label">Library Book ID</label>
-        <input class="form-control" type="number" name="library_book_id" id="library_book_id">
+        <input class="form-control" type="number" name="library_book_id" id="library_book_id" value="<?= htmlspecialchars($prefillLibraryId) ?>">
     </div>
     <div class="mb-3">
         <label for="page_offset" class="form-label">Page Offset</label>
-        <input class="form-control" type="number" name="page_offset" id="page_offset" value="0">
+        <input class="form-control" type="number" name="page_offset" id="page_offset" value="<?= htmlspecialchars($prefillPageOffset) ?>">
     </div>
     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-upload me-2"></i>Ingest</button>
 </form>

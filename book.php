@@ -510,6 +510,27 @@ if (!empty($book['pubdate'])) {
     }
 }
 
+$researchPrefillUrl = '';
+if ($pdfFileRel !== '') {
+    $prefillParams = [
+        'prefill' => '1',
+        'title' => $book['title'] ?? '',
+        'library_book_id' => (string)($book['id'] ?? ''),
+        'pdf_path' => $pdfFileRel,
+    ];
+    if (!empty($book['authors'])) {
+        $prefillParams['author'] = $book['authors'];
+    }
+    if ($pubYear !== '') {
+        $prefillParams['year'] = $pubYear;
+    }
+    $libraryWebBase = rtrim(getLibraryWebPath(), '/');
+    if ($libraryWebBase !== '') {
+        $prefillParams['pdf_url'] = $libraryWebBase . '/' . ltrim($pdfFileRel, '/');
+    }
+    $researchPrefillUrl = 'research/research-ai.php?' . http_build_query($prefillParams, '', '&', PHP_QUERY_RFC3986);
+}
+
 
 // Fetch saved recommendations if present
 try {
@@ -549,21 +570,18 @@ if (!empty($book['path'])) {
 }
 $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
 $epubFileRel = '';
+$pdfFileRel = '';
 if (!$missingFile && $book['path'] !== '') {
     $epubPath = findBookFileByExtension($book['path'], 'epub');
     if ($epubPath !== null) {
         $epubFileRel = $epubPath;
     }
-}
-$pdfExists = false;
-if ($epubFileRel !== '') {
-    $libraryBasePath = rtrim(getLibraryPath(), '/');
-    $epubFullPath = $libraryBasePath . '/' . ltrim($epubFileRel, '/');
-    $pdfFullPath = dirname($epubFullPath) . '/' . pathinfo($epubFullPath, PATHINFO_FILENAME) . '.pdf';
-    if (file_exists($pdfFullPath)) {
-        $pdfExists = true;
+    $existingPdf = findBookFileByExtension($book['path'], 'pdf');
+    if ($existingPdf !== null) {
+        $pdfFileRel = $existingPdf;
     }
 }
+$pdfExists = ($pdfFileRel !== '');
 
 if ($sendRequested) {
     $remoteDir = getUserPreference(currentUser(), 'REMOTE_DIR', getPreference('REMOTE_DIR', ''));
@@ -729,6 +747,13 @@ if ($sendRequested) {
             <button type="button" id="ebookMetaBtn" class="btn btn-secondary">File Metadata</button>
             <?php endif; ?>
         </div>
+        <?php if ($pdfFileRel !== '' && $researchPrefillUrl !== ''): ?>
+            <div class="btn-group me-2 mb-2">
+                <a href="<?= htmlspecialchars($researchPrefillUrl) ?>" class="btn btn-secondary">
+                    <i class="fa-solid fa-flask me-1"></i> Research AI
+                </a>
+            </div>
+        <?php endif; ?>
         <?php if ($epubFileRel && !$pdfExists): ?>
             <form method="post" class="btn-group me-2 mb-2">
                 <input type="hidden" name="convert_to_pdf" value="1">
