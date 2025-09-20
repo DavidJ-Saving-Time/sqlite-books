@@ -7,6 +7,34 @@ function safe_filename(string $name, int $max_length = 150): string {
     return substr(trim($name), 0, $max_length);
 }
 
+function findBookFileByExtension(string $relativePath, string $extension): ?string {
+    $relativePath = ltrim($relativePath, '/');
+    if ($relativePath === '') {
+        return null;
+    }
+
+    $library = getLibraryPath();
+    $dir = rtrim($library . '/' . $relativePath, '/');
+    if (!is_dir($dir)) {
+        return null;
+    }
+
+    $extension = strtolower($extension);
+    foreach (glob($dir . '/*') as $file) {
+        if (!is_file($file)) {
+            continue;
+        }
+        if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) === $extension) {
+            if (strpos($file, $library . '/') === 0) {
+                return substr($file, strlen($library) + 1);
+            }
+            return ltrim($relativePath . '/' . basename($file), '/');
+        }
+    }
+
+    return null;
+}
+
 $pdo = getDatabaseConnection();
 
 $hasSubseries = false;
@@ -120,10 +148,58 @@ if ($returnItem !== '') {
 
 $updated = false;
 $sendMessage = null;
+$conversionMessage = null;
+$convertRequested = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['convert_to_pdf']));
 $sendRequested = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_to_device']));
 
+if ($convertRequested) {
+    $bookRelPath = ltrim((string)($book['path'] ?? ''), '/');
+    if ($bookRelPath === '') {
+        $conversionMessage = ['type' => 'danger', 'text' => 'Book path is not set in the library.'];
+    } else {
+        $epubRelative = findBookFileByExtension($bookRelPath, 'epub');
+        if ($epubRelative === null) {
+            $conversionMessage = ['type' => 'danger', 'text' => 'No EPUB file found to convert.'];
+        } else {
+            $libraryPath = getLibraryPath();
+            $inputFile = $libraryPath . '/' . $epubRelative;
+            $outputDir = dirname($inputFile);
+            $outputFile = $outputDir . '/' . pathinfo($inputFile, PATHINFO_FILENAME) . '.pdf';
+            if (file_exists($outputFile)) {
+                $conversionMessage = ['type' => 'warning', 'text' => 'PDF already exists: ' . basename($outputFile)];
+            } else {
+                $cmd = 'LANG=C ebook-convert ' . escapeshellarg($inputFile) . ' ' . escapeshellarg($outputFile) . ' 2>&1';
+                $cmdOutput = [];
+                $exitCode = 0;
+                exec($cmd, $cmdOutput, $exitCode);
+                clearstatcache(true, $outputFile);
+                if ($exitCode === 0 && file_exists($outputFile)) {
+                    @chmod($outputFile, 0664);
+                    $conversionMessage = ['type' => 'success', 'text' => 'PDF created: ' . basename($outputFile)];
+                } else {
+                    if ($exitCode !== 0 && file_exists($outputFile)) {
+                        @unlink($outputFile);
+                    }
+                    $error = '';
+                    foreach ($cmdOutput as $line) {
+                        $line = trim($line);
+                        if ($line !== '') {
+                            $error = $line;
+                            break;
+                        }
+                    }
+                    if ($error === '') {
+                        $error = 'ebook-convert failed to create PDF.';
+                    }
+                    $conversionMessage = ['type' => 'danger', 'text' => $error];
+                }
+            }
+        }
+    }
+}
+
 // Handle updates
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$convertRequested) {
     $title = $_POST['title'] ?? '';
     $authorsInput = trim($_POST['authors'] ?? '');
     $authorSortInput = trim($_POST['author_sort'] ?? '');
@@ -472,6 +548,13 @@ if (!empty($book['path'])) {
     $libraryDirPath .= '/' . $authorFolderName . '/' . $bookFolderName;
 }
 $ebookFileRel = $missingFile ? '' : firstBookFile($book['path']);
+$epubFileRel = '';
+if (!$missingFile && $book['path'] !== '') {
+    $epubPath = findBookFileByExtension($book['path'], 'epub');
+    if ($epubPath !== null) {
+        $epubFileRel = $epubPath;
+    }
+}
 
 if ($sendRequested) {
     $remoteDir = getUserPreference(currentUser(), 'REMOTE_DIR', getPreference('REMOTE_DIR', ''));
@@ -637,6 +720,14 @@ if ($sendRequested) {
             <button type="button" id="ebookMetaBtn" class="btn btn-secondary">File Metadata</button>
             <?php endif; ?>
         </div>
+        <?php if ($epubFileRel): ?>
+            <form method="post" class="btn-group me-2 mb-2">
+                <input type="hidden" name="convert_to_pdf" value="1">
+                <button type="submit" class="btn btn-secondary">
+                    <i class="fa-solid fa-file-pdf me-1"></i> Convert to PDF
+                </button>
+            </form>
+        <?php endif; ?>
         <?php if ($missingFile): ?>
             <div class="btn-group mb-2">
                 <button type="button" id="uploadFileButton" class="btn btn-secondary">Upload File</button>
@@ -720,6 +811,12 @@ if ($sendRequested) {
                     <?php if ($updated): ?>
                         <div class="alert alert-success">
                             <i class="fa-solid fa-circle-check me-2"></i> Book updated successfully
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($conversionMessage): ?>
+                        <div class="alert alert-<?= htmlspecialchars($conversionMessage['type']) ?>">
+                            <i class="fa-solid <?= $conversionMessage['type'] === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' ?> me-2"></i>
+                            <?= htmlspecialchars($conversionMessage['text']) ?>
                         </div>
                     <?php endif; ?>
                     <?php if ($sendMessage): ?>
