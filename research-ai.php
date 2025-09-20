@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS page_map (
 ");
 
 ensure_chunk_label_cols($db);
+ensure_chunks_fts($db);
+backfill_chunks_fts($db);
 
 // --- OCR hint: if needed, run ocrmypdf yourself before this script ---
 
@@ -281,6 +283,89 @@ function pack_floats(array $floats): string {
   $bin = '';
   foreach ($floats as $f) $bin .= pack('g', (float)$f); // little-endian float32
   return $bin;
+}
+
+function table_exists(PDO $db, string $table): bool {
+  $stmt = $db->prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = :name");
+  $stmt->execute([':name' => $table]);
+  return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+function chunk_pages_case_sql(string $alias): string {
+  $alias = trim($alias);
+  if ($alias !== '') {
+    $alias = rtrim($alias, '.') . '.';
+  }
+  return "CASE\n"
+       . "      WHEN {$alias}display_start_label IS NOT NULL AND {$alias}display_end_label IS NOT NULL\n"
+       . "           AND {$alias}display_start_label <> {$alias}display_end_label\n"
+       . "        THEN {$alias}display_start_label || '–' || {$alias}display_end_label\n"
+       . "      WHEN {$alias}page_start IS NOT NULL AND {$alias}page_end IS NOT NULL AND {$alias}page_start <> {$alias}page_end\n"
+       . "        THEN printf('%d–%d', {$alias}page_start, {$alias}page_end)\n"
+       . "      WHEN {$alias}page_start IS NOT NULL\n"
+       . "        THEN CAST({$alias}page_start AS TEXT)\n"
+       . "      ELSE ''\n"
+       . "    END";
+}
+
+function ensure_chunks_fts(PDO $db): void {
+  $db->exec("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(\n"
+    . "  id UNINDEXED,\n"
+    . "  item_id UNINDEXED,\n"
+    . "  pages UNINDEXED,\n"
+    . "  text,\n"
+    . "  tokenize='porter'\n"
+    . ");");
+
+  $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
+  $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
+  $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
+
+  $caseNew = chunk_pages_case_sql('new');
+  $db->exec("CREATE TRIGGER chunks_ai AFTER INSERT ON chunks BEGIN\n"
+    . "  INSERT INTO chunks_fts(rowid, id, text, item_id, pages)\n"
+    . "  VALUES (\n"
+    . "    new.id,\n"
+    . "    new.id,\n"
+    . "    new.text,\n"
+    . "    new.item_id,\n"
+    . "    {$caseNew}\n"
+    . "  );\n"
+    . "END;");
+
+  $db->exec("CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN\n"
+    . "  INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.id, old.text);\n"
+    . "END;");
+
+  $db->exec("CREATE TRIGGER chunks_au AFTER UPDATE ON chunks BEGIN\n"
+    . "  INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.id, old.text);\n"
+    . "  INSERT INTO chunks_fts(rowid, id, text, item_id, pages)\n"
+    . "  VALUES (\n"
+    . "    new.id,\n"
+    . "    new.id,\n"
+    . "    new.text,\n"
+    . "    new.item_id,\n"
+    . "    {$caseNew}\n"
+    . "  );\n"
+    . "END;");
+}
+
+function backfill_chunks_fts(PDO $db): void {
+  if (!table_exists($db, 'chunks') || !table_exists($db, 'chunks_fts')) {
+    return;
+  }
+
+  $caseExisting = chunk_pages_case_sql('c');
+  $db->exec("INSERT INTO chunks_fts(rowid, id, text, item_id, pages)\n"
+    . "SELECT c.id,\n"
+    . "       c.id,\n"
+    . "       c.text,\n"
+    . "       c.item_id,\n"
+    . "       {$caseExisting}\n"
+    . "FROM chunks c\n"
+    . "WHERE NOT EXISTS (\n"
+    . "    SELECT 1 FROM chunks_fts f WHERE f.rowid = c.id\n"
+    . ");");
 }
 
 function ensure_chunk_label_cols(PDO $db): void {
