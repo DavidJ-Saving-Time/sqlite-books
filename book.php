@@ -307,13 +307,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newPath = $newAuthorFolder . '/' . $oldBookFolder;
 
         if ($newPath !== $oldPath) {
-            $libraryPath = getLibraryWebPath();
+            $libraryPath = rtrim(getLibraryPath(), '/');
             $oldFullPath = $oldPath !== '' ? $libraryPath . '/' . $oldPath : '';
             $newFullPath = $libraryPath . '/' . $newPath;
+            $newAuthorDir = dirname($newFullPath);
 
             // Create target author directory if needed
-            if (!is_dir(dirname($newFullPath))) {
-                mkdir(dirname($newFullPath), 0777, true);
+            if (!is_dir($newAuthorDir)) {
+                mkdir($newAuthorDir, 0777, true);
             }
 
             // Move existing directory if present
@@ -321,8 +322,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 rename($oldFullPath, $newFullPath);
 
                 // Remove old author directory if empty
-                $oldAuthorDir = $libraryPath . '/' . $oldAuthorFolder;
-                if (is_dir($oldAuthorDir)) {
+                $oldAuthorDir = $oldAuthorFolder !== '' ? $libraryPath . '/' . $oldAuthorFolder : '';
+                if ($oldAuthorDir !== '' && is_dir($oldAuthorDir)) {
                     $entries = array_diff(scandir($oldAuthorDir), ['.', '..']);
                     if (count($entries) === 0) {
                         rmdir($oldAuthorDir);
