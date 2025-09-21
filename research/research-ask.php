@@ -88,7 +88,7 @@ function ftsSparseQuery(PDO $db, string $ftsExpr, array $bookIds = []): array {
         }
         $sql .= ' AND item_id IN (' . implode(',', $placeholders) . ')';
     }
-    $sql .= '\n        ORDER BY rank\n        LIMIT 100\n    ';
+    $sql .= "\n        ORDER BY rank\n        LIMIT 100\n    ";
 
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
