@@ -72,25 +72,39 @@ function makeFtsQueryOR(array $terms): string {
     $quoted = array_map(fn($t) => '"' . str_replace('"','""',$t) . '"', $terms);
     return implode(' OR ', $quoted);
 }
-function ftsSparseTop100(PDO $db, string $question): array {
-    $terms = ftsTermsFromQuestion($question);
-    // Try precise AND first
-    $qAND = makeFtsQueryAND($terms);
-    $stmt = $db->prepare("
+function ftsSparseQuery(PDO $db, string $ftsExpr, array $bookIds = []): array {
+    $sql = "
         SELECT id
         FROM chunks_fts
         WHERE chunks_fts MATCH :q
-        ORDER BY rank
-        LIMIT 100
-    ");
-    $stmt->execute([':q' => $qAND]);
-    $ids = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
+    ";
+    $params = [':q' => $ftsExpr];
+    if (!empty($bookIds)) {
+        $placeholders = [];
+        foreach ($bookIds as $idx => $bid) {
+            $param = ':bid' . $idx;
+            $placeholders[] = $param;
+            $params[$param] = $bid;
+        }
+        $sql .= ' AND item_id IN (' . implode(',', $placeholders) . ')';
+    }
+    $sql .= '\n        ORDER BY rank\n        LIMIT 100\n    ';
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
+}
+
+function ftsSparseTop100(PDO $db, string $question, array $bookIds = []): array {
+    $terms = ftsTermsFromQuestion($question);
+    // Try precise AND first
+    $qAND = makeFtsQueryAND($terms);
+    $ids = ftsSparseQuery($db, $qAND, $bookIds);
     if ($ids) return $ids;
 
     // Fallback to broader OR
     $qOR = makeFtsQueryOR($terms);
-    $stmt->execute([':q' => $qOR]);
-    return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
+    return ftsSparseQuery($db, $qOR, $bookIds);
 }
 
 function rrfFuse(array $bm25Ids, array $denseIds, int $k=60): array {
@@ -167,7 +181,7 @@ if ($question !== '') {
 // 2) Fetch candidate chunks with hybrid retrieval
 
 // Sparse (FTS5/BM25-like)
-$bm25Ids = ftsSparseTop100($db, $question);
+$bm25Ids = ftsSparseTop100($db, $question, $bookIds);
 
 // Dense (embeddings) — top 100 IDs by cosine
 $denseRows = [];
@@ -196,22 +210,29 @@ $fusedIds = rrfFuse($bm25Ids, $denseIds, 60);
 $candidateIds = array_slice($fusedIds, 0, 200);
 
 // Load candidate rows with all metadata & embeddings
-$placeholders = implode(',', array_fill(0, count($candidateIds), '?'));
-$sql = "SELECT
-    c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
-    c.display_start, c.display_end,
-    i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset,
-    i.library_book_id
-  FROM chunks c
-  JOIN items i ON c.item_id = i.id
-  WHERE c.id IN ($placeholders)";
-$stmt = $db->prepare($sql);
-$stmt->execute($candidateIds);
-$candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$candidates = [];
+if (!empty($candidateIds)) {
+    $placeholders = implode(',', array_fill(0, count($candidateIds), '?'));
+    $sql = "SELECT
+        c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
+        c.display_start, c.display_end,
+        i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset,
+        i.library_book_id
+      FROM chunks c
+      JOIN items i ON c.item_id = i.id
+      WHERE c.id IN ($placeholders)";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($candidateIds);
+    $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // Recompute cosine similarity for final ranking
 $top = [];
+$bookIdSet = !empty($bookIds) ? array_fill_keys($bookIds, true) : null;
 foreach ($candidates as $row) {
+    if ($bookIdSet !== null && !isset($bookIdSet[(int)$row['item_id']])) {
+        continue;
+    }
     $vec = unpack_floats($row['embedding']);
     if (!$vec) continue;
     $row['sim'] = cosine($qVec, $vec);
