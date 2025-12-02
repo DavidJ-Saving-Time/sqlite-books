@@ -1,10 +1,10 @@
 <?php
 /**
- * research-ai.php — Web front-end for book ingestion.
+ * research-ai.php — Web front-end for PDF ingestion.
  *
- * This script provides a simple HTML interface for uploading a PDF or EPUB and
+ * This script provides a simple HTML interface for uploading a PDF and
  * supplying the same options that the CLI version accepts. The ingest logic
- * remains the same: the uploaded book is split into chunks, embedded via the
+ * remains the same: the uploaded PDF is split into chunks, embedded via the
  * OpenAI Embeddings API, and stored in library.sqlite.
  *
  * Requirements:
@@ -191,9 +191,7 @@ if (
         exit;
     }
 
-    $tmpBookPath = null;
-    $tmpConvertedPdf = null;
-    $tempFiles = [];
+    $tmpPdf = null;
     $hasUpload = isset($_FILES['pdf']) && is_array($_FILES['pdf']) && ($_FILES['pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
 
     if ($hasUpload && ($_FILES['pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
@@ -201,106 +199,43 @@ if (
         exit;
     }
     if (!$hasUpload && $libraryPdfPath === '') {
-        out('Title and book file are required.');
+        out('Title and PDF are required.');
         exit;
     }
 
     if ($hasUpload) {
-        $tmpBookPath = tempnam(sys_get_temp_dir(), 'upload_book_');
-        if ($tmpBookPath === false) {
+        $tmpPdf = tempnam(sys_get_temp_dir(), 'upload_pdf_');
+        if ($tmpPdf === false) {
             out('Failed to create temporary file.');
             exit;
         }
-        if (!move_uploaded_file($_FILES['pdf']['tmp_name'], $tmpBookPath)) {
+        if (!move_uploaded_file($_FILES['pdf']['tmp_name'], $tmpPdf)) {
             out('Failed to move uploaded file.');
             exit;
         }
-        $tempFiles[] = $tmpBookPath;
-        out('Book uploaded.');
+        out('PDF uploaded.');
     } else {
         $libraryBase = rtrim(getLibraryPath(), '/');
         $candidatePath = $libraryBase . '/' . ltrim($libraryPdfPath, '/');
         $resolvedPath = realpath($candidatePath);
         if ($resolvedPath === false || strpos($resolvedPath, $libraryBase) !== 0) {
-            out('Library book path is invalid.');
+            out('Library PDF path is invalid.');
             exit;
         }
         if (!is_file($resolvedPath)) {
-            out('Library book not found.');
+            out('Library PDF not found.');
             exit;
         }
-        $tmpBookPath = tempnam(sys_get_temp_dir(), 'library_book_');
-        if ($tmpBookPath === false) {
+        $tmpPdf = tempnam(sys_get_temp_dir(), 'library_pdf_');
+        if ($tmpPdf === false) {
             out('Failed to create temporary file.');
             exit;
         }
-        if (!copy($resolvedPath, $tmpBookPath)) {
-            out('Failed to access library book.');
+        if (!copy($resolvedPath, $tmpPdf)) {
+            out('Failed to access library PDF.');
             exit;
         }
-        $tempFiles[] = $tmpBookPath;
-        out('Using library file from library.');
-    }
-
-    $uploadName = $hasUpload ? ($_FILES['pdf']['name'] ?? '') : basename($libraryPdfPath);
-    $detectedMime = null;
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    if ($finfo !== false) {
-        $detectedMime = finfo_file($finfo, $tmpBookPath) ?: null;
-        finfo_close($finfo);
-    }
-    $extension = strtolower(pathinfo($uploadName, PATHINFO_EXTENSION));
-
-    $bookType = null;
-    if ($detectedMime === 'application/pdf' || $extension === 'pdf') {
-        $bookType = 'pdf';
-    } elseif ($detectedMime === 'application/epub+zip' || $extension === 'epub') {
-        $bookType = 'epub';
-    }
-
-    if ($bookType === null) {
-        out('Unsupported file type. Please upload a PDF or EPUB file.');
-        foreach ($tempFiles as $tmp) {
-            @unlink($tmp);
-        }
-        exit;
-    }
-
-    if ($bookType === 'epub') {
-        $converter = trim(shell_exec('command -v ebook-convert')); // calibre tool
-        if ($converter === '') {
-            out('EPUB uploads require calibre\'s ebook-convert tool. Please install calibre or upload a PDF.');
-            foreach ($tempFiles as $tmp) {
-                @unlink($tmp);
-            }
-            exit;
-        }
-
-        $tmpConvertedPdf = tempnam(sys_get_temp_dir(), 'converted_pdf_');
-        if ($tmpConvertedPdf === false) {
-            out('Failed to create temporary PDF for converted EPUB.');
-            foreach ($tempFiles as $tmp) {
-                @unlink($tmp);
-            }
-            exit;
-        }
-        // tempnam creates the file; remove it so ebook-convert can write to the same path with .pdf extension
-        @unlink($tmpConvertedPdf);
-        $tmpConvertedPdf .= '.pdf';
-
-        $cmd = sprintf('%s %s %s 2>&1', escapeshellcmd($converter), escapeshellarg($tmpBookPath), escapeshellarg($tmpConvertedPdf));
-        exec($cmd, $convertOutput, $convertRc);
-        if ($convertRc !== 0 || !is_file($tmpConvertedPdf)) {
-            out('Failed to convert EPUB to PDF: ' . implode("\n", $convertOutput));
-            foreach ($tempFiles as $tmp) {
-                @unlink($tmp);
-            }
-            exit;
-        }
-
-        $tempFiles[] = $tmpConvertedPdf;
-        $tmpBookPath = $tmpConvertedPdf;
-        out('EPUB converted to PDF for ingestion.');
+        out('Using library PDF from library.');
     }
 
     // ---- API key and model ----
@@ -356,7 +291,7 @@ CREATE TABLE IF NOT EXISTS page_map (
 
     // ---- Page count via pdfinfo ----
     $info = [];
-    exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($tmpBookPath)), $info, $rc);
+    exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($tmpPdf)), $info, $rc);
     $pagesCount = 0;
     foreach ($info as $ln) if (preg_match('/^Pages:\s+(\d+)/', $ln, $m)) { $pagesCount = (int)$m[1]; break; }
     if ($pagesCount < 1) { out('ERROR: Could not read page count.'); exit; }
@@ -367,7 +302,7 @@ CREATE TABLE IF NOT EXISTS page_map (
     for ($p = 1; $p <= $pagesCount; $p++) {
         $tmp = tempnam(sys_get_temp_dir(), 'pg_');
         $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
-                       $p, $p, escapeshellarg($tmpBookPath), escapeshellarg($tmp));
+                       $p, $p, escapeshellarg($tmpPdf), escapeshellarg($tmp));
         exec($cmd, $_, $rc);
         $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
         @unlink($tmp);
@@ -384,7 +319,7 @@ CREATE TABLE IF NOT EXISTS page_map (
     $labels = [];
     $script = __DIR__ . '/extract_page_labels.py';
     if (is_file($script)) {
-        $outLabels = trim(shell_exec('python3 ' . escapeshellarg($script) . ' ' . escapeshellarg($tmpBookPath)));
+        $outLabels = trim(shell_exec('python3 ' . escapeshellarg($script) . ' ' . escapeshellarg($tmpPdf)));
         $labels = json_decode($outLabels, true) ?: [];
     }
     $insMap = $db->prepare("INSERT INTO page_map (item_id,pdf_page,display_label,display_number,method,confidence) VALUES (:i,:p,:l,:n,:m,:c)");
@@ -443,10 +378,8 @@ CREATE TABLE IF NOT EXISTS page_map (
     out("Ingest complete. Book ID: $itemId");
     out("Pages: $pagesCount | Chunks: " . count($chunks));
     echo "</pre>";
-    foreach ($tempFiles as $tmp) {
-        if (file_exists($tmp)) {
-            @unlink($tmp);
-        }
+    if ($tmpPdf !== null && file_exists($tmpPdf)) {
+        @unlink($tmpPdf);
     }
     exit;
 }
@@ -494,7 +427,7 @@ if (is_file($dbListPath)) {
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
 <?php endif; ?>
-<h1 class="mb-4"><i class="fa-solid fa-book-open me-2"></i>Research AI Book Ingest</h1>
+<h1 class="mb-4"><i class="fa-solid fa-file-pdf me-2"></i>Research AI PDF Ingest</h1>
 <?php if ($hasPrefill): ?>
     <div class="alert alert-info" role="alert">
         <i class="fa-solid fa-circle-info me-2"></i>
@@ -506,11 +439,11 @@ if (is_file($dbListPath)) {
         <input type="hidden" name="library_pdf_path" value="<?= htmlspecialchars($prefillPdfPath) ?>">
     <?php endif; ?>
     <div class="mb-3">
-        <label for="pdf" class="form-label">Book File</label>
-        <input class="form-control" type="file" name="pdf" id="pdf" accept="application/pdf,application/epub+zip,.pdf,.epub" <?= $prefillPdfPath === '' ? 'required' : '' ?>>
+        <label for="pdf" class="form-label">PDF File</label>
+        <input class="form-control" type="file" name="pdf" id="pdf" accept="application/pdf" <?= $prefillPdfPath === '' ? 'required' : '' ?>>
         <?php if ($prefillPdfPath !== ''): ?>
             <div class="form-text">
-                Using library file: <code><?= htmlspecialchars($prefillPdfPath) ?></code>
+                Using library PDF: <code><?= htmlspecialchars($prefillPdfPath) ?></code>
                 <?php if ($prefillPdfUrl !== ''): ?>
                     (<a href="<?= htmlspecialchars($prefillPdfUrl) ?>" target="_blank" rel="noopener">Open</a>)
                 <?php endif; ?>
