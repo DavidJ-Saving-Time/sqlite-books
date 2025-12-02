@@ -1005,6 +1005,11 @@ function detect_header_footer_label(string $txt): ?string {
 }
 
 function recompute_chunk_display_ranges(PDO $db, int $itemId): void {
+  // Skip recomputation if prerequisite tables are missing (e.g., older databases)
+  if (!table_exists($db, 'chunks') || !table_exists($db, 'page_map') || !table_exists($db, 'items')) {
+    return;
+  }
+
   $dispOffset = (int)$db->query("SELECT display_offset FROM items WHERE id=".$itemId)->fetchColumn();
   $q = $db->prepare("SELECT id, page_start, page_end FROM chunks WHERE item_id=:i");
   $q->execute([':i'=>$itemId]);
