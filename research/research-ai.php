@@ -113,6 +113,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 $params = [':id' => $deleteId];
 
                 if (table_exists($db, 'chunks')) {
+                    ensure_chunk_label_cols($db);
+                    ensure_chunks_fts($db);
+                }
+
+                if (table_exists($db, 'chunks')) {
                     $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
                 } else {
                     $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
