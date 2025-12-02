@@ -1,14 +1,15 @@
 <?php
 /**
- * research-ai.php — Web front-end for PDF ingestion.
+ * research-ai.php — Web front-end for PDF/EPUB ingestion.
  *
- * This script provides a simple HTML interface for uploading a PDF and
- * supplying the same options that the CLI version accepts. The ingest logic
- * remains the same: the uploaded PDF is split into chunks, embedded via the
- * OpenAI Embeddings API, and stored in library.sqlite.
+ * This script provides a simple HTML interface for uploading a book file
+ * (PDF or EPUB) and supplying the same options that the CLI version accepts.
+ * The ingest logic remains the same: the uploaded book is split into chunks,
+ * embedded via the OpenAI Embeddings API, and stored in library.sqlite.
  *
  * Requirements:
  *   - poppler-utils (pdftotext, pdfinfo)
+ *   - ebook-convert (from Calibre) for EPUB extraction
  *   - PHP PDO SQLite
  *   - OPENAI_API_KEY set in environment
  *   - Optional: OPENAI_EMBED_MODEL (default text-embedding-3-small)
@@ -43,18 +44,18 @@ if (isset($_GET['library_book_id'])) {
         $prefillLibraryId = $libraryCandidate;
     }
 }
-$prefillPdfPath = '';
+$prefillFilePath = '';
 if (isset($_GET['pdf_path'])) {
-    $prefillPdfPath = trim((string)$_GET['pdf_path']);
-    $prefillPdfPath = str_replace(["\r", "\n"], '', $prefillPdfPath);
+    $prefillFilePath = trim((string)$_GET['pdf_path']);
+    $prefillFilePath = str_replace(["\r", "\n"], '', $prefillFilePath);
 }
-$prefillPdfUrl = '';
+$prefillFileUrl = '';
 if (isset($_GET['pdf_url'])) {
-    $prefillPdfUrl = trim((string)$_GET['pdf_url']);
-    $prefillPdfUrl = str_replace(["\r", "\n"], '', $prefillPdfUrl);
+    $prefillFileUrl = trim((string)$_GET['pdf_url']);
+    $prefillFileUrl = str_replace(["\r", "\n"], '', $prefillFileUrl);
 }
-if ($prefillPdfUrl === '' && $prefillPdfPath !== '') {
-    $prefillPdfUrl = rtrim(getLibraryWebPath(), '/') . '/' . ltrim($prefillPdfPath, '/');
+if ($prefillFileUrl === '' && $prefillFilePath !== '') {
+    $prefillFileUrl = rtrim(getLibraryWebPath(), '/') . '/' . ltrim($prefillFilePath, '/');
 }
 $prefillPageOffset = '0';
 if (isset($_GET['page_offset'])) {
@@ -63,7 +64,7 @@ if (isset($_GET['page_offset'])) {
         $prefillPageOffset = $offsetCandidate === '' ? '0' : $offsetCandidate;
     }
 }
-$hasPrefill = ($prefillTitle !== '' || $prefillAuthor !== '' || $prefillYear !== '' || $prefillLibraryId !== '' || $prefillPdfPath !== '' || $prefillPageOffset !== '0');
+$hasPrefill = ($prefillTitle !== '' || $prefillAuthor !== '' || $prefillYear !== '' || $prefillLibraryId !== '' || $prefillFilePath !== '' || $prefillPageOffset !== '0');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POST['delete_id'] !== '') {
     $deleteId = (int)$_POST['delete_id'];
@@ -183,59 +184,68 @@ if (
     $displayOffset = (int)($_POST['page_offset'] ?? 0);
     $libraryBookId = isset($_POST['library_book_id']) && $_POST['library_book_id'] !== ''
         ? (int)$_POST['library_book_id'] : null;
-    $libraryPdfPath = trim($_POST['library_pdf_path'] ?? '');
-    $libraryPdfPath = str_replace(["\r", "\n"], '', $libraryPdfPath);
+    $libraryFilePath = trim($_POST['library_file_path'] ?? '');
+    $libraryFilePath = str_replace(["\r", "\n"], '', $libraryFilePath);
 
     if ($bookTitle === '') {
         out('Title is required.');
         exit;
     }
 
-    $tmpPdf = null;
-    $hasUpload = isset($_FILES['pdf']) && is_array($_FILES['pdf']) && ($_FILES['pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+    $tmpBookPath = null;
+    $hasUpload = isset($_FILES['book_file']) && is_array($_FILES['book_file']) && ($_FILES['book_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
 
-    if ($hasUpload && ($_FILES['pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        out('Upload failed: ' . $_FILES['pdf']['error']);
+    if ($hasUpload && ($_FILES['book_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        out('Upload failed: ' . $_FILES['book_file']['error']);
         exit;
     }
-    if (!$hasUpload && $libraryPdfPath === '') {
-        out('Title and PDF are required.');
+    if (!$hasUpload && $libraryFilePath === '') {
+        out('Title and file are required.');
         exit;
     }
 
     if ($hasUpload) {
-        $tmpPdf = tempnam(sys_get_temp_dir(), 'upload_pdf_');
-        if ($tmpPdf === false) {
+        $tmpBookPath = tempnam(sys_get_temp_dir(), 'upload_book_');
+        if ($tmpBookPath === false) {
             out('Failed to create temporary file.');
             exit;
         }
-        if (!move_uploaded_file($_FILES['pdf']['tmp_name'], $tmpPdf)) {
+        if (!move_uploaded_file($_FILES['book_file']['tmp_name'], $tmpBookPath)) {
             out('Failed to move uploaded file.');
             exit;
         }
-        out('PDF uploaded.');
+        out('File uploaded.');
     } else {
         $libraryBase = rtrim(getLibraryPath(), '/');
-        $candidatePath = $libraryBase . '/' . ltrim($libraryPdfPath, '/');
+        $candidatePath = $libraryBase . '/' . ltrim($libraryFilePath, '/');
         $resolvedPath = realpath($candidatePath);
         if ($resolvedPath === false || strpos($resolvedPath, $libraryBase) !== 0) {
-            out('Library PDF path is invalid.');
+            out('Library file path is invalid.');
             exit;
         }
         if (!is_file($resolvedPath)) {
-            out('Library PDF not found.');
+            out('Library file not found.');
             exit;
         }
-        $tmpPdf = tempnam(sys_get_temp_dir(), 'library_pdf_');
-        if ($tmpPdf === false) {
+        $tmpBookPath = tempnam(sys_get_temp_dir(), 'library_book_');
+        if ($tmpBookPath === false) {
             out('Failed to create temporary file.');
             exit;
         }
-        if (!copy($resolvedPath, $tmpPdf)) {
-            out('Failed to access library PDF.');
+        if (!copy($resolvedPath, $tmpBookPath)) {
+            out('Failed to access library file.');
             exit;
         }
-        out('Using library PDF from library.');
+        out('Using library file from library.');
+    }
+
+    $detectedType = detect_file_type($tmpBookPath, $hasUpload ? ($_FILES['book_file']['name'] ?? '') : ($libraryFilePath ?? ''));
+    if ($detectedType === null) {
+        out('Unsupported file type. Only PDF and EPUB are allowed.');
+        if ($tmpBookPath !== null && file_exists($tmpBookPath)) {
+            @unlink($tmpBookPath);
+        }
+        exit;
     }
 
     // ---- API key and model ----
@@ -289,61 +299,91 @@ CREATE TABLE IF NOT EXISTS page_map (
     backfill_chunks_fts($db);
     out('Database ready.');
 
-    // ---- Page count via pdfinfo ----
-    $info = [];
-    exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($tmpPdf)), $info, $rc);
-    $pagesCount = 0;
-    foreach ($info as $ln) if (preg_match('/^Pages:\s+(\d+)/', $ln, $m)) { $pagesCount = (int)$m[1]; break; }
-    if ($pagesCount < 1) { out('ERROR: Could not read page count.'); exit; }
-    out("Pages: $pagesCount");
-
-    // ---- Extract text per page ----
     $pages = [];
-    for ($p = 1; $p <= $pagesCount; $p++) {
-        $tmp = tempnam(sys_get_temp_dir(), 'pg_');
-        $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
-                       $p, $p, escapeshellarg($tmpPdf), escapeshellarg($tmp));
+    $pagesCount = 0;
+    $tmpTextPath = null;
+
+    if ($detectedType === 'pdf') {
+        // ---- Page count via pdfinfo ----
+        $info = [];
+        exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($tmpBookPath)), $info, $rc);
+        $pagesCount = 0;
+        foreach ($info as $ln) if (preg_match('/^Pages:\s+(\d+)/', $ln, $m)) { $pagesCount = (int)$m[1]; break; }
+        if ($pagesCount < 1) { out('ERROR: Could not read page count.'); exit; }
+        out("Pages: $pagesCount");
+
+        // ---- Extract text per page ----
+        for ($p = 1; $p <= $pagesCount; $p++) {
+            $tmp = tempnam(sys_get_temp_dir(), 'pg_');
+            $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
+                           $p, $p, escapeshellarg($tmpBookPath), escapeshellarg($tmp));
+            exec($cmd, $_, $rc);
+            $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
+            @unlink($tmp);
+            $pages[$p] = normalize_whitespace($txt ?? '');
+        }
+        out('Text extracted.');
+    } else {
+        // ---- EPUB extraction ----
+        $tmpTextPath = tempnam(sys_get_temp_dir(), 'epub_txt_');
+        if ($tmpTextPath === false) { out('Failed to create temporary EPUB text file.'); exit; }
+        $cmd = sprintf('ebook-convert %s %s', escapeshellarg($tmpBookPath), escapeshellarg($tmpTextPath));
         exec($cmd, $_, $rc);
-        $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
-        @unlink($tmp);
-        $pages[$p] = normalize_whitespace($txt ?? '');
+        if ($rc !== 0 || !file_exists($tmpTextPath)) {
+            if ($tmpTextPath !== null && file_exists($tmpTextPath)) {
+                @unlink($tmpTextPath);
+            }
+            out('ERROR: EPUB text extraction failed.');
+            exit;
+        }
+        $rawText = file_get_contents($tmpTextPath) ?: '';
+        $pages = split_epub_text($rawText);
+        $pagesCount = count($pages);
+        if ($pagesCount < 1) { out('ERROR: EPUB appears empty after extraction.'); exit; }
+        out("Sections: $pagesCount");
     }
-    out('Text extracted.');
 
     // ---- Insert item ----
     $insItem = $db->prepare("INSERT INTO items (title, author, year, display_offset, library_book_id) VALUES (:t,:a,:y,:o,:l)");
     $insItem->execute([':t'=>$bookTitle, ':a'=>$bookAuthor, ':y'=>$bookYear, ':o'=>$displayOffset, ':l'=>$libraryBookId]);
     $itemId = (int)$db->lastInsertId();
 
-    // ---- Populate page_map with PDF labels or detected headers/footers ----
-    $labels = [];
-    $script = __DIR__ . '/extract_page_labels.py';
-    if (is_file($script)) {
-        $outLabels = trim(shell_exec('python3 ' . escapeshellarg($script) . ' ' . escapeshellarg($tmpPdf)));
-        $labels = json_decode($outLabels, true) ?: [];
-    }
+    // ---- Populate page_map with PDF labels or synthetic EPUB sections ----
     $insMap = $db->prepare("INSERT INTO page_map (item_id,pdf_page,display_label,display_number,method,confidence) VALUES (:i,:p,:l,:n,:m,:c)");
-    for ($p=1; $p <= $pagesCount; $p++) {
-        $label = $labels[$p] ?? detect_header_footer_label($pages[$p]);
-        $method = isset($labels[$p]) ? 'pdf_label' : ($label ? 'header' : 'offset');
-        $conf = isset($labels[$p]) ? 1.0 : ($label ? 0.6 : 0.4);
-        $num = null;
-        if ($label !== null) {
-            if (preg_match('/^\d+$/', $label)) {
-                $num = (int)$label;
-            } elseif (preg_match('/^[ivxlcdm]+$/i', $label)) {
-                $num = roman_to_int($label);
-            } else {
-                $label = null;
+    if ($detectedType === 'pdf') {
+        $labels = [];
+        $script = __DIR__ . '/extract_page_labels.py';
+        if (is_file($script)) {
+            $outLabels = trim(shell_exec('python3 ' . escapeshellarg($script) . ' ' . escapeshellarg($tmpBookPath)));
+            $labels = json_decode($outLabels, true) ?: [];
+        }
+        for ($p=1; $p <= $pagesCount; $p++) {
+            $label = $labels[$p] ?? detect_header_footer_label($pages[$p]);
+            $method = isset($labels[$p]) ? 'pdf_label' : ($label ? 'header' : 'offset');
+            $conf = isset($labels[$p]) ? 1.0 : ($label ? 0.6 : 0.4);
+            $num = null;
+            if ($label !== null) {
+                if (preg_match('/^\d+$/', $label)) {
+                    $num = (int)$label;
+                } elseif (preg_match('/^[ivxlcdm]+$/i', $label)) {
+                    $num = roman_to_int($label);
+                } else {
+                    $label = null;
+                }
             }
+            if ($label === null) {
+                $num = $p + $displayOffset;
+                $label = (string)$num;
+                $method = 'offset';
+                $conf = 0.4;
+            }
+            $insMap->execute([':i'=>$itemId, ':p'=>$p, ':l'=>$label, ':n'=>$num, ':m'=>$method, ':c'=>$conf]);
         }
-        if ($label === null) {
-            $num = $p + $displayOffset;
-            $label = (string)$num;
-            $method = 'offset';
-            $conf = 0.4;
+    } else {
+        for ($p=1; $p <= $pagesCount; $p++) {
+            $label = 'Section ' . $p;
+            $insMap->execute([':i'=>$itemId, ':p'=>$p, ':l'=>$label, ':n'=>$p, ':m'=>'section', ':c'=>0.8]);
         }
-        $insMap->execute([':i'=>$itemId, ':p'=>$p, ':l'=>$label, ':n'=>$num, ':m'=>$method, ':c'=>$conf]);
     }
 
     // ---- Build chunks ----
@@ -378,8 +418,11 @@ CREATE TABLE IF NOT EXISTS page_map (
     out("Ingest complete. Book ID: $itemId");
     out("Pages: $pagesCount | Chunks: " . count($chunks));
     echo "</pre>";
-    if ($tmpPdf !== null && file_exists($tmpPdf)) {
-        @unlink($tmpPdf);
+    if ($tmpBookPath !== null && file_exists($tmpBookPath)) {
+        @unlink($tmpBookPath);
+    }
+    if ($tmpTextPath !== null && file_exists($tmpTextPath)) {
+        @unlink($tmpTextPath);
     }
     exit;
 }
@@ -427,7 +470,7 @@ if (is_file($dbListPath)) {
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
 <?php endif; ?>
-<h1 class="mb-4"><i class="fa-solid fa-file-pdf me-2"></i>Research AI PDF Ingest</h1>
+<h1 class="mb-4"><i class="fa-solid fa-book me-2"></i>Research AI Ingest</h1>
 <?php if ($hasPrefill): ?>
     <div class="alert alert-info" role="alert">
         <i class="fa-solid fa-circle-info me-2"></i>
@@ -435,17 +478,17 @@ if (is_file($dbListPath)) {
     </div>
 <?php endif; ?>
 <form method="POST" enctype="multipart/form-data">
-    <?php if ($prefillPdfPath !== ''): ?>
-        <input type="hidden" name="library_pdf_path" value="<?= htmlspecialchars($prefillPdfPath) ?>">
+    <?php if ($prefillFilePath !== ''): ?>
+        <input type="hidden" name="library_file_path" value="<?= htmlspecialchars($prefillFilePath) ?>">
     <?php endif; ?>
     <div class="mb-3">
-        <label for="pdf" class="form-label">PDF File</label>
-        <input class="form-control" type="file" name="pdf" id="pdf" accept="application/pdf" <?= $prefillPdfPath === '' ? 'required' : '' ?>>
-        <?php if ($prefillPdfPath !== ''): ?>
+        <label for="book_file" class="form-label">Book File (PDF or EPUB)</label>
+        <input class="form-control" type="file" name="book_file" id="book_file" accept="application/pdf,application/epub+zip" <?= $prefillFilePath === '' ? 'required' : '' ?>>
+        <?php if ($prefillFilePath !== ''): ?>
             <div class="form-text">
-                Using library PDF: <code><?= htmlspecialchars($prefillPdfPath) ?></code>
-                <?php if ($prefillPdfUrl !== ''): ?>
-                    (<a href="<?= htmlspecialchars($prefillPdfUrl) ?>" target="_blank" rel="noopener">Open</a>)
+                Using library file: <code><?= htmlspecialchars($prefillFilePath) ?></code>
+                <?php if ($prefillFileUrl !== ''): ?>
+                    (<a href="<?= htmlspecialchars($prefillFileUrl) ?>" target="_blank" rel="noopener">Open</a>)
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -587,6 +630,31 @@ if (editModal) {
 </body>
 </html>
 <?php
+function detect_file_type(string $path, string $originalName = ''): ?string {
+  $mime = mime_content_type($path) ?: '';
+  $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+  if ($mime === 'application/pdf' || $ext === 'pdf') return 'pdf';
+  if ($mime === 'application/epub+zip' || $ext === 'epub') return 'epub';
+  return null;
+}
+
+function split_epub_text(string $text): array {
+  $text = str_replace(["\r\n", "\r"], "\n", $text);
+  $parts = preg_split('/\n{2,}/u', $text);
+  $pages = [];
+  $i = 1;
+  foreach ($parts as $part) {
+    $norm = normalize_whitespace($part);
+    if ($norm === '') continue;
+    $pages[$i++] = $norm;
+  }
+  if (!$pages && trim($text) !== '') {
+    $pages[1] = normalize_whitespace($text);
+  }
+  return $pages;
+}
+
 function normalize_whitespace(string $s): string {
   if ($s === '') return '';
   $s = preg_replace("/[ \t]+/u", " ", $s);
