@@ -120,7 +120,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !(isset($_POST['delete_id']) && $_POST['delete_id'] !== '')) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id']) && $_POST['edit_id'] !== '') {
+    $editId = (int)$_POST['edit_id'];
+    $newTitle = trim($_POST['edit_title'] ?? '');
+    $newAuthor = trim($_POST['edit_author'] ?? '');
+    $newYearRaw = trim($_POST['edit_year'] ?? '');
+    $newLibraryIdRaw = trim($_POST['edit_library_book_id'] ?? '');
+
+    if ($newTitle === '') {
+        $errorMessage = 'Title is required when editing a book.';
+    } else {
+        $newYear = $newYearRaw === '' ? null : (int)$newYearRaw;
+        $newLibraryId = $newLibraryIdRaw === '' ? null : (int)$newLibraryIdRaw;
+
+        $dbPath = __DIR__ . '/../library.sqlite';
+        if (!is_file($dbPath)) {
+            $errorMessage = 'Database not found. Cannot edit book.';
+        } else {
+            try {
+                $db = new PDO('sqlite:' . $dbPath);
+                $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+                if (!table_exists($db, 'items')) {
+                    throw new RuntimeException('Required table "items" is missing.');
+                }
+
+                $selectStmt = $db->prepare('SELECT id FROM items WHERE id = :id');
+                $selectStmt->execute([':id' => $editId]);
+                $existing = $selectStmt->fetch(PDO::FETCH_ASSOC);
+
+                if (!$existing) {
+                    $errorMessage = 'Book not found; nothing updated.';
+                } else {
+                    $update = $db->prepare('UPDATE items SET title = :t, author = :a, year = :y, library_book_id = :l WHERE id = :id');
+                    $update->bindValue(':t', $newTitle, PDO::PARAM_STR);
+                    $update->bindValue(':a', $newAuthor, PDO::PARAM_STR);
+                    $update->bindValue(':y', $newYear, $newYear === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+                    $update->bindValue(':l', $newLibraryId, $newLibraryId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+                    $update->bindValue(':id', $editId, PDO::PARAM_INT);
+                    $update->execute();
+
+                    $statusMessage = 'Book details updated successfully.';
+                }
+            } catch (Exception $e) {
+                $errorMessage = 'Failed to edit book: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST'
+    && !(isset($_POST['delete_id']) && $_POST['delete_id'] !== '')
+    && !(isset($_POST['edit_id']) && $_POST['edit_id'] !== '')
+) {
     echo "<pre>"; // easier to show streaming output
 
     // ---- Collect form data ----
@@ -449,6 +502,17 @@ if (is_file($dbListPath)) {
             <td><?= htmlspecialchars($b['endpoint']) ?></td>
             <td><?= htmlspecialchars($b['created_at']) ?></td>
             <td>
+                <button type="button"
+                        class="btn btn-sm btn-secondary me-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#editBookModal"
+                        data-id="<?= (int)$b['id'] ?>"
+                        data-title="<?= htmlspecialchars($b['title']) ?>"
+                        data-author="<?= htmlspecialchars($b['author']) ?>"
+                        data-year="<?= htmlspecialchars($b['year']) ?>"
+                        data-library="<?= htmlspecialchars($b['library_book_id'] ?? '') ?>">
+                    <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+                </button>
                 <form method="POST" class="d-inline" onsubmit="return confirm('Delete this book and all embeddings?');">
                     <input type="hidden" name="delete_id" value="<?= (int)$b['id'] ?>">
                     <button type="submit" class="btn btn-sm btn-danger">
@@ -465,6 +529,61 @@ if (is_file($dbListPath)) {
 <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<div class="modal fade" id="editBookModal" tabindex="-1" aria-labelledby="editBookModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editBookModalLabel"><i class="fa-solid fa-pen-to-square me-2"></i>Edit Book</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="edit_id" id="edit_id">
+                    <div class="mb-3">
+                        <label for="edit_title" class="form-label">Title</label>
+                        <input class="form-control" type="text" name="edit_title" id="edit_title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_author" class="form-label">Author</label>
+                        <input class="form-control" type="text" name="edit_author" id="edit_author">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_year" class="form-label">Year</label>
+                        <input class="form-control" type="number" name="edit_year" id="edit_year">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_library_book_id" class="form-label">Library Book ID</label>
+                        <input class="form-control" type="number" name="edit_library_book_id" id="edit_library_book_id">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+const editModal = document.getElementById('editBookModal');
+if (editModal) {
+    editModal.addEventListener('show.bs.modal', event => {
+        const button = event.relatedTarget;
+        if (!button) return;
+        const id = button.getAttribute('data-id') || '';
+        const title = button.getAttribute('data-title') || '';
+        const author = button.getAttribute('data-author') || '';
+        const year = button.getAttribute('data-year') || '';
+        const library = button.getAttribute('data-library') || '';
+
+        editModal.querySelector('#edit_id').value = id;
+        editModal.querySelector('#edit_title').value = title;
+        editModal.querySelector('#edit_author').value = author;
+        editModal.querySelector('#edit_year').value = year;
+        editModal.querySelector('#edit_library_book_id').value = library;
+    });
+}
+</script>
 </body>
 </html>
 <?php
