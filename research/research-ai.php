@@ -213,7 +213,7 @@ if (
             out('Failed to move uploaded file.');
             exit;
         }
-        out('PDF uploaded.');
+        out('File uploaded.');
     } else {
         $libraryBase = rtrim(getLibraryPath(), '/');
         $candidatePath = $libraryBase . '/' . ltrim($libraryPdfPath, '/');
@@ -235,8 +235,11 @@ if (
             out('Failed to access library PDF.');
             exit;
         }
-        out('Using library PDF from library.');
+        out('Using library file from library.');
     }
+
+    $bookType = detect_book_type($tmpPdf, $hasUpload ? ($_FILES['pdf']['name'] ?? '') : $libraryPdfPath);
+    out('Detected file type: ' . strtoupper($bookType));
 
     // ---- API key and model ----
     $apiKey = getenv('OPENAI_API_KEY');
@@ -289,26 +292,38 @@ CREATE TABLE IF NOT EXISTS page_map (
     backfill_chunks_fts($db);
     out('Database ready.');
 
-    // ---- Page count via pdfinfo ----
-    $info = [];
-    exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($tmpPdf)), $info, $rc);
-    $pagesCount = 0;
-    foreach ($info as $ln) if (preg_match('/^Pages:\s+(\d+)/', $ln, $m)) { $pagesCount = (int)$m[1]; break; }
-    if ($pagesCount < 1) { out('ERROR: Could not read page count.'); exit; }
-    out("Pages: $pagesCount");
+    if ($bookType === 'pdf') {
+        // ---- Page count via pdfinfo ----
+        $info = [];
+        exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($tmpPdf)), $info, $rc);
+        $pagesCount = 0;
+        foreach ($info as $ln) if (preg_match('/^Pages:\s+(\d+)/', $ln, $m)) { $pagesCount = (int)$m[1]; break; }
+        if ($pagesCount < 1) { out('ERROR: Could not read page count.'); exit; }
+        out("Pages: $pagesCount");
 
-    // ---- Extract text per page ----
-    $pages = [];
-    for ($p = 1; $p <= $pagesCount; $p++) {
-        $tmp = tempnam(sys_get_temp_dir(), 'pg_');
-        $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
-                       $p, $p, escapeshellarg($tmpPdf), escapeshellarg($tmp));
-        exec($cmd, $_, $rc);
-        $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
-        @unlink($tmp);
-        $pages[$p] = normalize_whitespace($txt ?? '');
+        // ---- Extract text per page ----
+        $pages = [];
+        for ($p = 1; $p <= $pagesCount; $p++) {
+            $tmp = tempnam(sys_get_temp_dir(), 'pg_');
+            $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
+                           $p, $p, escapeshellarg($tmpPdf), escapeshellarg($tmp));
+            exec($cmd, $_, $rc);
+            $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
+            @unlink($tmp);
+            $pages[$p] = normalize_whitespace($txt ?? '');
+        }
+        out('Text extracted.');
+    } else {
+        try {
+            $pages = extract_epub_pages($tmpPdf);
+            $pagesCount = count($pages);
+        } catch (Exception $e) {
+            out('ERROR: ' . $e->getMessage());
+            exit;
+        }
+        if ($pagesCount < 1) { out('ERROR: Could not read EPUB spine.'); exit; }
+        out("Sections extracted: $pagesCount");
     }
-    out('Text extracted.');
 
     // ---- Insert item ----
     $insItem = $db->prepare("INSERT INTO items (title, author, year, display_offset, library_book_id) VALUES (:t,:a,:y,:o,:l)");
@@ -318,15 +333,21 @@ CREATE TABLE IF NOT EXISTS page_map (
     // ---- Populate page_map with PDF labels or detected headers/footers ----
     $labels = [];
     $script = __DIR__ . '/extract_page_labels.py';
-    if (is_file($script)) {
+    if ($bookType === 'pdf' && is_file($script)) {
         $outLabels = trim(shell_exec('python3 ' . escapeshellarg($script) . ' ' . escapeshellarg($tmpPdf)));
         $labels = json_decode($outLabels, true) ?: [];
     }
     $insMap = $db->prepare("INSERT INTO page_map (item_id,pdf_page,display_label,display_number,method,confidence) VALUES (:i,:p,:l,:n,:m,:c)");
     for ($p=1; $p <= $pagesCount; $p++) {
-        $label = $labels[$p] ?? detect_header_footer_label($pages[$p]);
-        $method = isset($labels[$p]) ? 'pdf_label' : ($label ? 'header' : 'offset');
-        $conf = isset($labels[$p]) ? 1.0 : ($label ? 0.6 : 0.4);
+        if ($bookType === 'pdf') {
+            $label = $labels[$p] ?? detect_header_footer_label($pages[$p]);
+            $method = isset($labels[$p]) ? 'pdf_label' : ($label ? 'header' : 'offset');
+            $conf = isset($labels[$p]) ? 1.0 : ($label ? 0.6 : 0.4);
+        } else {
+            $label = null;
+            $method = 'epub_spine';
+            $conf = 0.5;
+        }
         $num = null;
         if ($label !== null) {
             if (preg_match('/^\d+$/', $label)) {
@@ -439,11 +460,11 @@ if (is_file($dbListPath)) {
         <input type="hidden" name="library_pdf_path" value="<?= htmlspecialchars($prefillPdfPath) ?>">
     <?php endif; ?>
     <div class="mb-3">
-        <label for="pdf" class="form-label">PDF File</label>
-        <input class="form-control" type="file" name="pdf" id="pdf" accept="application/pdf" <?= $prefillPdfPath === '' ? 'required' : '' ?>>
+        <label for="pdf" class="form-label">Book File (PDF or EPUB)</label>
+        <input class="form-control" type="file" name="pdf" id="pdf" accept="application/pdf,application/epub+zip,.pdf,.epub" <?= $prefillPdfPath === '' ? 'required' : '' ?>>
         <?php if ($prefillPdfPath !== ''): ?>
             <div class="form-text">
-                Using library PDF: <code><?= htmlspecialchars($prefillPdfPath) ?></code>
+                Using library file: <code><?= htmlspecialchars($prefillPdfPath) ?></code>
                 <?php if ($prefillPdfUrl !== ''): ?>
                     (<a href="<?= htmlspecialchars($prefillPdfUrl) ?>" target="_blank" rel="noopener">Open</a>)
                 <?php endif; ?>
@@ -587,6 +608,99 @@ if (editModal) {
 </body>
 </html>
 <?php
+function detect_book_type(string $path, string $originalName = ''): string {
+  $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+  $finfo = finfo_open(FILEINFO_MIME_TYPE);
+  $mime = $finfo ? finfo_file($finfo, $path) : null;
+  if ($finfo) finfo_close($finfo);
+
+  $isPdf = ($mime && stripos($mime, 'pdf') !== false) || $ext === 'pdf';
+  $isEpub = ($mime === 'application/epub+zip') || $ext === 'epub';
+
+  if ($isPdf) return 'pdf';
+  if ($isEpub) return 'epub';
+
+  throw new RuntimeException('Unsupported file type. Only PDF and EPUB are supported.');
+}
+
+function extract_epub_pages(string $epubPath): array {
+  $zip = new ZipArchive();
+  if ($zip->open($epubPath) !== true) {
+    throw new RuntimeException('Failed to open EPUB archive.');
+  }
+
+  $containerXml = $zip->getFromName('META-INF/container.xml');
+  if ($containerXml === false) {
+    $zip->close();
+    throw new RuntimeException('Invalid EPUB: missing container.xml.');
+  }
+
+  $container = @simplexml_load_string($containerXml);
+  if ($container === false || !isset($container->rootfiles->rootfile[0]['full-path'])) {
+    $zip->close();
+    throw new RuntimeException('Invalid EPUB: unable to parse container.xml.');
+  }
+
+  $rootPath = (string)$container->rootfiles->rootfile[0]['full-path'];
+  if ($rootPath === '') {
+    $zip->close();
+    throw new RuntimeException('Invalid EPUB: missing package document path.');
+  }
+
+  $opfXml = $zip->getFromName($rootPath);
+  if ($opfXml === false) {
+    $zip->close();
+    throw new RuntimeException('Invalid EPUB: missing package document.');
+  }
+
+  $opf = @simplexml_load_string($opfXml);
+  if ($opf === false) {
+    $zip->close();
+    throw new RuntimeException('Invalid EPUB: unable to parse package document.');
+  }
+
+  $namespaces = $opf->getNamespaces(true);
+  $opf->registerXPathNamespace('opf', $namespaces[''] ?? 'http://www.idpf.org/2007/opf');
+
+  $manifestItems = [];
+  foreach ($opf->xpath('//opf:manifest/opf:item') as $item) {
+    $attrs = $item->attributes();
+    $manifestItems[(string)$attrs['id']] = (string)$attrs['href'];
+  }
+
+  $baseDir = trim(dirname($rootPath), '/');
+  if ($baseDir !== '') {
+    $baseDir .= '/';
+  }
+
+  $pages = [];
+  $pageNo = 1;
+  foreach ($opf->xpath('//opf:spine/opf:itemref') as $itemref) {
+    $idref = (string)$itemref['idref'];
+    if (!isset($manifestItems[$idref])) continue;
+    $href = $baseDir . $manifestItems[$idref];
+    $href = preg_replace('#/+#', '/', $href);
+    $content = $zip->getFromName($href);
+    if ($content === false) continue;
+    $pages[$pageNo++] = epub_content_to_text($content);
+  }
+
+  $zip->close();
+
+  if (!$pages) {
+    throw new RuntimeException('Invalid EPUB: no spine content found.');
+  }
+
+  return $pages;
+}
+
+function epub_content_to_text(string $html): string {
+  $html = preg_replace('#<script\b[^>]*>.*?</script>#is', ' ', $html);
+  $html = preg_replace('#<style\b[^>]*>.*?</style>#is', ' ', $html);
+  $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_XML1, 'UTF-8');
+  return normalize_whitespace($text);
+}
+
 function normalize_whitespace(string $s): string {
   if ($s === '') return '';
   $s = preg_replace("/[ \t]+/u", " ", $s);
