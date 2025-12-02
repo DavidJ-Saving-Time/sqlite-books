@@ -25,6 +25,26 @@ function out($msg) {
     echo $msg . "\n"; @ob_flush(); @flush();
 }
 
+function ensure_extension(string $path, string $extension): string {
+    $extension = ltrim($extension, '.');
+    if ($extension === '') {
+        return $path;
+    }
+
+    $lowerPath = strtolower($path);
+    $targetSuffix = '.' . strtolower($extension);
+    if (substr($lowerPath, -strlen($targetSuffix)) === $targetSuffix) {
+        return $path;
+    }
+
+    $newPath = $path . $targetSuffix;
+    if (@rename($path, $newPath)) {
+        return $newPath;
+    }
+
+    return $path;
+}
+
 $statusMessage = null;
 $errorMessage = null;
 
@@ -186,6 +206,8 @@ if (
         ? (int)$_POST['library_book_id'] : null;
     $libraryFilePath = trim($_POST['library_file_path'] ?? '');
     $libraryFilePath = str_replace(["\r", "\n"], '', $libraryFilePath);
+    $originalName = $hasUpload ? ($_FILES['book_file']['name'] ?? '') : basename($libraryFilePath);
+    $sourceExtension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
     if ($bookTitle === '') {
         out('Title is required.');
@@ -210,6 +232,7 @@ if (
             out('Failed to create temporary file.');
             exit;
         }
+        $tmpBookPath = ensure_extension($tmpBookPath, $sourceExtension);
         if (!move_uploaded_file($_FILES['book_file']['tmp_name'], $tmpBookPath)) {
             out('Failed to move uploaded file.');
             exit;
@@ -232,6 +255,7 @@ if (
             out('Failed to create temporary file.');
             exit;
         }
+        $tmpBookPath = ensure_extension($tmpBookPath, $sourceExtension);
         if (!copy($resolvedPath, $tmpBookPath)) {
             out('Failed to access library file.');
             exit;
@@ -246,6 +270,12 @@ if (
             @unlink($tmpBookPath);
         }
         exit;
+    }
+
+    if ($detectedType === 'epub') {
+        $tmpBookPath = ensure_extension($tmpBookPath, 'epub');
+    } elseif ($detectedType === 'pdf') {
+        $tmpBookPath = ensure_extension($tmpBookPath, 'pdf');
     }
 
     // ---- API key and model ----
