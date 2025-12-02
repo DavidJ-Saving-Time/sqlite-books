@@ -325,19 +325,31 @@ CREATE TABLE IF NOT EXISTS page_map (
         out('Text extracted.');
     } else {
         // ---- EPUB extraction ----
-        $tmpTextPath = tempnam(sys_get_temp_dir(), 'epub_txt_');
-        if ($tmpTextPath === false) { out('Failed to create temporary EPUB text file.'); exit; }
-        $cmd = sprintf('ebook-convert %s %s', escapeshellarg($tmpBookPath), escapeshellarg($tmpTextPath));
-        exec($cmd, $_, $rc);
-        if ($rc !== 0 || !file_exists($tmpTextPath)) {
+        $tmpTextBase = tempnam(sys_get_temp_dir(), 'epub_txt_');
+        if ($tmpTextBase === false) { out('Failed to create temporary EPUB text file.'); exit; }
+        $tmpTextPath = $tmpTextBase . '.txt';
+        @unlink($tmpTextBase); // remove extension-less placeholder so Calibre sees .txt output
+
+        $cmd = sprintf('ebook-convert %s %s 2>&1', escapeshellarg($tmpBookPath), escapeshellarg($tmpTextPath));
+        $convertOutput = [];
+        exec($cmd, $convertOutput, $rc);
+        if ($rc === 0 && file_exists($tmpTextPath)) {
+            $rawText = file_get_contents($tmpTextPath) ?: '';
+            @unlink($tmpTextPath);
+            $pages = split_epub_text($rawText);
+        } else {
+            $errorDetail = $convertOutput ? (' Details: ' . substr(implode('\n', $convertOutput), 0, 500)) : '';
+            out('ebook-convert failed to extract text.' . $errorDetail);
             if ($tmpTextPath !== null && file_exists($tmpTextPath)) {
                 @unlink($tmpTextPath);
             }
-            out('ERROR: EPUB text extraction failed.');
-            exit;
+            $fallbackPages = extract_epub_sections($tmpBookPath);
+            if ($fallbackPages === null) {
+                out('ERROR: EPUB text extraction failed.');
+                exit;
+            }
+            $pages = $fallbackPages;
         }
-        $rawText = file_get_contents($tmpTextPath) ?: '';
-        $pages = split_epub_text($rawText);
         $pagesCount = count($pages);
         if ($pagesCount < 1) { out('ERROR: EPUB appears empty after extraction.'); exit; }
         out("Sections: $pagesCount");
@@ -637,6 +649,80 @@ function detect_file_type(string $path, string $originalName = ''): ?string {
   if ($mime === 'application/pdf' || $ext === 'pdf') return 'pdf';
   if ($mime === 'application/epub+zip' || $ext === 'epub') return 'epub';
   return null;
+}
+
+function extract_epub_sections(string $epubPath): ?array {
+  $zip = new ZipArchive();
+  if ($zip->open($epubPath) !== true) return null;
+
+  $opfPath = read_epub_opf_path($zip);
+  if ($opfPath === null) { $zip->close(); return null; }
+
+  $opfXml = $zip->getFromName($opfPath);
+  if ($opfXml === false) { $zip->close(); return null; }
+
+  $opf = @simplexml_load_string($opfXml);
+  if ($opf === false) { $zip->close(); return null; }
+
+  $manifest = [];
+  foreach ($opf->manifest->item as $item) {
+    $id = (string)$item['id'];
+    $href = (string)$item['href'];
+    $media = (string)$item['media-type'];
+    if ($id !== '' && $href !== '') {
+      $manifest[$id] = ['href' => $href, 'media' => $media];
+    }
+  }
+
+  $pages = [];
+  $baseDir = rtrim(dirname($opfPath), '/\\');
+  foreach ($opf->spine->itemref as $itemref) {
+    $idref = (string)$itemref['idref'];
+    if ($idref === '' || !isset($manifest[$idref])) continue;
+
+    $href = $manifest[$idref]['href'];
+    $media = $manifest[$idref]['media'];
+    $isHtml = preg_match('/html/i', $media) || preg_match('/\.(x?html)$/i', $href);
+    if (!$isHtml) continue;
+
+    $zipPath = ($baseDir === '' || $baseDir === '.') ? $href : $baseDir . '/' . $href;
+    $zipPath = ltrim($zipPath, '/');
+    $content = $zip->getFromName($zipPath);
+    if ($content === false) continue;
+
+    $text = extract_text_from_html($content);
+    $norm = normalize_whitespace($text);
+    if ($norm !== '') {
+      $pages[] = $norm;
+    }
+  }
+
+  $zip->close();
+
+  if (!$pages) return null;
+  return array_combine(range(1, count($pages)), $pages);
+}
+
+function read_epub_opf_path(ZipArchive $zip): ?string {
+  $containerXml = $zip->getFromName('META-INF/container.xml');
+  if ($containerXml === false) return null;
+  $container = @simplexml_load_string($containerXml);
+  if ($container === false) return null;
+  foreach ($container->rootfiles->rootfile as $rootfile) {
+    $path = (string)$rootfile['full-path'];
+    if ($path !== '') return $path;
+  }
+  return null;
+}
+
+function extract_text_from_html(string $html): string {
+  $html = preg_replace('/<(br|hr)\s*\\?\/?>/i', "\n", $html);
+  $html = preg_replace('/<\/(p|div|h[1-6]|li|blockquote|section|article|tr)>/i', "</$1>\n", $html);
+  $html = preg_replace('/<(p|div|h[1-6]|li|blockquote|section|article|tr)[^>]*>/i', "\n<$1>", $html);
+
+  $text = strip_tags($html);
+  $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+  return trim($text);
 }
 
 function split_epub_text(string $text): array {
