@@ -120,11 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                     // are removed with the supported "delete" marker instead of a direct delete,
                     // which can raise "SQL logic error" when the virtual table schema differs
                     // across SQLite builds.
-                    $ftsRebuilt = ensure_chunks_fts($db);
-                    if ($ftsRebuilt) {
-                        backfill_chunks_fts($db);
-                        $debugDeletes[] = 'Rebuilt chunks_fts to match the current chunk schema.';
-                    }
+                    ensure_chunks_fts($db);
                 } elseif (!$hasChunks) {
                     $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
                 } elseif (!$hasChunkFts) {
