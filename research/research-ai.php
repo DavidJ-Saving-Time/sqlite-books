@@ -936,7 +936,45 @@ function chunk_pages_case_sql(string $alias): string {
        . "    END";
 }
 
-function ensure_chunks_fts(PDO $db): void {
+function ensure_chunks_fts(PDO $db): bool {
+  $expectedCols = ['id', 'item_id', 'pages', 'text'];
+  $hasFts = table_exists($db, 'chunks_fts');
+  $needsRecreate = !$hasFts;
+
+  if ($hasFts) {
+    $cols = [];
+    $stmt = $db->query("PRAGMA table_info(chunks_fts)");
+    if ($stmt) {
+      while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if (isset($row['name'])) {
+          $cols[] = $row['name'];
+        }
+      }
+    }
+
+    $sortedCols = $cols;
+    sort($sortedCols);
+    $sortedExpected = $expectedCols;
+    sort($sortedExpected);
+
+    if ($sortedCols !== $sortedExpected) {
+      $needsRecreate = true;
+    }
+  }
+
+  if ($needsRecreate) {
+    // Clean up any previous triggers and FTS support tables before recreating
+    $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
+    $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
+    $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_data;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_idx;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_content;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_docsize;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_config;");
+  }
+
   $db->exec("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(\n"
     . "  id UNINDEXED,\n"
     . "  item_id UNINDEXED,\n"
@@ -976,6 +1014,8 @@ function ensure_chunks_fts(PDO $db): void {
     . "    {$caseNew}\n"
     . "  );\n"
     . "END;");
+
+  return $needsRecreate;
 }
 
 function backfill_chunks_fts(PDO $db): void {
