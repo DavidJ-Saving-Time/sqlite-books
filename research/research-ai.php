@@ -95,7 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
         try {
             $db = new PDO('sqlite:' . $dbPath);
             $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $db->beginTransaction();
 
             if (!table_exists($db, 'items')) {
                 throw new RuntimeException('Required table "items" is missing.');
@@ -106,51 +105,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
             $book = $sel->fetch(PDO::FETCH_ASSOC);
 
             if (!$book) {
-                $db->rollBack();
                 $errorMessage = 'Book not found; nothing deleted.';
             } else {
-                $debugDeletes = [];
+                // The persistent "SQL logic error" is almost always raised by chunks_fts when
+                // delete triggers fire and the shadow tables are corrupted or mismatched.
+                // Remove every FTS structure *before* deleting, then rebuild after commit so the
+                // main delete path never touches the broken virtual table.
+                $ftsRemoved = teardown_chunks_fts($db);
+
+                $db->beginTransaction();
+
                 $params = [':id' => $deleteId];
-
                 $hasChunks = table_exists($db, 'chunks');
-                $hasChunkFts = table_exists($db, 'chunks_fts');
-
-                if ($hasChunkFts) {
-                    try {
-                        // FTS5 tables only allow deletion by rowid/docid. Use the chunk IDs
-                        // as rowids to remove all entries for the target item.
-                        $db->prepare('DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE item_id = :id)')->execute($params);
-                    } catch (Exception $e) {
-                        // If the FTS table schema is older (missing expected columns) or otherwise
-                        // incompatible, don't let it block the primary deletion path.
-                        $debugDeletes[] = 'Skipped deleting from chunks_fts due to schema mismatch: ' . $e->getMessage();
-                    }
-                } else {
-                    $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
-                }
 
                 if ($hasChunks) {
-                    // Triggers on the chunks table will remove rows from chunks_fts when
-                    // rows are deleted here. Keeping to the trigger order avoids FTS5
-                    // "SQL logic error" failures caused by direct deletes against the
-                    // virtual table.
                     $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
-                } else {
-                    $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
                 }
 
                 if (table_exists($db, 'page_map')) {
                     $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
-                } else {
-                    $debugDeletes[] = 'Skipped deleting from missing table "page_map".';
                 }
 
                 $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
                 $db->commit();
 
-                $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
-                if ($debugDeletes) {
-                    $statusMessage .= ' ' . implode(' ', $debugDeletes);
+                // Recreate a clean FTS table from the remaining chunk rows so search continues to work.
+                rebuild_chunks_fts_from_scratch($db);
+
+                $statusMessage = sprintf('Deleted "%s" (ID %d) and rebuilt search index.', $book['title'], $deleteId);
+                if ($ftsRemoved) {
+                    $statusMessage .= ' Old chunks_fts structures were removed to avoid logic errors.';
                 }
             }
         } catch (Exception $e) {
@@ -940,7 +924,45 @@ function chunk_pages_case_sql(string $alias): string {
        . "    END";
 }
 
-function ensure_chunks_fts(PDO $db): void {
+function ensure_chunks_fts(PDO $db): bool {
+  $expectedCols = ['id', 'item_id', 'pages', 'text'];
+  $hasFts = table_exists($db, 'chunks_fts');
+  $needsRecreate = !$hasFts;
+
+  if ($hasFts) {
+    $cols = [];
+    $stmt = $db->query("PRAGMA table_info(chunks_fts)");
+    if ($stmt) {
+      while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if (isset($row['name'])) {
+          $cols[] = $row['name'];
+        }
+      }
+    }
+
+    $sortedCols = $cols;
+    sort($sortedCols);
+    $sortedExpected = $expectedCols;
+    sort($sortedExpected);
+
+    if ($sortedCols !== $sortedExpected) {
+      $needsRecreate = true;
+    }
+  }
+
+  if ($needsRecreate) {
+    // Clean up any previous triggers and FTS support tables before recreating
+    $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
+    $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
+    $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_data;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_idx;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_content;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_docsize;");
+    $db->exec("DROP TABLE IF EXISTS chunks_fts_config;");
+  }
+
   $db->exec("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(\n"
     . "  id UNINDEXED,\n"
     . "  item_id UNINDEXED,\n"
@@ -980,6 +1002,53 @@ function ensure_chunks_fts(PDO $db): void {
     . "    {$caseNew}\n"
     . "  );\n"
     . "END;");
+
+  return $needsRecreate;
+}
+
+function teardown_chunks_fts(PDO $db): bool {
+  $hadAny = false;
+
+  foreach (['chunks_ai', 'chunks_ad', 'chunks_au'] as $trigger) {
+    $db->exec("DROP TRIGGER IF EXISTS {$trigger};");
+  }
+
+  foreach ([
+    'chunks_fts',
+    'chunks_fts_data',
+    'chunks_fts_idx',
+    'chunks_fts_content',
+    'chunks_fts_docsize',
+    'chunks_fts_config',
+  ] as $table) {
+    if (table_exists($db, $table)) {
+      $hadAny = true;
+    }
+    $db->exec("DROP TABLE IF EXISTS {$table};");
+  }
+
+  return $hadAny;
+}
+
+function rebuild_chunks_fts_from_scratch(PDO $db): void {
+  if (!table_exists($db, 'chunks')) {
+    return;
+  }
+
+  // Drop everything related to the virtual table to avoid hidden corruption
+  // (e.g., leftover shadow tables or triggers from older SQLite builds).
+  $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
+  $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
+  $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_data;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_idx;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_content;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_docsize;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_config;");
+
+  ensure_chunks_fts($db);
+  backfill_chunks_fts($db);
 }
 
 function backfill_chunks_fts(PDO $db): void {
@@ -1010,6 +1079,20 @@ function roman_to_int(string $roman): int {
     $prev = $curr;
   }
   return $total;
+}
+
+function looks_like_fts_logic_error(string $message): bool {
+  $msg = strtolower($message);
+  if (strpos($msg, 'logic error') === false) {
+    return false;
+  }
+
+  return strpos($msg, 'fts') !== false
+      || strpos($msg, 'virtual table') !== false
+      || strpos($msg, 'malformed') !== false
+      || strpos($msg, 'shadow') !== false
+      || strpos($msg, 'contentless') !== false
+      || strpos($msg, 'vtab') !== false;
 }
 
 function detect_header_footer_label(string $txt): ?string {
