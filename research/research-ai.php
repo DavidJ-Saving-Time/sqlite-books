@@ -95,59 +95,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
         try {
             $db = new PDO('sqlite:' . $dbPath);
             $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $db->beginTransaction();
 
-            if (!table_exists($db, 'items')) {
-                throw new RuntimeException('Required table "items" is missing.');
+            $deleteAttempts = 0;
+            $lastException = null;
+
+            while ($deleteAttempts < 2) {
+                $deleteAttempts++;
+                $lastException = null;
+
+                try {
+                    $db->beginTransaction();
+
+                    if (!table_exists($db, 'items')) {
+                        throw new RuntimeException('Required table "items" is missing.');
+                    }
+
+                    $sel = $db->prepare('SELECT title FROM items WHERE id = :id');
+                    $sel->execute([':id' => $deleteId]);
+                    $book = $sel->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$book) {
+                        $db->rollBack();
+                        $errorMessage = 'Book not found; nothing deleted.';
+                        break;
+                    }
+
+                    $debugDeletes = [];
+                    $params = [':id' => $deleteId];
+
+                    $hasChunks = table_exists($db, 'chunks');
+                    $hasChunkFts = table_exists($db, 'chunks_fts');
+
+                    if ($hasChunks && $hasChunkFts) {
+                        // Make sure the triggers exist before deleting from chunks so the FTS rows
+                        // are removed with the supported "delete" marker instead of a direct delete,
+                        // which can raise "SQL logic error" when the virtual table schema differs
+                        // across SQLite builds.
+                        $ftsRebuilt = ensure_chunks_fts($db);
+                        if ($ftsRebuilt) {
+                            backfill_chunks_fts($db);
+                            $debugDeletes[] = 'Rebuilt chunks_fts to match the current chunk schema.';
+                        }
+                    } elseif (!$hasChunks) {
+                        $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
+                    } elseif (!$hasChunkFts) {
+                        $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
+                    }
+
+                    if ($hasChunks) {
+                        // Triggers on the chunks table will remove rows from chunks_fts when
+                        // rows are deleted here. Keeping to the trigger order avoids FTS5
+                        // "SQL logic error" failures caused by direct deletes against the
+                        // virtual table.
+                        $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
+                    }
+
+                    if (table_exists($db, 'page_map')) {
+                        $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
+                    } else {
+                        $debugDeletes[] = 'Skipped deleting from missing table "page_map".';
+                    }
+
+                    $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
+                    $db->commit();
+
+                    $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
+                    if ($debugDeletes) {
+                        $statusMessage .= ' ' . implode(' ', $debugDeletes);
+                    }
+                    break; // success
+                } catch (Exception $deleteError) {
+                    $lastException = $deleteError;
+                    if ($db->inTransaction()) {
+                        $db->rollBack();
+                    }
+
+                    // Logic errors from FTS can stem from corrupted or mismatched virtual tables.
+                    // Attempt a full rebuild and retry once so users are not stuck with the opaque
+                    // "SQL logic error" message.
+                    if ($deleteAttempts < 2 && looks_like_fts_logic_error($deleteError->getMessage())) {
+                        rebuild_chunks_fts_from_scratch($db);
+                        continue; // retry delete once after rebuild
+                    }
+                    throw $deleteError;
+                }
             }
 
-            $sel = $db->prepare('SELECT title FROM items WHERE id = :id');
-            $sel->execute([':id' => $deleteId]);
-            $book = $sel->fetch(PDO::FETCH_ASSOC);
-
-            if (!$book) {
-                $db->rollBack();
-                $errorMessage = 'Book not found; nothing deleted.';
-            } else {
-                $debugDeletes = [];
-                $params = [':id' => $deleteId];
-
-                $hasChunks = table_exists($db, 'chunks');
-                $hasChunkFts = table_exists($db, 'chunks_fts');
-
-                if ($hasChunks && $hasChunkFts) {
-                    // Make sure the triggers exist before deleting from chunks so the FTS rows
-                    // are removed with the supported "delete" marker instead of a direct delete,
-                    // which can raise "SQL logic error" when the virtual table schema differs
-                    // across SQLite builds.
-                    ensure_chunks_fts($db);
-                } elseif (!$hasChunks) {
-                    $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
-                } elseif (!$hasChunkFts) {
-                    $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
-                }
-
-                if ($hasChunks) {
-                    // Triggers on the chunks table will remove rows from chunks_fts when
-                    // rows are deleted here. Keeping to the trigger order avoids FTS5
-                    // "SQL logic error" failures caused by direct deletes against the
-                    // virtual table.
-                    $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
-                }
-
-                if (table_exists($db, 'page_map')) {
-                    $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
-                } else {
-                    $debugDeletes[] = 'Skipped deleting from missing table "page_map".';
-                }
-
-                $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
-                $db->commit();
-
-                $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
-                if ($debugDeletes) {
-                    $statusMessage .= ' ' . implode(' ', $debugDeletes);
-                }
+            if ($lastException) {
+                throw $lastException;
             }
         } catch (Exception $e) {
             if (isset($db) && $db->inTransaction()) {
@@ -1018,6 +1053,27 @@ function ensure_chunks_fts(PDO $db): bool {
   return $needsRecreate;
 }
 
+function rebuild_chunks_fts_from_scratch(PDO $db): void {
+  if (!table_exists($db, 'chunks')) {
+    return;
+  }
+
+  // Drop everything related to the virtual table to avoid hidden corruption
+  // (e.g., leftover shadow tables or triggers from older SQLite builds).
+  $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
+  $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
+  $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_data;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_idx;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_content;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_docsize;");
+  $db->exec("DROP TABLE IF EXISTS chunks_fts_config;");
+
+  ensure_chunks_fts($db);
+  backfill_chunks_fts($db);
+}
+
 function backfill_chunks_fts(PDO $db): void {
   if (!table_exists($db, 'chunks') || !table_exists($db, 'chunks_fts')) {
     return;
@@ -1046,6 +1102,20 @@ function roman_to_int(string $roman): int {
     $prev = $curr;
   }
   return $total;
+}
+
+function looks_like_fts_logic_error(string $message): bool {
+  $msg = strtolower($message);
+  if (strpos($msg, 'logic error') === false) {
+    return false;
+  }
+
+  return strpos($msg, 'fts') !== false
+      || strpos($msg, 'virtual table') !== false
+      || strpos($msg, 'malformed') !== false
+      || strpos($msg, 'shadow') !== false
+      || strpos($msg, 'contentless') !== false
+      || strpos($msg, 'vtab') !== false;
 }
 
 function detect_header_footer_label(string $txt): ?string {
