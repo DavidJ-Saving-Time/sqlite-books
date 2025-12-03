@@ -96,13 +96,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
             $db = new PDO('sqlite:' . $dbPath);
             $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            if (!table_exists($db, 'items')) {
-                throw new RuntimeException('Required table "items" is missing.');
-            }
+            $deleteAttempts = 0;
+            $lastException = null;
 
-            $sel = $db->prepare('SELECT title FROM items WHERE id = :id');
-            $sel->execute([':id' => $deleteId]);
-            $book = $sel->fetch(PDO::FETCH_ASSOC);
+            while ($deleteAttempts < 2) {
+                $deleteAttempts++;
+                $lastException = null;
 
             if (!$book) {
                 $errorMessage = 'Book not found; nothing deleted.';
@@ -126,8 +125,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                     $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
                 }
 
-                $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
-                $db->commit();
+                    $debugDeletes = [];
+                    $params = [':id' => $deleteId];
+
+                    $hasChunks = table_exists($db, 'chunks');
+                    $hasChunkFts = table_exists($db, 'chunks_fts');
+
+                    if ($hasChunks && $hasChunkFts) {
+                        // Make sure the triggers exist before deleting from chunks so the FTS rows
+                        // are removed with the supported "delete" marker instead of a direct delete,
+                        // which can raise "SQL logic error" when the virtual table schema differs
+                        // across SQLite builds.
+                        $ftsRebuilt = ensure_chunks_fts($db);
+                        if ($ftsRebuilt) {
+                            backfill_chunks_fts($db);
+                            $debugDeletes[] = 'Rebuilt chunks_fts to match the current chunk schema.';
+                        }
+                    } elseif (!$hasChunks) {
+                        $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
+                    } elseif (!$hasChunkFts) {
+                        $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
+                    }
 
                 // Recreate a clean FTS table from the remaining chunk rows so search continues to work.
                 rebuild_chunks_fts_from_scratch($db);
@@ -136,6 +154,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 if ($ftsRemoved) {
                     $statusMessage .= ' Old chunks_fts structures were removed to avoid logic errors.';
                 }
+            }
+
+            if ($lastException) {
+                throw $lastException;
             }
         } catch (Exception $e) {
             if (isset($db) && $db->inTransaction()) {
