@@ -103,22 +103,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 $deleteAttempts++;
                 $lastException = null;
 
-                try {
-                    $db->beginTransaction();
+            if (!$book) {
+                $errorMessage = 'Book not found; nothing deleted.';
+            } else {
+                // The persistent "SQL logic error" is almost always raised by chunks_fts when
+                // delete triggers fire and the shadow tables are corrupted or mismatched.
+                // Remove every FTS structure *before* deleting, then rebuild after commit so the
+                // main delete path never touches the broken virtual table.
+                $ftsRemoved = teardown_chunks_fts($db);
 
-                    if (!table_exists($db, 'items')) {
-                        throw new RuntimeException('Required table "items" is missing.');
-                    }
+                $db->beginTransaction();
 
-                    $sel = $db->prepare('SELECT title FROM items WHERE id = :id');
-                    $sel->execute([':id' => $deleteId]);
-                    $book = $sel->fetch(PDO::FETCH_ASSOC);
+                $params = [':id' => $deleteId];
+                $hasChunks = table_exists($db, 'chunks');
 
-                    if (!$book) {
-                        $db->rollBack();
-                        $errorMessage = 'Book not found; nothing deleted.';
-                        break;
-                    }
+                if ($hasChunks) {
+                    $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
+                }
+
+                if (table_exists($db, 'page_map')) {
+                    $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
+                }
 
                     $debugDeletes = [];
                     $params = [':id' => $deleteId];
@@ -142,42 +147,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                         $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
                     }
 
-                    if ($hasChunks) {
-                        // Triggers on the chunks table will remove rows from chunks_fts when
-                        // rows are deleted here. Keeping to the trigger order avoids FTS5
-                        // "SQL logic error" failures caused by direct deletes against the
-                        // virtual table.
-                        $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
-                    }
+                // Recreate a clean FTS table from the remaining chunk rows so search continues to work.
+                rebuild_chunks_fts_from_scratch($db);
 
-                    if (table_exists($db, 'page_map')) {
-                        $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
-                    } else {
-                        $debugDeletes[] = 'Skipped deleting from missing table "page_map".';
-                    }
-
-                    $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
-                    $db->commit();
-
-                    $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
-                    if ($debugDeletes) {
-                        $statusMessage .= ' ' . implode(' ', $debugDeletes);
-                    }
-                    break; // success
-                } catch (Exception $deleteError) {
-                    $lastException = $deleteError;
-                    if ($db->inTransaction()) {
-                        $db->rollBack();
-                    }
-
-                    // Logic errors from FTS can stem from corrupted or mismatched virtual tables.
-                    // Attempt a full rebuild and retry once so users are not stuck with the opaque
-                    // "SQL logic error" message.
-                    if ($deleteAttempts < 2 && looks_like_fts_logic_error($deleteError->getMessage())) {
-                        rebuild_chunks_fts_from_scratch($db);
-                        continue; // retry delete once after rebuild
-                    }
-                    throw $deleteError;
+                $statusMessage = sprintf('Deleted "%s" (ID %d) and rebuilt search index.', $book['title'], $deleteId);
+                if ($ftsRemoved) {
+                    $statusMessage .= ' Old chunks_fts structures were removed to avoid logic errors.';
                 }
             }
 
@@ -1051,6 +1026,30 @@ function ensure_chunks_fts(PDO $db): bool {
     . "END;");
 
   return $needsRecreate;
+}
+
+function teardown_chunks_fts(PDO $db): bool {
+  $hadAny = false;
+
+  foreach (['chunks_ai', 'chunks_ad', 'chunks_au'] as $trigger) {
+    $db->exec("DROP TRIGGER IF EXISTS {$trigger};");
+  }
+
+  foreach ([
+    'chunks_fts',
+    'chunks_fts_data',
+    'chunks_fts_idx',
+    'chunks_fts_content',
+    'chunks_fts_docsize',
+    'chunks_fts_config',
+  ] as $table) {
+    if (table_exists($db, $table)) {
+      $hadAny = true;
+    }
+    $db->exec("DROP TABLE IF EXISTS {$table};");
+  }
+
+  return $hadAny;
 }
 
 function rebuild_chunks_fts_from_scratch(PDO $db): void {
