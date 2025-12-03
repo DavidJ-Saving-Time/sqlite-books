@@ -117,9 +117,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
 
                 if ($hasChunkFts) {
                     try {
-                        $db->prepare('DELETE FROM chunks_fts WHERE item_id = :id')->execute($params);
+                        $ftsColumns = $db->query('PRAGMA table_info(chunks_fts)')->fetchAll(PDO::FETCH_ASSOC);
+                        $ftsColumnNames = array_map('strtolower', array_column($ftsColumns, 'name'));
+
+                        if (in_array('item_id', $ftsColumnNames, true)) {
+                            $db->prepare('DELETE FROM chunks_fts WHERE item_id = :id')->execute($params);
+                        } elseif (in_array('id', $ftsColumnNames, true)) {
+                            // Older schema without item_id: fall back to removing entries by chunk id.
+                            $db->prepare('DELETE FROM chunks_fts WHERE id IN (SELECT id FROM chunks WHERE item_id = :id)')->execute($params);
+                        } else {
+                            // Last resort: clear by rowid to avoid schema-specific column references.
+                            $db->prepare('DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE item_id = :id)')->execute($params);
+                            $debugDeletes[] = 'Deleted from chunks_fts using rowid fallback due to unknown schema.';
+                        }
                     } catch (Exception $e) {
-                        // If the FTS table schema is older (missing item_id) or otherwise
+                        // If the FTS table schema is older (missing expected columns) or otherwise
                         // incompatible, don't let it block the primary deletion path.
                         $debugDeletes[] = 'Skipped deleting from chunks_fts due to schema mismatch: ' . $e->getMessage();
                     }
