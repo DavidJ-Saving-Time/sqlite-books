@@ -113,6 +113,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 $params = [':id' => $deleteId];
 
                 $hasChunks = table_exists($db, 'chunks');
+                $hasChunkFts = table_exists($db, 'chunks_fts');
+
+                if ($hasChunkFts) {
+                    try {
+                        // FTS5 tables only allow deletion by rowid/docid. Use the chunk IDs
+                        // as rowids to remove all entries for the target item.
+                        $db->prepare('DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE item_id = :id)')->execute($params);
+                    } catch (Exception $e) {
+                        // If the FTS table schema is older (missing expected columns) or otherwise
+                        // incompatible, don't let it block the primary deletion path.
+                        $debugDeletes[] = 'Skipped deleting from chunks_fts due to schema mismatch: ' . $e->getMessage();
+                    }
+                } else {
+                    $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
+                }
 
                 if ($hasChunks) {
                     // Triggers on the chunks table will remove rows from chunks_fts when
