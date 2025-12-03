@@ -130,6 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 }
 
                 if ($hasChunks) {
+                    // Triggers on the chunks table will remove rows from chunks_fts when
+                    // rows are deleted here. Keeping to the trigger order avoids FTS5
+                    // "SQL logic error" failures caused by direct deletes against the
+                    // virtual table.
                     $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
                 } else {
                     $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
