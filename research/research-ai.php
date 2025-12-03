@@ -1034,12 +1034,16 @@ function ensure_chunks_fts(PDO $db): bool {
     . "  );\n"
     . "END;");
 
+  // Use plain DELETE/INSERT operations instead of the FTS5 "delete" command.
+  // The special command is intended for contentless/external tables and can
+  // raise a generic "SQL logic error" on some SQLite builds when used against
+  // a content table. Removing it keeps deletes simple and reliable.
   $db->exec("CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN\n"
-    . "  INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.id, old.text);\n"
+    . "  DELETE FROM chunks_fts WHERE rowid = old.id;\n"
     . "END;");
 
   $db->exec("CREATE TRIGGER chunks_au AFTER UPDATE ON chunks BEGIN\n"
-    . "  INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.id, old.text);\n"
+    . "  DELETE FROM chunks_fts WHERE rowid = old.id;\n"
     . "  INSERT INTO chunks_fts(rowid, id, text, item_id, pages)\n"
     . "  VALUES (\n"
     . "    new.id,\n"
