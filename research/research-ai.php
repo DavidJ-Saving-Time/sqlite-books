@@ -112,12 +112,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 $debugDeletes = [];
                 $params = [':id' => $deleteId];
 
-                if (table_exists($db, 'chunks')) {
-                    ensure_chunk_label_cols($db);
-                    ensure_chunks_fts($db);
+                $hasChunks = table_exists($db, 'chunks');
+                $hasChunkFts = table_exists($db, 'chunks_fts');
+
+                if ($hasChunkFts) {
+                    try {
+                        $db->prepare('DELETE FROM chunks_fts WHERE item_id = :id')->execute($params);
+                    } catch (Exception $e) {
+                        // If the FTS table schema is older (missing item_id) or otherwise
+                        // incompatible, don't let it block the primary deletion path.
+                        $debugDeletes[] = 'Skipped deleting from chunks_fts due to schema mismatch: ' . $e->getMessage();
+                    }
+                } else {
+                    $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
                 }
 
-                if (table_exists($db, 'chunks')) {
+                if ($hasChunks) {
                     $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
                 } else {
                     $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
