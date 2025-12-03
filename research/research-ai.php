@@ -115,17 +115,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                 $hasChunks = table_exists($db, 'chunks');
                 $hasChunkFts = table_exists($db, 'chunks_fts');
 
-                if ($hasChunkFts) {
-                    try {
-                        // FTS5 tables only allow deletion by rowid/docid. Use the chunk IDs
-                        // as rowids to remove all entries for the target item.
-                        $db->prepare('DELETE FROM chunks_fts WHERE rowid IN (SELECT id FROM chunks WHERE item_id = :id)')->execute($params);
-                    } catch (Exception $e) {
-                        // If the FTS table schema is older (missing expected columns) or otherwise
-                        // incompatible, don't let it block the primary deletion path.
-                        $debugDeletes[] = 'Skipped deleting from chunks_fts due to schema mismatch: ' . $e->getMessage();
-                    }
-                } else {
+                if ($hasChunks && $hasChunkFts) {
+                    // Make sure the triggers exist before deleting from chunks so the FTS rows
+                    // are removed with the supported "delete" marker instead of a direct delete,
+                    // which can raise "SQL logic error" when the virtual table schema differs
+                    // across SQLite builds.
+                    ensure_chunks_fts($db);
+                } elseif (!$hasChunks) {
+                    $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
+                } elseif (!$hasChunkFts) {
                     $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
                 }
 
@@ -135,8 +133,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POS
                     // "SQL logic error" failures caused by direct deletes against the
                     // virtual table.
                     $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
-                } else {
-                    $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
                 }
 
                 if (table_exists($db, 'page_map')) {
