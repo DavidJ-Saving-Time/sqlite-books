@@ -2,10 +2,19 @@
     "nilla": {
         "password": "nilla",
         "prefs": {
-            "db_path": "ebooks\/metadata.db",
-            "library_path": "ebooks",
+            "db_path": "\/srv\/http\/calibre-nilla\/ebooks\/metadata.db",
+            "library_path": "\/srv\/http\/calibre-nilla\/ebooks",
             "REMOTE_DIR": "\/mnt\/us\/documents\/Nilla-Books\/",
-            "DEVICE": "10.0.0.143"
+            "DEVICE": "10.0.0.139",
+            "reading_goal_2026": 40,
+            "ACCENT_COLOR": "#fd8c00",
+            "STRIPE_COLOR": "#e3e3e3",
+            "METABAR_BG": "#f5f5f5",
+            "METABAR_BORDER": "#cfcfcf",
+            "METABAR_LABEL": "#7a7a7a",
+            "BORDER_COLOR": "#dee2e6",
+            "LINK_COLOR": "#0d6efd",
+            "THEME_JSON": "{\"bootswatch\":\"https:\\\/\\\/cdn.jsdelivr.net\\\/npm\\\/bootswatch@5\\\/dist\\\/journal\\\/bootstrap.min.css\",\"vars\":{\"--accent\":\"#8b6914\",\"--row-stripe\":\"rgba(0,0,0,0.03)\",\"--metabar-bg\":\"#f4ecd8\",\"--metabar-border\":\"#c8a97a\",\"--metabar-label\":\"#8b6914\",\"--bs-border-color\":\"#c8a97a\",\"--form-control-color\":\"#3b2f1e\",\"--form-control-bg\":\"#fdf6e3\",\"--bs-link-color-rgb\":\"139, 105, 20\"}}"
         }
     },
     "david": {
@@ -15,16 +24,25 @@
             "library_path": "\/srv\/http\/calibre-nilla\/david_ebooks",
             "reading_goal_2025": 40,
             "REMOTE_DIR": "\/mnt\/onboard\/.hidebooks\/",
-            "DEVICE": "10.0.0.143"
+            "DEVICE": "10.0.0.143",
+            "reading_goal_2026": 50,
+            "ACCENT_COLOR": "#fd8c00",
+            "STRIPE_COLOR": "#333333",
+            "METABAR_BG": "#2b2b2b",
+            "METABAR_BORDER": "#171717",
+            "METABAR_LABEL": "#b0b0b0",
+            "BORDER_COLOR": "#4f4f4f",
+            "LINK_COLOR": "#ffa200",
+            "THEME_JSON": "{\"bootswatch\":\"https:\\\/\\\/cdn.jsdelivr.net\\\/npm\\\/bootswatch@5.3.8\\\/dist\\\/darkly\\\/bootstrap.min.css\",\"vars\":{\"--accent\":\"#fd8c00\",\"--row-stripe-a\":\"#404040\",\"--row-stripe-b\":\"#333333\",\"--metabar-bg\":\"#4d4d4d\",\"--metabar-border\":\"#404564\",\"--metabar-label\":\"#bdbdbd\",\"--bs-border-color\":\"#383839\",\"--form-control-color\":\"#d9d9d9\",\"--form-control-bg\":\"#333333\",\"--bs-link-color-rgb\":\"122, 132, 179\"}}"
         }
     },
     "test": {
         "password": "test",
         "prefs": {
-            "db_path": "test_lib\/metadata.db",
-            "library_path": "test_lib",
-            "REMOTE_DIR": "",
-            "DEVICE": ""
+            "db_path": "\/srv\/http\/calibre-nilla\/test_lib\/metadata.db",
+            "library_path": "\/srv\/http\/calibre-nilla\/test_lib",
+            "REMOTE_DIR": "\/mnt\/us\/documents\/Nilla-Books\/",
+            "DEVICE": "10.0.0.139"
         }
     },
     "genocide": {

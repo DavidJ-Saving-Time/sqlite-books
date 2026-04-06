@@ -7,20 +7,35 @@ $message = '';
 $alertClass = 'success';
 $orphanDirs = [];
 
+/**
+ * Returns orphan directories with preview info.
+ * Each entry: ['path' => string, 'files' => string[], 'size' => int]
+ */
 function findOrphanDirectories(): array {
     $pdo = getDatabaseConnection();
     $stmt = $pdo->query('SELECT path FROM books');
     $paths = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
     $known = array_flip($paths);
 
-    $library = getLibraryPath();
+    $library = rtrim(getLibraryPath(), '/');
     $orphans = [];
 
-    foreach (glob($library . '/*', GLOB_ONLYDIR) as $authorDir) {
-        foreach (glob($authorDir . '/*', GLOB_ONLYDIR) as $bookDir) {
+    foreach (glob($library . '/*', GLOB_ONLYDIR) ?: [] as $authorDir) {
+        foreach (glob($authorDir . '/*', GLOB_ONLYDIR) ?: [] as $bookDir) {
             $rel = substr($bookDir, strlen($library) + 1);
             if (!isset($known[$rel])) {
-                $orphans[] = $rel;
+                $files = [];
+                $totalSize = 0;
+                $it = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($bookDir, FilesystemIterator::SKIP_DOTS)
+                );
+                foreach ($it as $f) {
+                    if ($f->isFile()) {
+                        $files[] = $f->getFilename();
+                        $totalSize += $f->getSize();
+                    }
+                }
+                $orphans[] = ['path' => $rel, 'files' => $files, 'size' => $totalSize];
             }
         }
     }
@@ -28,26 +43,72 @@ function findOrphanDirectories(): array {
     return $orphans;
 }
 
-function deleteDirectories(array $dirs): void {
-    $library = getLibraryPath();
-    foreach ($dirs as $rel) {
-        $full = realpath($library . '/' . $rel);
-        if ($full && strpos($full, $library) === 0 && is_dir($full)) {
-            $it = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($full, FilesystemIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::CHILD_FIRST
-            );
-            foreach ($it as $file) {
-                $path = $file->getPathname();
-                if ($file->isDir()) {
-                    rmdir($path);
-                } else {
-                    unlink($path);
-                }
-            }
-            rmdir($full);
-        }
+function logCleanupDeletion(string $library, string $rel, array $files, int $size): void {
+    $logDir  = __DIR__ . '/logs';
+    $logFile = $logDir . '/library_cleanup.log';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0775, true);
     }
+    $ts   = date('Y-m-d H:i:s');
+    $user = currentUser();
+    $fileList = implode(', ', $files) ?: '(empty)';
+    file_put_contents(
+        $logFile,
+        "[$ts] user=$user deleted=\"$library/$rel\" files=[$fileList] size={$size}b\n",
+        FILE_APPEND | LOCK_EX
+    );
+}
+
+function deleteDirectories(array $submitted): array {
+    $library = rtrim(getLibraryPath(), '/');
+    $safeRoot = $library . '/';
+
+    // Re-derive current orphans server-side and only allow those paths
+    $currentOrphans = findOrphanDirectories();
+    $validPaths = array_flip(array_column($currentOrphans, 'path'));
+    $orphanMeta = array_column($currentOrphans, null, 'path');
+
+    $deleted = [];
+    $skipped = [];
+
+    foreach ($submitted as $rel) {
+        // Must still be an orphan (race-condition guard)
+        if (!isset($validPaths[$rel])) {
+            $skipped[] = $rel . ' (no longer an orphan)';
+            continue;
+        }
+
+        $full = realpath($library . '/' . $rel);
+
+        // Path traversal guard: realpath must exist, be a dir, and sit strictly inside library
+        if ($full === false || !is_dir($full) || !str_starts_with($full . '/', $safeRoot)) {
+            $skipped[] = $rel . ' (invalid path)';
+            continue;
+        }
+
+        $meta  = $orphanMeta[$rel];
+        $files = $meta['files'];
+        $size  = $meta['size'];
+
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($full, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $file) {
+            $path = $file->getPathname();
+            if ($file->isDir()) {
+                rmdir($path);
+            } else {
+                unlink($path);
+            }
+        }
+        rmdir($full);
+
+        logCleanupDeletion($library, $rel, $files, $size);
+        $deleted[] = $rel;
+    }
+
+    return ['deleted' => $deleted, 'skipped' => $skipped];
 }
 
 /**
@@ -80,13 +141,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'No orphan directories found.';
         }
     } elseif (isset($_POST['delete_orphans'])) {
-        $dirs = $_POST['dirs'] ?? [];
+        $dirs = json_decode($_POST['dirs_json'] ?? '[]', true) ?: [];
         if (is_array($dirs) && $dirs) {
-            deleteDirectories($dirs);
-            $message = 'Selected directories deleted.';
+            $result = deleteDirectories($dirs);
+            $parts = [];
+            if ($result['deleted']) {
+                $parts[] = count($result['deleted']) . ' director' . (count($result['deleted']) === 1 ? 'y' : 'ies') . ' deleted';
+            }
+            if ($result['skipped']) {
+                $parts[] = count($result['skipped']) . ' skipped (' . implode('; ', $result['skipped']) . ')';
+                $alertClass = 'warning';
+            }
+            $message = implode('. ', $parts) . '.';
+            if (!$result['deleted'] && !$result['skipped']) {
+                $message = 'Nothing to delete.';
+            }
             $orphanDirs = findOrphanDirectories();
         } else {
             $message = 'No directories selected.';
+            $alertClass = 'warning';
         }
     } elseif (isset($_POST['reset_statuses'])) {
         resetAllStatusesToNotRead();
@@ -143,51 +216,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$currentPath = currentDatabasePath();
-$currentLibrary = getLibraryPath();
+$currentPath      = currentDatabasePath();
+$currentLibrary   = getLibraryPath();
 $currentRemoteDir = getUserPreference(currentUser(), 'REMOTE_DIR', getPreference('REMOTE_DIR', ''));
-$currentDevice = getUserPreference(currentUser(), 'DEVICE', getPreference('DEVICE', ''));
+$currentDevice    = getUserPreference(currentUser(), 'DEVICE',     getPreference('DEVICE',     ''));
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Preferences</title>
-  <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="/theme.css.php">
+  <link rel="stylesheet" href="/css/all.min.css">
 </head>
-<body class="container py-4">
-  <h1 class="mb-4">Preferences</h1>
+<body class="pt-5">
+<?php include 'navbar.php'; ?>
+<div class="container py-4" style="max-width: 640px;">
+  <h1 class="mb-1">Preferences</h1>
+  <p class="text-muted mb-4"><a href="themes.php"><i class="fa-solid fa-palette me-1"></i>Theme settings</a></p>
+
   <?php if ($message): ?>
     <div class="alert alert-<?php echo $alertClass; ?>"><?php echo htmlspecialchars($message); ?></div>
   <?php endif; ?>
+
   <form method="post">
-  <div class="mb-3">
-    <label for="db_path" class="form-label">Calibre database path</label>
-    <input type="text" id="db_path" name="db_path" class="form-control" value="<?php echo htmlspecialchars($currentPath); ?>">
-  </div>
-  <div class="mb-3">
-    <label for="library_path" class="form-label">Calibre library path</label>
-    <input type="text" id="library_path" name="library_path" class="form-control" value="<?php echo htmlspecialchars($currentLibrary); ?>">
-  </div>
-  <div class="mb-3">
-    <label for="REMOTE_DIR" class="form-label">Remote directory</label>
-    <input type="text" id="REMOTE_DIR" name="REMOTE_DIR" class="form-control" value="<?php echo htmlspecialchars($currentRemoteDir); ?>">
-  </div>
-  <div class="mb-3">
-    <label for="DEVICE" class="form-label">Device</label>
-    <input type="text" id="DEVICE" name="DEVICE" class="form-control" value="<?php echo htmlspecialchars($currentDevice); ?>">
-  </div>
-  <div class="mb-3">
-    <label for="themeSelect" class="form-label">Theme</label>
-    <select id="themeSelect" class="form-select" style="max-width: 20rem;"></select>
-    <div class="form-text">Saved locally in this browser</div>
-  </div>
-  <div class="form-check mb-3">
-    <input class="form-check-input" type="checkbox" value="1" id="save_global" name="save_global">
-    <label class="form-check-label" for="save_global">
-      Save as default for all users
-      </label>
+    <div class="mb-3">
+      <label for="db_path" class="form-label">Calibre database path</label>
+      <input type="text" id="db_path" name="db_path" class="form-control" value="<?php echo htmlspecialchars($currentPath); ?>">
+    </div>
+    <div class="mb-3">
+      <label for="library_path" class="form-label">Calibre library path</label>
+      <input type="text" id="library_path" name="library_path" class="form-control" value="<?php echo htmlspecialchars($currentLibrary); ?>">
+    </div>
+    <div class="mb-3">
+      <label for="REMOTE_DIR" class="form-label">Remote directory</label>
+      <input type="text" id="REMOTE_DIR" name="REMOTE_DIR" class="form-control" value="<?php echo htmlspecialchars($currentRemoteDir); ?>">
+    </div>
+    <div class="mb-3">
+      <label for="DEVICE" class="form-label">Device</label>
+      <input type="text" id="DEVICE" name="DEVICE" class="form-control" value="<?php echo htmlspecialchars($currentDevice); ?>">
+    </div>
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" value="1" id="save_global" name="save_global">
+      <label class="form-check-label" for="save_global">Save as default for all users</label>
     </div>
     <button type="submit" class="btn btn-primary">Save</button>
     <button type="submit" name="clear_cache" value="1" class="btn btn-warning ms-2">Clear Cache</button>
@@ -198,19 +269,75 @@ $currentDevice = getUserPreference(currentUser(), 'DEVICE', getPreference('DEVIC
   </form>
   <hr class="my-4">
   <h2 class="mb-3">Library Cleanup</h2>
+  <p class="text-muted small mb-3">
+    Scans the library directory for book folders that have no matching entry in the Calibre database —
+    leftovers from books deleted outside of Calibre. The scan is read-only; nothing is changed until
+    you check specific directories and click <strong>Delete Selected</strong>.
+    All deletions are logged to <code>logs/library_cleanup.log</code>.
+  </p>
   <form method="post" class="mb-3">
-    <button type="submit" name="check_orphans" value="1" class="btn btn-secondary">Check for Orphaned Directories</button>
+    <button type="submit" name="check_orphans" value="1" class="btn btn-secondary">
+      Scan for Orphaned Directories
+    </button>
   </form>
   <?php if ($orphanDirs): ?>
-    <form method="post">
-      <?php foreach ($orphanDirs as $dir): $id = md5($dir); ?>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="dirs[]" value="<?= htmlspecialchars($dir) ?>" id="dir<?= $id ?>">
-          <label class="form-check-label" for="dir<?= $id ?>"><?= htmlspecialchars($dir) ?></label>
+    <form method="post" id="orphanForm" onsubmit="
+      const checked = [...document.querySelectorAll('.orphan-cb:checked')].map(cb => cb.value);
+      if (!checked.length) { alert('No directories selected.'); return false; }
+      document.getElementById('dirs_json').value = JSON.stringify(checked);
+      return confirm('Permanently delete ' + checked.length + ' director' + (checked.length === 1 ? 'y' : 'ies') + ' and all their contents?');
+    ">
+      <input type="hidden" name="dirs_json" id="dirs_json">
+      <p class="fw-semibold"><?= count($orphanDirs) ?> orphaned director<?= count($orphanDirs) === 1 ? 'y' : 'ies' ?> found:</p>
+
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="selectAll"
+               onchange="document.querySelectorAll('.orphan-cb').forEach(cb => cb.checked = this.checked)">
+        <label class="form-check-label fw-semibold" for="selectAll">Select all</label>
+      </div>
+
+      <?php
+      function formatBytes(int $bytes): string {
+          if ($bytes < 1024) return $bytes . ' B';
+          if ($bytes < 1048576) return round($bytes / 1024, 1) . ' KB';
+          return round($bytes / 1048576, 1) . ' MB';
+      }
+      ?>
+
+      <?php foreach ($orphanDirs as $orphan):
+          $dir = $orphan['path'];
+          $files = $orphan['files'];
+          $size = $orphan['size'];
+          $id = md5($dir);
+      ?>
+        <div class="card mb-2">
+          <div class="card-body py-2 px-3">
+            <div class="form-check">
+              <input class="form-check-input orphan-cb" type="checkbox"
+                     value="<?= htmlspecialchars($dir) ?>" id="dir<?= $id ?>">
+              <label class="form-check-label font-monospace" for="dir<?= $id ?>">
+                <?= htmlspecialchars($dir) ?>
+              </label>
+            </div>
+            <?php if ($files): ?>
+              <div class="text-muted small mt-1 ms-4">
+                <?= count($files) ?> file<?= count($files) !== 1 ? 's' : '' ?> &middot;
+                <?= formatBytes($size) ?> &middot;
+                <?= htmlspecialchars(implode(', ', $files)) ?>
+              </div>
+            <?php else: ?>
+              <div class="text-muted small mt-1 ms-4">(empty directory)</div>
+            <?php endif; ?>
+          </div>
         </div>
       <?php endforeach; ?>
-      <button type="submit" name="delete_orphans" value="1" class="btn btn-danger mt-2">Delete Selected</button>
+
+      <button type="submit" name="delete_orphans" value="1" class="btn btn-danger mt-2">
+        Delete Selected
+      </button>
     </form>
   <?php endif; ?>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 </body>
 </html>

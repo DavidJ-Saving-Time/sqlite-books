@@ -131,6 +131,53 @@ function getCachedGenres(PDO $pdo, int $ttl = CACHE_TTL): array {
     }, $ttl);
 }
 
+/**
+ * Detect and cache the subseries schema configuration.
+ * Returns an array with keys: exists, isCustom, linkTable, valueTable, indexColumn.
+ */
+function getCachedSubseriesInfo(PDO $pdo, int $ttl = CACHE_TTL): array {
+    return getCachedData('subseries_info', function () use ($pdo) {
+        $result = [
+            'exists'      => false,
+            'isCustom'    => false,
+            'linkTable'   => '',
+            'valueTable'  => '',
+            'indexColumn' => null,
+        ];
+        try {
+            $subseriesColumnId = getCustomColumnId($pdo, 'subseries');
+            if ($subseriesColumnId) {
+                $result['exists']     = true;
+                $result['isCustom']   = true;
+                $result['valueTable'] = "custom_column_{$subseriesColumnId}";
+                $result['linkTable']  = "books_custom_column_{$subseriesColumnId}_link";
+                $cols = $pdo->query("PRAGMA table_info({$result['linkTable']})")->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($cols as $col) {
+                    if (in_array($col['name'], ['book_index', 'sort', 'extra'], true)) {
+                        $result['indexColumn'] = $col['name'];
+                        break;
+                    }
+                }
+            } else {
+                $subTable     = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='subseries'")->fetchColumn();
+                $subLinkTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_subseries_link'")->fetchColumn();
+                if ($subTable && $subLinkTable) {
+                    $cols = $pdo->query('PRAGMA table_info(books)')->fetchAll(PDO::FETCH_ASSOC);
+                    foreach ($cols as $col) {
+                        if ($col['name'] === 'subseries_index') {
+                            $result['exists'] = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (PDOException $e) {
+            // leave defaults — subseries treated as absent
+        }
+        return $result;
+    }, $ttl);
+}
+
 /** Total number of books in the library, cached. */
 function getTotalLibraryBooks(PDO $pdo, int $ttl = CACHE_TTL): int {
     return (int)getCachedData('total_books', function () use ($pdo) {

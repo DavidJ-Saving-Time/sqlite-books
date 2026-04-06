@@ -4,70 +4,67 @@
   <meta charset="UTF-8" />
   <title>IRC DCC Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-
-  <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-  
+  <link rel="stylesheet" href="/theme.css.php">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
 </head>
 <body class="bg-light" style="padding-top: 80px">
- 
-    <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
-  <div class="container-fluid">
 
-    <!-- Left: Brand -->
+<nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
+  <div class="container-fluid">
     <a class="navbar-brand d-flex align-items-center" href="list_books.php">
       <i class="fa-solid fa-book-open me-2"></i> Books
     </a>
-
-    <!-- Mobile Toggler -->
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
-
-    <!-- Collapsible Content -->
     <div class="collapse navbar-collapse" id="navbarContent">
-
-      <!-- Spacer to push right-side items -->
       <div class="flex-grow-1"></div>
-
-      <!-- Right: Buttons + User -->
       <ul class="navbar-nav align-items-center">
-
-        <!-- Add Book Button -->
         <li class="nav-item me-2">
-          <a class="btn btn-primary" href="add_physical_book.php">
+          <a class="btn btn-primary" href="add_physical_books.php">
             <i class="fa-solid fa-plus me-1"></i> Add Book
           </a>
         </li>
-
-        <!-- WordPro Button -->
         <li class="nav-item me-2">
           <a class="btn btn-primary" href="/notes/">
             <i class="fa-solid fa-pen-nib me-1"></i> WordPro
           </a>
         </li>
-
-
-
       </ul>
     </div>
   </div>
 </nav>
-    
-    
-    
-    
+
 <div class="container py-5">
   <header class="mb-4 text-center">
     <h1 class="display-5 fw-bold">
-      <i class="fa-solid fa-terminal me-2"></i>IRC DCC Dashboard 
+      <i class="fa-solid fa-terminal me-2"></i>IRC DCC Dashboard
     </h1>
-      
-<a class="btn btn-primary" href="/irc_search.html" target="_blank">
-  <i class="fa fa-terminal me-1"></i>OPEN THE SEARCH
-</a>
+    <a class="btn btn-primary" href="/irc_search.html" target="_blank">
+      <i class="fa-solid fa-terminal me-1"></i>Open the Search
+    </a>
   </header>
+
+  <div class="row g-4 mb-4">
+    <!-- Daemon Control -->
+    <div class="col-md-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fa-solid fa-robot me-2"></i>Daemon Control</h5>
+          <span id="daemonBadge" class="badge bg-warning text-dark">Checking...</span>
+        </div>
+        <div class="card-body d-flex gap-2 align-items-center">
+          <button id="startBtn" class="btn btn-success" onclick="daemonAction('start')" disabled>
+            <i class="fa-solid fa-play me-1"></i> Start
+          </button>
+          <button id="stopBtn" class="btn btn-danger" onclick="daemonAction('stop')" disabled>
+            <i class="fa-solid fa-stop me-1"></i> Stop
+          </button>
+          <span id="daemonMsg" class="text-muted small ms-2"></span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="row g-4">
     <!-- Status -->
@@ -77,9 +74,9 @@
           <h5 class="mb-0"><i class="fa-solid fa-signal me-2"></i>Status</h5>
         </div>
         <div class="card-body">
-          <p><strong>Connected:</strong> <span id="connected">Loading...</span></p>
-          <p><strong>Server:</strong> <span id="server">Loading...</span></p>
-          <p><strong>Channel:</strong> <span id="channel">Loading...</span></p>
+          <p><strong>Connected:</strong> <span id="connected"><span class="badge bg-warning text-dark">Loading…</span></span></p>
+          <p><strong>Server:</strong> <span id="server">Loading…</span></p>
+          <p class="mb-0"><strong>Channel:</strong> <span id="channel">Loading…</span></p>
         </div>
       </div>
     </div>
@@ -93,7 +90,7 @@
         <div class="card-body">
           <div class="input-group mb-3">
             <input type="text" id="fileCommand" class="form-control" placeholder="!filename" />
-            <button class="btn btn-success" onclick="requestFile()">
+            <button id="sendFileBtn" class="btn btn-success" onclick="requestFile()">
               <i class="fa-solid fa-paper-plane"></i> Send
             </button>
           </div>
@@ -112,13 +109,11 @@
         </div>
         <div class="card-body">
           <ul id="filesListTop10" class="list-group list-group-flush">
-            <li class="list-group-item">Loading...</li>
+            <li class="list-group-item">Loading…</li>
           </ul>
-
           <div class="collapse" id="filesListMoreWrapper">
             <ul id="filesListMore" class="list-group list-group-flush"></ul>
           </div>
-
           <div class="d-grid mt-3">
             <button id="toggleMoreBtn" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#filesListMoreWrapper" aria-expanded="false">
               <i class="fa-solid fa-chevron-down me-2"></i>Show More
@@ -137,140 +132,220 @@
           <h5 class="mb-0"><i class="fa-solid fa-file-lines me-2"></i>Log Viewer (Last 50 Lines)</h5>
         </div>
         <div class="card-body" style="max-height: 300px; overflow-y: auto;">
-          <pre id="logContent" class="mb-0 text-body small">Loading...</pre>
+          <pre id="logContent" class="mb-0 text-body small">Loading…</pre>
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+  const API_BASE = "https://node2.nilla.local";
 
-  <script>
-    const API_BASE = "https://node2.nilla.local";
-
-    async function loadStatus() {
-      try {
-        const res = await fetch(`${API_BASE}/status`);
-        const data = await res.json();
-        document.getElementById('connected').textContent = data.connected ? 'Yes' : 'No';
-        document.getElementById('server').textContent = data.server;
-        document.getElementById('channel').textContent = data.channel;
-      } catch (e) {
-        console.error("Error loading status:", e);
-      }
-    }
-
- async function loadFiles() {
-  try {
-    const res = await fetch(`${API_BASE}/downloaded-files`);
-    let files = await res.json();
-
-    // Sort descending by modified date
-    files.sort((a, b) => new Date(b.modified) - new Date(a.modified));
-
-    const top10 = files.slice(0, 10);
-    const rest = files.slice(10);
-
-    const topList = document.getElementById('filesListTop10');
-    const moreList = document.getElementById('filesListMore');
-    const toggleBtn = document.getElementById('toggleMoreBtn');
-    const collapseWrapper = document.getElementById('filesListMoreWrapper');
-
-    // Clear previous contents
-    topList.innerHTML = '';
-    moreList.innerHTML = '';
-
-    // Add top 10 files
-    if (top10.length === 0) {
-      topList.innerHTML = "<li class='list-group-item'>No files downloaded yet.</li>";
-    } else {
-      top10.forEach(file => {
-        const li = createFileListItem(file);
-        topList.appendChild(li);
-      });
-    }
-
-    // Add remaining files
-    if (rest.length === 0) {
-      collapseWrapper.classList.remove('show'); // keep hidden
-      toggleBtn.style.display = 'none'; // hide button
-    } else {
-      rest.forEach(file => {
-        const li = createFileListItem(file);
-        moreList.appendChild(li);
-      });
-      toggleBtn.style.display = 'block'; // show button if hidden
-    }
-  } catch (e) {
-    console.error("Error loading files:", e);
+  // ── Formatting helpers ────────────────────────────────────────────────────
+  function formatBytes(bytes) {
+    if (bytes == null) return '—';
+    if (bytes < 1024)        return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
-}
 
-// Helper function to create a file <li>
-function createFileListItem(file) {
-  const li = document.createElement('li');
-  li.className = 'list-group-item';
+  function formatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
 
-  const a = document.createElement('a');
-  a.href = `https://nilla.local/downloads/${encodeURIComponent(file.name)}`;
-  a.textContent = `${file.name} (${file.size} bytes, modified: ${file.modified})`;
-  a.target = "_blank";
-
-  li.appendChild(a);
-  return li;
-}
-
-    async function loadLogs() {
-      try {
-        const res = await fetch(`${API_BASE}/logs`);
-        const logs = await res.json();
-        document.getElementById('logContent').textContent = logs.reverse().join("");
-      } catch (e) {
-        document.getElementById('logContent').textContent = "Error loading log file.";
-        console.error("Error loading logs:", e);
+  // ── Status ────────────────────────────────────────────────────────────────
+  async function loadStatus() {
+    try {
+      const res  = await fetch(`${API_BASE}/status`);
+      const data = await res.json();
+      const connEl = document.getElementById('connected');
+      if (data.connected) {
+        connEl.innerHTML = '<span class="badge bg-success">Yes</span>';
+      } else {
+        connEl.innerHTML = '<span class="badge bg-danger">No</span>';
       }
+      document.getElementById('server').textContent  = data.server  || '—';
+      document.getElementById('channel').textContent = data.channel || '—';
+    } catch (e) {
+      document.getElementById('connected').innerHTML = '<span class="badge bg-secondary">Error</span>';
+      document.getElementById('server').textContent  = 'Unavailable';
+      document.getElementById('channel').textContent = 'Unavailable';
+      console.error('Error loading status:', e);
     }
+  }
 
-    async function requestFile() {
-      const cmd = document.getElementById('fileCommand').value.trim();
-      if (!cmd) {
-        document.getElementById('fileRequestStatus').textContent = "Please enter a command.";
-        return;
+  // ── Files ─────────────────────────────────────────────────────────────────
+  async function loadFiles() {
+    try {
+      const res   = await fetch(`${API_BASE}/downloaded-files`);
+      const files = await res.json();
+
+      files.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+
+      const top10   = files.slice(0, 10);
+      const rest    = files.slice(10);
+      const topList = document.getElementById('filesListTop10');
+      const moreList = document.getElementById('filesListMore');
+      const toggleBtn = document.getElementById('toggleMoreBtn');
+      const collapseWrapper = document.getElementById('filesListMoreWrapper');
+
+      topList.innerHTML  = '';
+      moreList.innerHTML = '';
+
+      if (top10.length === 0) {
+        topList.innerHTML = "<li class='list-group-item text-muted'>No files downloaded yet.</li>";
+      } else {
+        top10.forEach(file => topList.appendChild(createFileListItem(file)));
       }
-      try {
-        const res = await fetch(`${API_BASE}/request-file?cmd=${encodeURIComponent(cmd)}`);
-        const data = await res.json();
-        document.getElementById('fileRequestStatus').textContent = data.status || data.error;
-      } catch (e) {
-        document.getElementById('fileRequestStatus').textContent = "Error sending request.";
-        console.error("Error sending request:", e);
+
+      if (rest.length === 0) {
+        collapseWrapper.classList.remove('show');
+        toggleBtn.style.display = 'none';
+      } else {
+        rest.forEach(file => moreList.appendChild(createFileListItem(file)));
+        toggleBtn.style.display = 'block';
       }
+    } catch (e) {
+      document.getElementById('filesListTop10').innerHTML =
+        "<li class='list-group-item text-danger'>Error loading files.</li>";
+      console.error('Error loading files:', e);
     }
+  }
 
-    function refreshData() {
-      loadStatus();
-      loadFiles();
-      loadLogs();
+  function createFileListItem(file) {
+    const li = document.createElement('li');
+    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+    const a = document.createElement('a');
+    a.href   = `https://nilla.local/downloads/${encodeURIComponent(file.name)}`;
+    a.textContent = file.name;
+    a.target = '_blank';
+
+    const meta = document.createElement('span');
+    meta.className = 'text-muted small ms-3 text-nowrap';
+    meta.textContent = `${formatBytes(file.size)} · ${formatDate(file.modified)}`;
+
+    li.append(a, meta);
+    return li;
+  }
+
+  // ── Logs ──────────────────────────────────────────────────────────────────
+  async function loadLogs() {
+    try {
+      const res  = await fetch(`${API_BASE}/logs`);
+      const logs = await res.json();
+      document.getElementById('logContent').textContent = logs.reverse().join('');
+    } catch (e) {
+      document.getElementById('logContent').textContent = 'Error loading log file.';
+      console.error('Error loading logs:', e);
     }
+  }
 
-    refreshData();
-    setInterval(refreshData, 5000);
-  </script>
-  
-  
-  <script>
-  const toggleBtn = document.getElementById('toggleMoreBtn');
+  // ── Request file ──────────────────────────────────────────────────────────
+  async function requestFile() {
+    const input  = document.getElementById('fileCommand');
+    const status = document.getElementById('fileRequestStatus');
+    const btn    = document.getElementById('sendFileBtn');
+    const cmd    = input.value.trim();
+    if (!cmd) { status.textContent = 'Please enter a command.'; return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    status.textContent = 'Sending…';
+
+    try {
+      const res  = await fetch(`${API_BASE}/request-file?cmd=${encodeURIComponent(cmd)}`);
+      const data = await res.json();
+      status.textContent = data.status || data.error || 'Done.';
+      if (!data.error) input.value = '';
+    } catch (e) {
+      status.textContent = 'Error sending request.';
+      console.error('Error sending request:', e);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send';
+    }
+  }
+
+  // ── Daemon ────────────────────────────────────────────────────────────────
+  async function loadDaemonStatus() {
+    try {
+      const res  = await fetch('/json_endpoints/irc_daemon_control.php?action=status');
+      const data = await res.json();
+      updateDaemonUI(data.running, data.pid);
+    } catch (e) {
+      const badge = document.getElementById('daemonBadge');
+      badge.textContent = 'Error';
+      badge.className   = 'badge bg-danger';
+      console.error('Error loading daemon status:', e);
+    }
+  }
+
+  function updateDaemonUI(running, pid) {
+    const badge    = document.getElementById('daemonBadge');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn  = document.getElementById('stopBtn');
+    if (running) {
+      badge.textContent = `Running (PID ${pid})`;
+      badge.className   = 'badge bg-success';
+      startBtn.disabled = true;
+      stopBtn.disabled  = false;
+    } else {
+      badge.textContent = 'Stopped';
+      badge.className   = 'badge bg-danger';
+      startBtn.disabled = false;
+      stopBtn.disabled  = true;
+    }
+  }
+
+  let daemonMsgTimer = null;
+  async function daemonAction(action) {
+    const msg = document.getElementById('daemonMsg');
+    msg.textContent = action === 'start' ? 'Starting…' : 'Stopping…';
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled  = true;
+    if (daemonMsgTimer) clearTimeout(daemonMsgTimer);
+    try {
+      const res  = await fetch(`/json_endpoints/irc_daemon_control.php?action=${action}`);
+      const data = await res.json();
+      msg.textContent = data.ok
+        ? (action === 'start' ? 'Started.' : 'Stopped.')
+        : (data.error || 'Error');
+      await loadDaemonStatus();
+    } catch (e) {
+      msg.textContent = 'Request failed.';
+      await loadDaemonStatus();
+    }
+    daemonMsgTimer = setTimeout(() => { msg.textContent = ''; }, 3000);
+  }
+
+  // ── Collapse toggle label ─────────────────────────────────────────────────
+  const toggleBtn       = document.getElementById('toggleMoreBtn');
   const collapseWrapper = document.getElementById('filesListMoreWrapper');
 
   collapseWrapper.addEventListener('shown.bs.collapse', () => {
     toggleBtn.innerHTML = '<i class="fa-solid fa-chevron-up me-2"></i>Show Less';
   });
-
   collapseWrapper.addEventListener('hidden.bs.collapse', () => {
     toggleBtn.innerHTML = '<i class="fa-solid fa-chevron-down me-2"></i>Show More';
   });
-</script>
 
+  // ── Polling ───────────────────────────────────────────────────────────────
+  function refreshAll() {
+    loadStatus();
+    loadFiles();
+    loadLogs();
+    loadDaemonStatus();
+  }
+
+  refreshAll();
+  setInterval(refreshAll, 5000);
+</script>
 
 </body>
 </html>

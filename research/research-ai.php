@@ -521,6 +521,8 @@ CREATE TABLE IF NOT EXISTS page_map (
     exit;
 }
 
+// $libraryBooks no longer needed — autocomplete uses /json_endpoints/library_book_search.php
+
 $ingestedBooks = [];
 $dbListPath = __DIR__ . '/../library.sqlite';
 if (is_file($dbListPath)) {
@@ -542,182 +544,289 @@ if (is_file($dbListPath)) {
 
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Research AI Ingest</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Ingest — Research</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/research-theme.css">
 </head>
-<body class="pt-5">
+<body>
 <?php include 'navbar.php'; ?>
-<div class="container py-4">
-<?php if ($statusMessage): ?>
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <?= htmlspecialchars($statusMessage) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+<main class="ra-page">
+
+  <header class="ra-header">
+    <div class="ra-header-rule"></div>
+    <h1><i class="fa-solid fa-microchip me-2 ra-icon-sm"></i>AI Ingest</h1>
+    <p>Embed a PDF or EPUB into the research index for semantic search and retrieval</p>
+  </header>
+
+  <?php if ($statusMessage): ?>
+    <div class="ra-status ra-status--compact">
+      <i class="fa-solid fa-circle-check me-2"></i><?= htmlspecialchars($statusMessage) ?>
     </div>
-<?php endif; ?>
-<?php if ($errorMessage): ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <?= htmlspecialchars($errorMessage) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  <?php endif; ?>
+
+  <?php if ($errorMessage): ?>
+    <div class="ra-error ra-error--compact">
+      <i class="fa-solid fa-triangle-exclamation me-2"></i><?= htmlspecialchars($errorMessage) ?>
     </div>
-<?php endif; ?>
-<h1 class="mb-4"><i class="fa-solid fa-book me-2"></i>Research AI Ingest</h1>
-<?php if ($hasPrefill): ?>
-    <div class="alert alert-info" role="alert">
-        <i class="fa-solid fa-circle-info me-2"></i>
-        Form pre-filled with data from the selected library book.
+  <?php endif; ?>
+
+  <?php if ($hasPrefill): ?>
+    <div class="ra-status ra-status--compact ra-status--mid">
+      <i class="fa-solid fa-circle-info me-2"></i>Form pre-filled with data from the selected library book.
     </div>
-<?php endif; ?>
-<form method="POST" enctype="multipart/form-data">
+  <?php endif; ?>
+
+  <form method="POST" enctype="multipart/form-data">
     <?php if ($prefillFilePath !== ''): ?>
-        <input type="hidden" name="library_file_path" value="<?= htmlspecialchars($prefillFilePath) ?>">
+      <input type="hidden" name="library_file_path" value="<?= htmlspecialchars($prefillFilePath) ?>">
     <?php endif; ?>
-    <div class="mb-3">
-        <label for="book_file" class="form-label">Book File (PDF or EPUB)</label>
-        <input class="form-control" type="file" name="book_file" id="book_file" accept="application/pdf,application/epub+zip" <?= $prefillFilePath === '' ? 'required' : '' ?>>
-        <?php if ($prefillFilePath !== ''): ?>
-            <div class="form-text">
-                Using library file: <code><?= htmlspecialchars($prefillFilePath) ?></code>
-                <?php if ($prefillFileUrl !== ''): ?>
-                    (<a href="<?= htmlspecialchars($prefillFileUrl) ?>" target="_blank" rel="noopener">Open</a>)
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
+
+    <div class="ra-settings-grid">
+
+      <div class="ra-full-col">
+        <label class="ra-label" for="book_file">
+          <i class="fa-solid fa-file-arrow-up me-1"></i>Book File
+          <span class="ra-label-hint">PDF or EPUB</span>
+        </label>
+        <!-- Hidden path used when file comes from the library (set by autocomplete or prefill) -->
+        <input type="hidden" name="library_file_path" id="library_file_path"
+               value="<?= htmlspecialchars($prefillFilePath) ?>">
+        <!-- Resolved file banner — shown when a library file is selected -->
+        <div id="resolved_file_banner" class="ra-file-banner<?= $prefillFilePath === '' ? ' d-none' : '' ?>">
+          <i class="fa-solid fa-file-pdf ra-icon-accent"></i>
+          <span id="resolved_file_label" class="ra-file-path">
+            <?= htmlspecialchars($prefillFilePath) ?>
+          </span>
+          <button type="button" id="clear_resolved_file" class="ra-clear-btn" title="Remove — upload a file instead">✕</button>
+        </div>
+        <input class="ra-file-input<?= $prefillFilePath !== '' ? ' d-none' : '' ?>" type="file" name="book_file" id="book_file"
+               accept="application/pdf,application/epub+zip"
+               <?= $prefillFilePath === '' ? 'required' : '' ?>>
+      </div>
+
+      <div>
+        <label class="ra-label" for="title">Title <span class="ra-required">*</span></label>
+        <input class="ra-input" type="text" name="title" id="title"
+               value="<?= htmlspecialchars($prefillTitle) ?>" required placeholder="Book title…">
+      </div>
+
+      <div>
+        <label class="ra-label" for="author">Author</label>
+        <input class="ra-input" type="text" name="author" id="author"
+               value="<?= htmlspecialchars($prefillAuthor) ?>" placeholder="Author name…">
+      </div>
+
+      <div>
+        <label class="ra-label" for="year">Year</label>
+        <input class="ra-input" type="number" name="year" id="year"
+               value="<?= htmlspecialchars($prefillYear) ?>" placeholder="e.g. 1859">
+      </div>
+
+      <div class="position-relative">
+        <label class="ra-label" for="library_book_search">Library Book</label>
+        <input class="ra-input" type="text" id="library_book_search" autocomplete="off"
+               placeholder="Type title or author to search…" value="">
+        <input type="hidden" name="library_book_id" id="library_book_id" value="<?= htmlspecialchars($prefillLibraryId) ?>">
+      </div>
+
+      <div>
+        <label class="ra-label" for="page_offset">
+          Page Offset
+          <span class="ra-hint ra-hint--inline">subtract from physical page numbers</span>
+        </label>
+        <input class="ra-input" type="number" name="page_offset" id="page_offset"
+               value="<?= htmlspecialchars($prefillPageOffset) ?>" placeholder="0">
+      </div>
+
     </div>
-    <div class="mb-3">
-        <label for="title" class="form-label">Title</label>
-        <input class="form-control" type="text" name="title" id="title" value="<?= htmlspecialchars($prefillTitle) ?>" required>
+
+    <div class="ra-submit-row">
+      <button class="ra-submit" type="submit">
+        <i class="fa-solid fa-upload me-2"></i>Ingest Book
+      </button>
     </div>
-    <div class="mb-3">
-        <label for="author" class="form-label">Author</label>
-        <input class="form-control" type="text" name="author" id="author" value="<?= htmlspecialchars($prefillAuthor) ?>">
-    </div>
-    <div class="mb-3">
-        <label for="year" class="form-label">Year</label>
-        <input class="form-control" type="number" name="year" id="year" value="<?= htmlspecialchars($prefillYear) ?>">
-    </div>
-    <div class="mb-3">
-        <label for="library_book_id" class="form-label">Library Book ID</label>
-        <input class="form-control" type="number" name="library_book_id" id="library_book_id" value="<?= htmlspecialchars($prefillLibraryId) ?>">
-    </div>
-    <div class="mb-3">
-        <label for="page_offset" class="form-label">Page Offset</label>
-        <input class="form-control" type="number" name="page_offset" id="page_offset" value="<?= htmlspecialchars($prefillPageOffset) ?>">
-    </div>
-    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-upload me-2"></i>Ingest</button>
-</form>
-<?php if ($ingestedBooks): ?>
-<h2 class="mt-5">Ingested Books</h2>
-<table class="table table-striped">
-    <thead>
-        <tr>
+  </form>
+
+  <?php if ($ingestedBooks): ?>
+    <div class="ra-section-rule"></div>
+    <div class="ra-sources-section">
+      <div class="ra-answer-header">
+        <span><i class="fa-solid fa-database me-2 ra-accent"></i>Ingested Books</span>
+        <span class="ra-meta-sm"><?= count($ingestedBooks) ?> item<?= count($ingestedBooks) !== 1 ? 's' : '' ?></span>
+      </div>
+      <table class="ra-table">
+        <thead>
+          <tr>
             <th>ID</th>
             <th>Title</th>
             <th>Author</th>
             <th>Year</th>
-            <th>Library ID</th>
+            <th>Lib ID</th>
             <th>Pages</th>
             <th>Chunks</th>
             <th>Endpoint</th>
             <th>Ingested</th>
             <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-    <?php foreach ($ingestedBooks as $b): ?>
-        <tr>
-            <td><?= htmlspecialchars($b['id']) ?></td>
+          </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($ingestedBooks as $b): ?>
+          <tr>
+            <td class="ra-td-id"><?= htmlspecialchars($b['id']) ?></td>
             <td><?= htmlspecialchars($b['title']) ?></td>
-            <td><?= htmlspecialchars($b['author']) ?></td>
-            <td><?= htmlspecialchars($b['year']) ?></td>
-            <td><?= htmlspecialchars($b['library_book_id'] ?? '') ?></td>
-            <td><?= htmlspecialchars($b['pages'] ?: 'n/a') ?></td>
-            <td><?= htmlspecialchars($b['chunks']) ?></td>
-            <td><?= htmlspecialchars($b['endpoint']) ?></td>
-            <td><?= htmlspecialchars($b['created_at']) ?></td>
-            <td>
-                <button type="button"
-                        class="btn btn-sm btn-secondary me-2"
-                        data-bs-toggle="modal"
-                        data-bs-target="#editBookModal"
-                        data-id="<?= (int)$b['id'] ?>"
-                        data-title="<?= htmlspecialchars($b['title']) ?>"
-                        data-author="<?= htmlspecialchars($b['author']) ?>"
-                        data-year="<?= htmlspecialchars($b['year']) ?>"
-                        data-library="<?= htmlspecialchars($b['library_book_id'] ?? '') ?>">
-                    <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+            <td class="ra-td-author"><?= htmlspecialchars($b['author']) ?></td>
+            <td class="ra-td-mono"><?= htmlspecialchars($b['year']) ?></td>
+            <td class="ra-td-mono-dim"><?= htmlspecialchars($b['library_book_id'] ?? '') ?></td>
+            <td class="ra-td-mono"><?= htmlspecialchars($b['pages'] ?: '—') ?></td>
+            <td class="ra-td-mono"><?= htmlspecialchars($b['chunks']) ?></td>
+            <td class="ra-td-sm"><?= htmlspecialchars($b['endpoint']) ?></td>
+            <td class="ra-td-sm"><?= htmlspecialchars($b['created_at']) ?></td>
+            <td class="text-nowrap">
+              <button type="button"
+                      class="ra-btn me-1"
+                      data-bs-toggle="modal"
+                      data-bs-target="#editBookModal"
+                      data-id="<?= (int)$b['id'] ?>"
+                      data-title="<?= htmlspecialchars($b['title']) ?>"
+                      data-author="<?= htmlspecialchars($b['author']) ?>"
+                      data-year="<?= htmlspecialchars($b['year']) ?>"
+                      data-library="<?= htmlspecialchars($b['library_book_id'] ?? '') ?>">
+                <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+              </button>
+              <form method="POST" class="d-inline" onsubmit="return confirm('Delete this book and all embeddings?');">
+                <input type="hidden" name="delete_id" value="<?= (int)$b['id'] ?>">
+                <button type="submit" class="ra-btn ra-btn-danger">
+                  <i class="fa-solid fa-trash-can me-1"></i>Delete
                 </button>
-                <form method="POST" class="d-inline" onsubmit="return confirm('Delete this book and all embeddings?');">
-                    <input type="hidden" name="delete_id" value="<?= (int)$b['id'] ?>">
-                    <button type="submit" class="btn btn-sm btn-danger">
-                        <i class="fa-solid fa-trash-can me-1"></i>Delete
-                    </button>
-                </form>
+              </form>
             </td>
-        </tr>
-    <?php endforeach; ?>
-    </tbody>
-</table>
-<?php else: ?>
-<p class="mt-5">No books ingested yet.</p>
-<?php endif; ?>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<div class="modal fade" id="editBookModal" tabindex="-1" aria-labelledby="editBookModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editBookModalLabel"><i class="fa-solid fa-pen-to-square me-2"></i>Edit Book</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST">
-                <div class="modal-body">
-                    <input type="hidden" name="edit_id" id="edit_id">
-                    <div class="mb-3">
-                        <label for="edit_title" class="form-label">Title</label>
-                        <input class="form-control" type="text" name="edit_title" id="edit_title" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit_author" class="form-label">Author</label>
-                        <input class="form-control" type="text" name="edit_author" id="edit_author">
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit_year" class="form-label">Year</label>
-                        <input class="form-control" type="number" name="edit_year" id="edit_year">
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit_library_book_id" class="form-label">Library Book ID</label>
-                        <input class="form-control" type="number" name="edit_library_book_id" id="edit_library_book_id">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                </div>
-            </form>
-        </div>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
     </div>
+  <?php else: ?>
+    <p class="ra-empty-msg">No books ingested yet.</p>
+  <?php endif; ?>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Edit Book Modal -->
+<div class="modal fade" id="editBookModal" tabindex="-1" aria-labelledby="editBookModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editBookModalLabel">
+          <i class="fa-solid fa-pen-to-square me-2 ra-accent"></i>Edit Book
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST">
+        <div class="modal-body">
+          <input type="hidden" name="edit_id" id="edit_id">
+          <div class="mb-3">
+            <label for="edit_title" class="ra-label">Title</label>
+            <input class="ra-input" type="text" name="edit_title" id="edit_title" required>
+          </div>
+          <div class="mb-3">
+            <label for="edit_author" class="ra-label">Author</label>
+            <input class="ra-input" type="text" name="edit_author" id="edit_author">
+          </div>
+          <div class="mb-3">
+            <label for="edit_year" class="ra-label">Year</label>
+            <input class="ra-input" type="number" name="edit_year" id="edit_year">
+          </div>
+          <div class="mb-3">
+            <label for="edit_library_book_id" class="ra-label">Library Book ID</label>
+            <input class="ra-input" type="number" name="edit_library_book_id" id="edit_library_book_id">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="ra-btn" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="ra-submit ra-btn-save">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
+
+<script src="/js/book-autocomplete.js"></script>
 <script>
+// ── Library book autocomplete ──────────────────────────────────────────────
+function clearResolvedFile() {
+  document.getElementById('library_file_path').value = '';
+  const banner    = document.getElementById('resolved_file_banner');
+  const fileInput = document.getElementById('book_file');
+  banner.style.display    = 'none';
+  fileInput.style.display = '';
+  fileInput.setAttribute('required', '');
+  fileInput.value = '';
+}
+
+const lbAc = new BookAutocomplete({
+  input:   '#library_book_search',
+  hidden:  '#library_book_id',
+  params:  { with_files: 1 },
+  onSelect(book) {
+    // Pre-fill metadata fields if empty
+    const titleEl  = document.getElementById('title');
+    const authorEl = document.getElementById('author');
+    if (titleEl  && !titleEl.value)  titleEl.value  = book.title;
+    if (authorEl && !authorEl.value) authorEl.value = book.author || '';
+
+    // Resolve library file
+    const fileInput   = document.getElementById('book_file');
+    const filePath    = document.getElementById('library_file_path');
+    const banner      = document.getElementById('resolved_file_banner');
+    const bannerLabel = document.getElementById('resolved_file_label');
+    if (book.file) {
+      filePath.value          = book.file;
+      bannerLabel.textContent = book.file;
+      const icon = banner.querySelector('i');
+      if (icon) icon.className = book.file.endsWith('.epub') ? 'fa-solid fa-book' : 'fa-solid fa-file-pdf';
+      banner.style.display    = 'flex';
+      fileInput.removeAttribute('required');
+      fileInput.style.display = 'none';
+      fileInput.value         = '';
+    }
+  },
+  onClear: clearResolvedFile,
+});
+
+// When typing a new search, also clear the resolved file
+document.getElementById('library_book_search').addEventListener('input', () => {
+  if (document.getElementById('library_file_path').value) clearResolvedFile();
+});
+
+document.getElementById('clear_resolved_file').addEventListener('click', () => {
+  lbAc.clear();
+});
+
+<?php if ($prefillLibraryId !== ''): ?>
+lbAc.selectById(<?= (int)$prefillLibraryId ?>, { with_files: 1 });
+<?php endif; ?>
+
+// ── Edit modal ─────────────────────────────────────────────────────────────
 const editModal = document.getElementById('editBookModal');
 if (editModal) {
     editModal.addEventListener('show.bs.modal', event => {
         const button = event.relatedTarget;
         if (!button) return;
-        const id = button.getAttribute('data-id') || '';
-        const title = button.getAttribute('data-title') || '';
-        const author = button.getAttribute('data-author') || '';
-        const year = button.getAttribute('data-year') || '';
-        const library = button.getAttribute('data-library') || '';
-
-        editModal.querySelector('#edit_id').value = id;
-        editModal.querySelector('#edit_title').value = title;
-        editModal.querySelector('#edit_author').value = author;
-        editModal.querySelector('#edit_year').value = year;
-        editModal.querySelector('#edit_library_book_id').value = library;
+        editModal.querySelector('#edit_id').value = button.getAttribute('data-id') || '';
+        editModal.querySelector('#edit_title').value = button.getAttribute('data-title') || '';
+        editModal.querySelector('#edit_author').value = button.getAttribute('data-author') || '';
+        editModal.querySelector('#edit_year').value = button.getAttribute('data-year') || '';
+        editModal.querySelector('#edit_library_book_id').value = button.getAttribute('data-library') || '';
     });
 }
 </script>

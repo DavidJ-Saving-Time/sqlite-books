@@ -20,8 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
         li.className = 'list-group-item list-group-item-action';
         li.dataset.value = item.value;
 
+        const badgeColour = item.type === 'Author' ? 'bg-primary' : item.type === 'Title' ? 'bg-success' : 'bg-warning text-dark';
         const badge = document.createElement('span');
-        badge.className = 'badge bg-secondary me-2';
+        badge.className = `badge ${badgeColour} me-2`;
         badge.textContent = item.type;
         li.appendChild(badge);
         li.appendChild(document.createTextNode(item.value));
@@ -30,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
           e.preventDefault();
           searchInput.value = li.dataset.value;
           clearSuggestions();
+          searchInput.closest('form').submit();
         });
         suggestionList.appendChild(li);
       });
@@ -80,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
           e.preventDefault();
           searchInput.value = items[selectedIndex].dataset.value;
           clearSuggestions();
+          searchInput.closest('form').submit();
         }
       } else if (e.key === 'Escape') {
         clearSuggestions();

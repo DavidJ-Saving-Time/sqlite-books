@@ -234,9 +234,8 @@ $text = formatSourcesUsedInHtml($text);     // formats "Sources used:" section
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Notepad</title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="/theme.css.php">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
     <script src="node_modules/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
 
 <style>

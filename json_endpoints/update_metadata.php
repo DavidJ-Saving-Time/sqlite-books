@@ -24,13 +24,16 @@ requireLogin();
 require_once __DIR__ . '/../annas_archive.php';
 
 $bookId = isset($_POST['book_id']) ? (int)$_POST['book_id'] : 0;
-$title = trim($_POST['title'] ?? '');
-$authors = trim($_POST['authors'] ?? '');
-$year = trim($_POST['year'] ?? '');
-$imgUrl = trim($_POST['imgurl'] ?? '');
-$coverData = trim($_POST['coverdata'] ?? '');
+$title           = trim($_POST['title']       ?? '');
+$authors         = trim($_POST['authors']     ?? '');
+$year            = trim($_POST['year']        ?? '');
+$imgUrl          = trim($_POST['imgurl']      ?? '');
+$coverData       = trim($_POST['coverdata']   ?? '');
 $descriptionPost = trim($_POST['description'] ?? '');
-$md5 = trim($_POST['md5'] ?? '');
+$md5             = trim($_POST['md5']         ?? '');
+$publisher       = trim($_POST['publisher']   ?? '');
+$isbnPost        = trim($_POST['isbn']        ?? '');
+$olidPost        = trim($_POST['olid']        ?? '');
 $bookPath = null; // track path for returning updated cover url
 
 if ($bookId <= 0) {
@@ -112,6 +115,27 @@ try {
             }
         }
         $pdo->prepare('UPDATE books SET author_sort = author_sort(:sort) WHERE id = :id')->execute([':sort' => $primaryAuthor, ':id' => $bookId]);
+    }
+
+    if ($publisher !== '') {
+        $pubStmt = $pdo->prepare('SELECT id FROM publishers WHERE name = ?');
+        $pubStmt->execute([$publisher]);
+        $pubId = $pubStmt->fetchColumn();
+        if (!$pubId) {
+            $pdo->prepare('INSERT INTO publishers (name) VALUES (?)')->execute([$publisher]);
+            $pubId = $pdo->lastInsertId();
+        }
+        $pdo->prepare('DELETE FROM books_publishers_link WHERE book = ?')->execute([$bookId]);
+        $pdo->prepare('INSERT INTO books_publishers_link (book, publisher) VALUES (?, ?)')->execute([$bookId, $pubId]);
+    }
+
+    if ($isbnPost !== '') {
+        $pdo->prepare('UPDATE books SET isbn = ? WHERE id = ?')->execute([$isbnPost, $bookId]);
+        $pdo->prepare('INSERT OR REPLACE INTO identifiers (book, type, val) VALUES (?, "isbn", ?)')->execute([$bookId, $isbnPost]);
+    }
+
+    if ($olidPost !== '') {
+        $pdo->prepare('INSERT OR REPLACE INTO identifiers (book, type, val) VALUES (?, "olid", ?)')->execute([$bookId, $olidPost]);
     }
 
     if ($descriptionPost !== '') {

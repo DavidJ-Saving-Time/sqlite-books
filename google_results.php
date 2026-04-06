@@ -17,8 +17,7 @@ if ($search !== '') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Google Books Results</title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
+    <link rel="stylesheet" href="/theme.css.php">
     <script src="js/search.js"></script>
 </head>
 <body class="pt-5">

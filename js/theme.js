@@ -1,46 +1,53 @@
-(function(){
-  const API_URL = 'https://bootswatch.com/api/5.json';
-  const defaultTheme = {
-    name: 'Bootstrap',
-    css: 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'
-  };
+(function () {
+    'use strict';
 
-  const link = document.getElementById('themeStylesheet');
-  const savedCss = localStorage.getItem('themeCss') || defaultTheme.css;
-  if(link) link.href = savedCss;
+    const API_URL      = 'https://bootswatch.com/api/5.json';
+    const DEFAULT_CSS  = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
+    const DEFAULT_NAME = 'Bootstrap (default)';
 
-  function populate(select, themes){
-    if(!select) return;
-    select.innerHTML = '';
-    themes.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.css;
-      opt.textContent = t.name;
-      select.appendChild(opt);
-    });
-    select.value = savedCss;
-    select.addEventListener('change', () => {
-      const css = select.value;
-      if(link) link.href = css;
-      localStorage.setItem('themeCss', css);
-    });
-  }
+    // Populate the Bootswatch <select> and wire up live preview
+    async function init() {
+        const select = document.getElementById('themeSelect');
+        if (!select) return;
 
-  async function init(){
-    const select = document.getElementById('themeSelect');
-    try {
-      const r = await fetch(API_URL);
-      const data = await r.json();
-      const themes = data.themes.map(t => ({name: t.name, css: t.cssCdn}));
-      populate(select, [defaultTheme, ...themes]);
-    } catch {
-      populate(select, [defaultTheme]);
+        const current = document.getElementById('bootswatchUrl')?.value || DEFAULT_CSS;
+
+        let themes = [{ name: DEFAULT_NAME, css: DEFAULT_CSS }];
+        try {
+            const r    = await fetch(API_URL);
+            const data = await r.json();
+            themes = themes.concat(data.themes.map(t => ({ name: t.name, css: t.cssCdn })));
+        } catch (_) { /* use default only */ }
+
+        select.innerHTML = '';
+        themes.forEach(t => {
+            const opt      = document.createElement('option');
+            opt.value      = t.css;
+            opt.textContent = t.name;
+            if (t.css === current) opt.selected = true;
+            select.appendChild(opt);
+        });
+
+        select.addEventListener('change', () => {
+            // Update hidden field so the form submits the new URL
+            const hidden = document.getElementById('bootswatchUrl');
+            if (hidden) hidden.value = select.value;
+
+            // Live preview: append/update a <link> that overrides the @import in theme.css.php
+            let preview = document.getElementById('themePreviewLink');
+            if (!preview) {
+                preview    = document.createElement('link');
+                preview.rel = 'stylesheet';
+                preview.id  = 'themePreviewLink';
+                document.head.appendChild(preview);
+            }
+            preview.href = select.value;
+        });
     }
-  }
 
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();

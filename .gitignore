@@ -27,6 +27,12 @@ koreader.py
 kosend.py
 uploaded_books/
 genocide/
+reranker/
+semantic/
 library.sqlite
-Comparative_Analysis.txt 
+Comparative_Analysis.txt
 Comparative_Analysis_expanded.md
+oltransfer/config.php
+oltransfer/venv/
+logs/
+backups/

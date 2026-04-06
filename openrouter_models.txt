@@ -1,0 +1,1165 @@
+OpenRouter Available Models (fetched 2026-03-21)
+============================================================
+
+Total models: 350
+
+--- ai21 ---
+  ai21/jamba-large-1.7
+    Name: AI21: Jamba Large 1.7
+    Context: 256000 tokens
+
+--- aion-labs ---
+  aion-labs/aion-1.0
+    Name: AionLabs: Aion-1.0
+    Context: 131072 tokens
+  aion-labs/aion-1.0-mini
+    Name: AionLabs: Aion-1.0-Mini
+    Context: 131072 tokens
+  aion-labs/aion-2.0
+    Name: AionLabs: Aion-2.0
+    Context: 131072 tokens
+  aion-labs/aion-rp-llama-3.1-8b
+    Name: AionLabs: Aion-RP 1.0 (8B)
+    Context: 32768 tokens
+
+--- alfredpros ---
+  alfredpros/codellama-7b-instruct-solidity
+    Name: AlfredPros: CodeLLaMa 7B Instruct Solidity
+    Context: 4096 tokens
+
+--- alibaba ---
+  alibaba/tongyi-deepresearch-30b-a3b
+    Name: Tongyi DeepResearch 30B A3B
+    Context: 131072 tokens
+
+--- allenai ---
+  allenai/molmo-2-8b
+    Name: AllenAI: Molmo2 8B
+    Context: 36864 tokens
+  allenai/olmo-2-0325-32b-instruct
+    Name: AllenAI: Olmo 2 32B Instruct
+    Context: 128000 tokens
+  allenai/olmo-3-32b-think
+    Name: AllenAI: Olmo 3 32B Think
+    Context: 65536 tokens
+  allenai/olmo-3-7b-instruct
+    Name: AllenAI: Olmo 3 7B Instruct
+    Context: 65536 tokens
+  allenai/olmo-3-7b-think
+    Name: AllenAI: Olmo 3 7B Think
+    Context: 65536 tokens
+  allenai/olmo-3.1-32b-instruct
+    Name: AllenAI: Olmo 3.1 32B Instruct
+    Context: 65536 tokens
+  allenai/olmo-3.1-32b-think
+    Name: AllenAI: Olmo 3.1 32B Think
+    Context: 65536 tokens
+
+--- alpindale ---
+  alpindale/goliath-120b
+    Name: Goliath 120B
+    Context: 6144 tokens
+
+--- amazon ---
+  amazon/nova-2-lite-v1
+    Name: Amazon: Nova 2 Lite
+    Context: 1000000 tokens
+  amazon/nova-lite-v1
+    Name: Amazon: Nova Lite 1.0
+    Context: 300000 tokens
+  amazon/nova-micro-v1
+    Name: Amazon: Nova Micro 1.0
+    Context: 128000 tokens
+  amazon/nova-premier-v1
+    Name: Amazon: Nova Premier 1.0
+    Context: 1000000 tokens
+  amazon/nova-pro-v1
+    Name: Amazon: Nova Pro 1.0
+    Context: 300000 tokens
+
+--- anthracite-org ---
+  anthracite-org/magnum-v4-72b
+    Name: Magnum v4 72B
+    Context: 16384 tokens
+
+--- anthropic ---
+  anthropic/claude-3-haiku
+    Name: Anthropic: Claude 3 Haiku
+    Context: 200000 tokens
+  anthropic/claude-3.5-haiku
+    Name: Anthropic: Claude 3.5 Haiku
+    Context: 200000 tokens
+  anthropic/claude-3.5-sonnet
+    Name: Anthropic: Claude 3.5 Sonnet
+    Context: 200000 tokens
+  anthropic/claude-3.7-sonnet
+    Name: Anthropic: Claude 3.7 Sonnet
+    Context: 200000 tokens
+  anthropic/claude-3.7-sonnet:thinking
+    Name: Anthropic: Claude 3.7 Sonnet (thinking)
+    Context: 200000 tokens
+  anthropic/claude-haiku-4.5
+    Name: Anthropic: Claude Haiku 4.5
+    Context: 200000 tokens
+  anthropic/claude-opus-4
+    Name: Anthropic: Claude Opus 4
+    Context: 200000 tokens
+  anthropic/claude-opus-4.1
+    Name: Anthropic: Claude Opus 4.1
+    Context: 200000 tokens
+  anthropic/claude-opus-4.5
+    Name: Anthropic: Claude Opus 4.5
+    Context: 200000 tokens
+  anthropic/claude-opus-4.6
+    Name: Anthropic: Claude Opus 4.6
+    Context: 1000000 tokens
+  anthropic/claude-sonnet-4
+    Name: Anthropic: Claude Sonnet 4
+    Context: 200000 tokens
+  anthropic/claude-sonnet-4.5
+    Name: Anthropic: Claude Sonnet 4.5
+    Context: 1000000 tokens
+  anthropic/claude-sonnet-4.6
+    Name: Anthropic: Claude Sonnet 4.6
+    Context: 1000000 tokens
+
+--- arcee-ai ---
+  arcee-ai/coder-large
+    Name: Arcee AI: Coder Large
+    Context: 32768 tokens
+  arcee-ai/maestro-reasoning
+    Name: Arcee AI: Maestro Reasoning
+    Context: 131072 tokens
+  arcee-ai/spotlight
+    Name: Arcee AI: Spotlight
+    Context: 131072 tokens
+  arcee-ai/trinity-large-preview:free [FREE]
+    Name: Arcee AI: Trinity Large Preview (free)
+    Context: 131000 tokens
+  arcee-ai/trinity-mini
+    Name: Arcee AI: Trinity Mini
+    Context: 131072 tokens
+  arcee-ai/trinity-mini:free [FREE]
+    Name: Arcee AI: Trinity Mini (free)
+    Context: 131072 tokens
+  arcee-ai/virtuoso-large
+    Name: Arcee AI: Virtuoso Large
+    Context: 131072 tokens
+
+--- baidu ---
+  baidu/ernie-4.5-21b-a3b
+    Name: Baidu: ERNIE 4.5 21B A3B
+    Context: 120000 tokens
+  baidu/ernie-4.5-21b-a3b-thinking
+    Name: Baidu: ERNIE 4.5 21B A3B Thinking
+    Context: 131072 tokens
+  baidu/ernie-4.5-300b-a47b
+    Name: Baidu: ERNIE 4.5 300B A47B 
+    Context: 123000 tokens
+  baidu/ernie-4.5-vl-28b-a3b
+    Name: Baidu: ERNIE 4.5 VL 28B A3B
+    Context: 30000 tokens
+  baidu/ernie-4.5-vl-424b-a47b
+    Name: Baidu: ERNIE 4.5 VL 424B A47B 
+    Context: 123000 tokens
+
+--- bytedance ---
+  bytedance/ui-tars-1.5-7b
+    Name: ByteDance: UI-TARS 7B 
+    Context: 128000 tokens
+
+--- bytedance-seed ---
+  bytedance-seed/seed-1.6
+    Name: ByteDance Seed: Seed 1.6
+    Context: 262144 tokens
+  bytedance-seed/seed-1.6-flash
+    Name: ByteDance Seed: Seed 1.6 Flash
+    Context: 262144 tokens
+  bytedance-seed/seed-2.0-lite
+    Name: ByteDance Seed: Seed-2.0-Lite
+    Context: 262144 tokens
+  bytedance-seed/seed-2.0-mini
+    Name: ByteDance Seed: Seed-2.0-Mini
+    Context: 262144 tokens
+
+--- cognitivecomputations ---
+  cognitivecomputations/dolphin-mistral-24b-venice-edition:free [FREE]
+    Name: Venice: Uncensored (free)
+    Context: 32768 tokens
+
+--- cohere ---
+  cohere/command-a
+    Name: Cohere: Command A
+    Context: 256000 tokens
+  cohere/command-r-08-2024
+    Name: Cohere: Command R (08-2024)
+    Context: 128000 tokens
+  cohere/command-r-plus-08-2024
+    Name: Cohere: Command R+ (08-2024)
+    Context: 128000 tokens
+  cohere/command-r7b-12-2024
+    Name: Cohere: Command R7B (12-2024)
+    Context: 128000 tokens
+
+--- deepcogito ---
+  deepcogito/cogito-v2.1-671b
+    Name: Deep Cogito: Cogito v2.1 671B
+    Context: 128000 tokens
+
+--- deepseek ---
+  deepseek/deepseek-chat
+    Name: DeepSeek: DeepSeek V3
+    Context: 163840 tokens
+  deepseek/deepseek-chat-v3-0324
+    Name: DeepSeek: DeepSeek V3 0324
+    Context: 163840 tokens
+  deepseek/deepseek-chat-v3.1
+    Name: DeepSeek: DeepSeek V3.1
+    Context: 32768 tokens
+  deepseek/deepseek-r1
+    Name: DeepSeek: R1
+    Context: 64000 tokens
+  deepseek/deepseek-r1-0528
+    Name: DeepSeek: R1 0528
+    Context: 163840 tokens
+  deepseek/deepseek-r1-distill-llama-70b
+    Name: DeepSeek: R1 Distill Llama 70B
+    Context: 131072 tokens
+  deepseek/deepseek-r1-distill-qwen-32b
+    Name: DeepSeek: R1 Distill Qwen 32B
+    Context: 32768 tokens
+  deepseek/deepseek-v3.1-terminus
+    Name: DeepSeek: DeepSeek V3.1 Terminus
+    Context: 163840 tokens
+  deepseek/deepseek-v3.2
+    Name: DeepSeek: DeepSeek V3.2
+    Context: 163840 tokens
+  deepseek/deepseek-v3.2-exp
+    Name: DeepSeek: DeepSeek V3.2 Exp
+    Context: 163840 tokens
+  deepseek/deepseek-v3.2-speciale
+    Name: DeepSeek: DeepSeek V3.2 Speciale
+    Context: 163840 tokens
+
+--- eleutherai ---
+  eleutherai/llemma_7b
+    Name: EleutherAI: Llemma 7b
+    Context: 4096 tokens
+
+--- essentialai ---
+  essentialai/rnj-1-instruct
+    Name: EssentialAI: Rnj 1 Instruct
+    Context: 32768 tokens
+
+--- google ---
+  google/gemini-2.0-flash-001
+    Name: Google: Gemini 2.0 Flash
+    Context: 1048576 tokens
+  google/gemini-2.0-flash-lite-001
+    Name: Google: Gemini 2.0 Flash Lite
+    Context: 1048576 tokens
+  google/gemini-2.5-flash
+    Name: Google: Gemini 2.5 Flash
+    Context: 1048576 tokens
+  google/gemini-2.5-flash-image
+    Name: Google: Nano Banana (Gemini 2.5 Flash Image)
+    Context: 32768 tokens
+  google/gemini-2.5-flash-lite
+    Name: Google: Gemini 2.5 Flash Lite
+    Context: 1048576 tokens
+  google/gemini-2.5-flash-lite-preview-09-2025
+    Name: Google: Gemini 2.5 Flash Lite Preview 09-2025
+    Context: 1048576 tokens
+  google/gemini-2.5-pro
+    Name: Google: Gemini 2.5 Pro
+    Context: 1048576 tokens
+  google/gemini-2.5-pro-preview
+    Name: Google: Gemini 2.5 Pro Preview 06-05
+    Context: 1048576 tokens
+  google/gemini-2.5-pro-preview-05-06
+    Name: Google: Gemini 2.5 Pro Preview 05-06
+    Context: 1048576 tokens
+  google/gemini-3-flash-preview
+    Name: Google: Gemini 3 Flash Preview
+    Context: 1048576 tokens
+  google/gemini-3-pro-image-preview
+    Name: Google: Nano Banana Pro (Gemini 3 Pro Image Preview)
+    Context: 65536 tokens
+  google/gemini-3-pro-preview
+    Name: Google: Gemini 3 Pro Preview
+    Context: 1048576 tokens
+  google/gemini-3.1-flash-image-preview
+    Name: Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)
+    Context: 65536 tokens
+  google/gemini-3.1-flash-lite-preview
+    Name: Google: Gemini 3.1 Flash Lite Preview
+    Context: 1048576 tokens
+  google/gemini-3.1-pro-preview
+    Name: Google: Gemini 3.1 Pro Preview
+    Context: 1048576 tokens
+  google/gemini-3.1-pro-preview-customtools
+    Name: Google: Gemini 3.1 Pro Preview Custom Tools
+    Context: 1048576 tokens
+  google/gemma-2-27b-it
+    Name: Google: Gemma 2 27B
+    Context: 8192 tokens
+  google/gemma-2-9b-it
+    Name: Google: Gemma 2 9B
+    Context: 8192 tokens
+  google/gemma-3-12b-it
+    Name: Google: Gemma 3 12B
+    Context: 131072 tokens
+  google/gemma-3-12b-it:free [FREE]
+    Name: Google: Gemma 3 12B (free)
+    Context: 32768 tokens
+  google/gemma-3-27b-it
+    Name: Google: Gemma 3 27B
+    Context: 131072 tokens
+  google/gemma-3-27b-it:free [FREE]
+    Name: Google: Gemma 3 27B (free)
+    Context: 131072 tokens
+  google/gemma-3-4b-it
+    Name: Google: Gemma 3 4B
+    Context: 131072 tokens
+  google/gemma-3-4b-it:free [FREE]
+    Name: Google: Gemma 3 4B (free)
+    Context: 32768 tokens
+  google/gemma-3n-e2b-it:free [FREE]
+    Name: Google: Gemma 3n 2B (free)
+    Context: 8192 tokens
+  google/gemma-3n-e4b-it
+    Name: Google: Gemma 3n 4B
+    Context: 32768 tokens
+  google/gemma-3n-e4b-it:free [FREE]
+    Name: Google: Gemma 3n 4B (free)
+    Context: 8192 tokens
+
+--- gryphe ---
+  gryphe/mythomax-l2-13b
+    Name: MythoMax 13B
+    Context: 4096 tokens
+
+--- ibm-granite ---
+  ibm-granite/granite-4.0-h-micro
+    Name: IBM: Granite 4.0 Micro
+    Context: 131000 tokens
+
+--- inception ---
+  inception/mercury
+    Name: Inception: Mercury
+    Context: 128000 tokens
+  inception/mercury-2
+    Name: Inception: Mercury 2
+    Context: 128000 tokens
+  inception/mercury-coder
+    Name: Inception: Mercury Coder
+    Context: 128000 tokens
+
+--- inflection ---
+  inflection/inflection-3-pi
+    Name: Inflection: Inflection 3 Pi
+    Context: 8000 tokens
+  inflection/inflection-3-productivity
+    Name: Inflection: Inflection 3 Productivity
+    Context: 8000 tokens
+
+--- kwaipilot ---
+  kwaipilot/kat-coder-pro
+    Name: Kwaipilot: KAT-Coder-Pro V1
+    Context: 256000 tokens
+
+--- liquid ---
+  liquid/lfm-2-24b-a2b
+    Name: LiquidAI: LFM2-24B-A2B
+    Context: 32768 tokens
+  liquid/lfm-2.2-6b
+    Name: LiquidAI: LFM2-2.6B
+    Context: 32768 tokens
+  liquid/lfm-2.5-1.2b-instruct:free [FREE]
+    Name: LiquidAI: LFM2.5-1.2B-Instruct (free)
+    Context: 32768 tokens
+  liquid/lfm-2.5-1.2b-thinking:free [FREE]
+    Name: LiquidAI: LFM2.5-1.2B-Thinking (free)
+    Context: 32768 tokens
+  liquid/lfm2-8b-a1b
+    Name: LiquidAI: LFM2-8B-A1B
+    Context: 32768 tokens
+
+--- mancer ---
+  mancer/weaver
+    Name: Mancer: Weaver (alpha)
+    Context: 8000 tokens
+
+--- meituan ---
+  meituan/longcat-flash-chat
+    Name: Meituan: LongCat Flash Chat
+    Context: 131072 tokens
+
+--- meta-llama ---
+  meta-llama/llama-3-70b-instruct
+    Name: Meta: Llama 3 70B Instruct
+    Context: 8192 tokens
+  meta-llama/llama-3-8b-instruct
+    Name: Meta: Llama 3 8B Instruct
+    Context: 8192 tokens
+  meta-llama/llama-3.1-405b
+    Name: Meta: Llama 3.1 405B (base)
+    Context: 32768 tokens
+  meta-llama/llama-3.1-70b-instruct
+    Name: Meta: Llama 3.1 70B Instruct
+    Context: 131072 tokens
+  meta-llama/llama-3.1-8b-instruct
+    Name: Meta: Llama 3.1 8B Instruct
+    Context: 16384 tokens
+  meta-llama/llama-3.2-11b-vision-instruct
+    Name: Meta: Llama 3.2 11B Vision Instruct
+    Context: 131072 tokens
+  meta-llama/llama-3.2-1b-instruct
+    Name: Meta: Llama 3.2 1B Instruct
+    Context: 60000 tokens
+  meta-llama/llama-3.2-3b-instruct
+    Name: Meta: Llama 3.2 3B Instruct
+    Context: 80000 tokens
+  meta-llama/llama-3.2-3b-instruct:free [FREE]
+    Name: Meta: Llama 3.2 3B Instruct (free)
+    Context: 131072 tokens
+  meta-llama/llama-3.3-70b-instruct
+    Name: Meta: Llama 3.3 70B Instruct
+    Context: 131072 tokens
+  meta-llama/llama-3.3-70b-instruct:free [FREE]
+    Name: Meta: Llama 3.3 70B Instruct (free)
+    Context: 65536 tokens
+  meta-llama/llama-4-maverick
+    Name: Meta: Llama 4 Maverick
+    Context: 1048576 tokens
+  meta-llama/llama-4-scout
+    Name: Meta: Llama 4 Scout
+    Context: 327680 tokens
+  meta-llama/llama-guard-3-8b
+    Name: Llama Guard 3 8B
+    Context: 131072 tokens
+  meta-llama/llama-guard-4-12b
+    Name: Meta: Llama Guard 4 12B
+    Context: 163840 tokens
+
+--- microsoft ---
+  microsoft/phi-4
+    Name: Microsoft: Phi 4
+    Context: 16384 tokens
+  microsoft/wizardlm-2-8x22b
+    Name: WizardLM-2 8x22B
+    Context: 65535 tokens
+
+--- minimax ---
+  minimax/minimax-01
+    Name: MiniMax: MiniMax-01
+    Context: 1000192 tokens
+  minimax/minimax-m1
+    Name: MiniMax: MiniMax M1
+    Context: 1000000 tokens
+  minimax/minimax-m2
+    Name: MiniMax: MiniMax M2
+    Context: 196608 tokens
+  minimax/minimax-m2-her
+    Name: MiniMax: MiniMax M2-her
+    Context: 65536 tokens
+  minimax/minimax-m2.1
+    Name: MiniMax: MiniMax M2.1
+    Context: 196608 tokens
+  minimax/minimax-m2.5
+    Name: MiniMax: MiniMax M2.5
+    Context: 196608 tokens
+  minimax/minimax-m2.5:free [FREE]
+    Name: MiniMax: MiniMax M2.5 (free)
+    Context: 196608 tokens
+  minimax/minimax-m2.7
+    Name: MiniMax: MiniMax M2.7
+    Context: 204800 tokens
+
+--- mistralai ---
+  mistralai/codestral-2508
+    Name: Mistral: Codestral 2508
+    Context: 256000 tokens
+  mistralai/devstral-2512
+    Name: Mistral: Devstral 2 2512
+    Context: 262144 tokens
+  mistralai/devstral-medium
+    Name: Mistral: Devstral Medium
+    Context: 131072 tokens
+  mistralai/devstral-small
+    Name: Mistral: Devstral Small 1.1
+    Context: 131072 tokens
+  mistralai/ministral-14b-2512
+    Name: Mistral: Ministral 3 14B 2512
+    Context: 262144 tokens
+  mistralai/ministral-3b-2512
+    Name: Mistral: Ministral 3 3B 2512
+    Context: 131072 tokens
+  mistralai/ministral-8b-2512
+    Name: Mistral: Ministral 3 8B 2512
+    Context: 262144 tokens
+  mistralai/mistral-7b-instruct-v0.1
+    Name: Mistral: Mistral 7B Instruct v0.1
+    Context: 2824 tokens
+  mistralai/mistral-large
+    Name: Mistral Large
+    Context: 128000 tokens
+  mistralai/mistral-large-2407
+    Name: Mistral Large 2407
+    Context: 131072 tokens
+  mistralai/mistral-large-2411
+    Name: Mistral Large 2411
+    Context: 131072 tokens
+  mistralai/mistral-large-2512
+    Name: Mistral: Mistral Large 3 2512
+    Context: 262144 tokens
+  mistralai/mistral-medium-3
+    Name: Mistral: Mistral Medium 3
+    Context: 131072 tokens
+  mistralai/mistral-medium-3.1
+    Name: Mistral: Mistral Medium 3.1
+    Context: 131072 tokens
+  mistralai/mistral-nemo
+    Name: Mistral: Mistral Nemo
+    Context: 131072 tokens
+  mistralai/mistral-saba
+    Name: Mistral: Saba
+    Context: 32768 tokens
+  mistralai/mistral-small-24b-instruct-2501
+    Name: Mistral: Mistral Small 3
+    Context: 32768 tokens
+  mistralai/mistral-small-2603
+    Name: Mistral: Mistral Small 4
+    Context: 262144 tokens
+  mistralai/mistral-small-3.1-24b-instruct
+    Name: Mistral: Mistral Small 3.1 24B
+    Context: 131072 tokens
+  mistralai/mistral-small-3.1-24b-instruct:free [FREE]
+    Name: Mistral: Mistral Small 3.1 24B (free)
+    Context: 128000 tokens
+  mistralai/mistral-small-3.2-24b-instruct
+    Name: Mistral: Mistral Small 3.2 24B
+    Context: 128000 tokens
+  mistralai/mistral-small-creative
+    Name: Mistral: Mistral Small Creative
+    Context: 32768 tokens
+  mistralai/mixtral-8x22b-instruct
+    Name: Mistral: Mixtral 8x22B Instruct
+    Context: 65536 tokens
+  mistralai/mixtral-8x7b-instruct
+    Name: Mistral: Mixtral 8x7B Instruct
+    Context: 32768 tokens
+  mistralai/pixtral-large-2411
+    Name: Mistral: Pixtral Large 2411
+    Context: 131072 tokens
+  mistralai/voxtral-small-24b-2507
+    Name: Mistral: Voxtral Small 24B 2507
+    Context: 32000 tokens
+
+--- moonshotai ---
+  moonshotai/kimi-k2
+    Name: MoonshotAI: Kimi K2 0711
+    Context: 131000 tokens
+  moonshotai/kimi-k2-0905
+    Name: MoonshotAI: Kimi K2 0905
+    Context: 131072 tokens
+  moonshotai/kimi-k2-thinking
+    Name: MoonshotAI: Kimi K2 Thinking
+    Context: 131072 tokens
+  moonshotai/kimi-k2.5
+    Name: MoonshotAI: Kimi K2.5
+    Context: 262144 tokens
+
+--- morph ---
+  morph/morph-v3-fast
+    Name: Morph: Morph V3 Fast
+    Context: 81920 tokens
+  morph/morph-v3-large
+    Name: Morph: Morph V3 Large
+    Context: 262144 tokens
+
+--- nex-agi ---
+  nex-agi/deepseek-v3.1-nex-n1
+    Name: Nex AGI: DeepSeek V3.1 Nex N1
+    Context: 131072 tokens
+
+--- nousresearch ---
+  nousresearch/hermes-2-pro-llama-3-8b
+    Name: NousResearch: Hermes 2 Pro - Llama-3 8B
+    Context: 8192 tokens
+  nousresearch/hermes-3-llama-3.1-405b
+    Name: Nous: Hermes 3 405B Instruct
+    Context: 131072 tokens
+  nousresearch/hermes-3-llama-3.1-405b:free [FREE]
+    Name: Nous: Hermes 3 405B Instruct (free)
+    Context: 131072 tokens
+  nousresearch/hermes-3-llama-3.1-70b
+    Name: Nous: Hermes 3 70B Instruct
+    Context: 131072 tokens
+  nousresearch/hermes-4-405b
+    Name: Nous: Hermes 4 405B
+    Context: 131072 tokens
+  nousresearch/hermes-4-70b
+    Name: Nous: Hermes 4 70B
+    Context: 131072 tokens
+
+--- nvidia ---
+  nvidia/llama-3.1-nemotron-70b-instruct
+    Name: NVIDIA: Llama 3.1 Nemotron 70B Instruct
+    Context: 131072 tokens
+  nvidia/llama-3.3-nemotron-super-49b-v1.5
+    Name: NVIDIA: Llama 3.3 Nemotron Super 49B V1.5
+    Context: 131072 tokens
+  nvidia/nemotron-3-nano-30b-a3b
+    Name: NVIDIA: Nemotron 3 Nano 30B A3B
+    Context: 262144 tokens
+  nvidia/nemotron-3-nano-30b-a3b:free [FREE]
+    Name: NVIDIA: Nemotron 3 Nano 30B A3B (free)
+    Context: 256000 tokens
+  nvidia/nemotron-3-super-120b-a12b
+    Name: NVIDIA: Nemotron 3 Super
+    Context: 262144 tokens
+  nvidia/nemotron-3-super-120b-a12b:free [FREE]
+    Name: NVIDIA: Nemotron 3 Super (free)
+    Context: 262144 tokens
+  nvidia/nemotron-nano-12b-v2-vl
+    Name: NVIDIA: Nemotron Nano 12B 2 VL
+    Context: 131072 tokens
+  nvidia/nemotron-nano-12b-v2-vl:free [FREE]
+    Name: NVIDIA: Nemotron Nano 12B 2 VL (free)
+    Context: 128000 tokens
+  nvidia/nemotron-nano-9b-v2
+    Name: NVIDIA: Nemotron Nano 9B V2
+    Context: 131072 tokens
+  nvidia/nemotron-nano-9b-v2:free [FREE]
+    Name: NVIDIA: Nemotron Nano 9B V2 (free)
+    Context: 128000 tokens
+
+--- openai ---
+  openai/gpt-3.5-turbo
+    Name: OpenAI: GPT-3.5 Turbo
+    Context: 16385 tokens
+  openai/gpt-3.5-turbo-0613
+    Name: OpenAI: GPT-3.5 Turbo (older v0613)
+    Context: 4095 tokens
+  openai/gpt-3.5-turbo-16k
+    Name: OpenAI: GPT-3.5 Turbo 16k
+    Context: 16385 tokens
+  openai/gpt-3.5-turbo-instruct
+    Name: OpenAI: GPT-3.5 Turbo Instruct
+    Context: 4095 tokens
+  openai/gpt-4
+    Name: OpenAI: GPT-4
+    Context: 8191 tokens
+  openai/gpt-4-0314
+    Name: OpenAI: GPT-4 (older v0314)
+    Context: 8191 tokens
+  openai/gpt-4-1106-preview
+    Name: OpenAI: GPT-4 Turbo (older v1106)
+    Context: 128000 tokens
+  openai/gpt-4-turbo
+    Name: OpenAI: GPT-4 Turbo
+    Context: 128000 tokens
+  openai/gpt-4-turbo-preview
+    Name: OpenAI: GPT-4 Turbo Preview
+    Context: 128000 tokens
+  openai/gpt-4.1
+    Name: OpenAI: GPT-4.1
+    Context: 1047576 tokens
+  openai/gpt-4.1-mini
+    Name: OpenAI: GPT-4.1 Mini
+    Context: 1047576 tokens
+  openai/gpt-4.1-nano
+    Name: OpenAI: GPT-4.1 Nano
+    Context: 1047576 tokens
+  openai/gpt-4o
+    Name: OpenAI: GPT-4o
+    Context: 128000 tokens
+  openai/gpt-4o-2024-05-13
+    Name: OpenAI: GPT-4o (2024-05-13)
+    Context: 128000 tokens
+  openai/gpt-4o-2024-08-06
+    Name: OpenAI: GPT-4o (2024-08-06)
+    Context: 128000 tokens
+  openai/gpt-4o-2024-11-20
+    Name: OpenAI: GPT-4o (2024-11-20)
+    Context: 128000 tokens
+  openai/gpt-4o-audio-preview
+    Name: OpenAI: GPT-4o Audio
+    Context: 128000 tokens
+  openai/gpt-4o-mini
+    Name: OpenAI: GPT-4o-mini
+    Context: 128000 tokens
+  openai/gpt-4o-mini-2024-07-18
+    Name: OpenAI: GPT-4o-mini (2024-07-18)
+    Context: 128000 tokens
+  openai/gpt-4o-mini-search-preview
+    Name: OpenAI: GPT-4o-mini Search Preview
+    Context: 128000 tokens
+  openai/gpt-4o-search-preview
+    Name: OpenAI: GPT-4o Search Preview
+    Context: 128000 tokens
+  openai/gpt-4o:extended
+    Name: OpenAI: GPT-4o (extended)
+    Context: 128000 tokens
+  openai/gpt-5
+    Name: OpenAI: GPT-5
+    Context: 400000 tokens
+  openai/gpt-5-chat
+    Name: OpenAI: GPT-5 Chat
+    Context: 128000 tokens
+  openai/gpt-5-codex
+    Name: OpenAI: GPT-5 Codex
+    Context: 400000 tokens
+  openai/gpt-5-image
+    Name: OpenAI: GPT-5 Image
+    Context: 400000 tokens
+  openai/gpt-5-image-mini
+    Name: OpenAI: GPT-5 Image Mini
+    Context: 400000 tokens
+  openai/gpt-5-mini
+    Name: OpenAI: GPT-5 Mini
+    Context: 400000 tokens
+  openai/gpt-5-nano
+    Name: OpenAI: GPT-5 Nano
+    Context: 400000 tokens
+  openai/gpt-5-pro
+    Name: OpenAI: GPT-5 Pro
+    Context: 400000 tokens
+  openai/gpt-5.1
+    Name: OpenAI: GPT-5.1
+    Context: 400000 tokens
+  openai/gpt-5.1-chat
+    Name: OpenAI: GPT-5.1 Chat
+    Context: 128000 tokens
+  openai/gpt-5.1-codex
+    Name: OpenAI: GPT-5.1-Codex
+    Context: 400000 tokens
+  openai/gpt-5.1-codex-max
+    Name: OpenAI: GPT-5.1-Codex-Max
+    Context: 400000 tokens
+  openai/gpt-5.1-codex-mini
+    Name: OpenAI: GPT-5.1-Codex-Mini
+    Context: 400000 tokens
+  openai/gpt-5.2
+    Name: OpenAI: GPT-5.2
+    Context: 400000 tokens
+  openai/gpt-5.2-chat
+    Name: OpenAI: GPT-5.2 Chat
+    Context: 128000 tokens
+  openai/gpt-5.2-codex
+    Name: OpenAI: GPT-5.2-Codex
+    Context: 400000 tokens
+  openai/gpt-5.2-pro
+    Name: OpenAI: GPT-5.2 Pro
+    Context: 400000 tokens
+  openai/gpt-5.3-chat
+    Name: OpenAI: GPT-5.3 Chat
+    Context: 128000 tokens
+  openai/gpt-5.3-codex
+    Name: OpenAI: GPT-5.3-Codex
+    Context: 400000 tokens
+  openai/gpt-5.4
+    Name: OpenAI: GPT-5.4
+    Context: 1050000 tokens
+  openai/gpt-5.4-mini
+    Name: OpenAI: GPT-5.4 Mini
+    Context: 400000 tokens
+  openai/gpt-5.4-nano
+    Name: OpenAI: GPT-5.4 Nano
+    Context: 400000 tokens
+  openai/gpt-5.4-pro
+    Name: OpenAI: GPT-5.4 Pro
+    Context: 1050000 tokens
+  openai/gpt-audio
+    Name: OpenAI: GPT Audio
+    Context: 128000 tokens
+  openai/gpt-audio-mini
+    Name: OpenAI: GPT Audio Mini
+    Context: 128000 tokens
+  openai/gpt-oss-120b
+    Name: OpenAI: gpt-oss-120b
+    Context: 131072 tokens
+  openai/gpt-oss-120b:free [FREE]
+    Name: OpenAI: gpt-oss-120b (free)
+    Context: 131072 tokens
+  openai/gpt-oss-20b
+    Name: OpenAI: gpt-oss-20b
+    Context: 131072 tokens
+  openai/gpt-oss-20b:free [FREE]
+    Name: OpenAI: gpt-oss-20b (free)
+    Context: 131072 tokens
+  openai/gpt-oss-safeguard-20b
+    Name: OpenAI: gpt-oss-safeguard-20b
+    Context: 131072 tokens
+  openai/o1
+    Name: OpenAI: o1
+    Context: 200000 tokens
+  openai/o1-pro
+    Name: OpenAI: o1-pro
+    Context: 200000 tokens
+  openai/o3
+    Name: OpenAI: o3
+    Context: 200000 tokens
+  openai/o3-deep-research
+    Name: OpenAI: o3 Deep Research
+    Context: 200000 tokens
+  openai/o3-mini
+    Name: OpenAI: o3 Mini
+    Context: 200000 tokens
+  openai/o3-mini-high
+    Name: OpenAI: o3 Mini High
+    Context: 200000 tokens
+  openai/o3-pro
+    Name: OpenAI: o3 Pro
+    Context: 200000 tokens
+  openai/o4-mini
+    Name: OpenAI: o4 Mini
+    Context: 200000 tokens
+  openai/o4-mini-deep-research
+    Name: OpenAI: o4 Mini Deep Research
+    Context: 200000 tokens
+  openai/o4-mini-high
+    Name: OpenAI: o4 Mini High
+    Context: 200000 tokens
+
+--- openrouter ---
+  openrouter/auto
+    Name: Auto Router
+    Context: 2000000 tokens
+  openrouter/bodybuilder
+    Name: Body Builder (beta)
+    Context: 128000 tokens
+  openrouter/free
+    Name: Free Models Router
+    Context: 200000 tokens
+
+--- perplexity ---
+  perplexity/sonar
+    Name: Perplexity: Sonar
+    Context: 127072 tokens
+  perplexity/sonar-deep-research
+    Name: Perplexity: Sonar Deep Research
+    Context: 128000 tokens
+  perplexity/sonar-pro
+    Name: Perplexity: Sonar Pro
+    Context: 200000 tokens
+  perplexity/sonar-pro-search
+    Name: Perplexity: Sonar Pro Search
+    Context: 200000 tokens
+  perplexity/sonar-reasoning-pro
+    Name: Perplexity: Sonar Reasoning Pro
+    Context: 128000 tokens
+
+--- prime-intellect ---
+  prime-intellect/intellect-3
+    Name: Prime Intellect: INTELLECT-3
+    Context: 131072 tokens
+
+--- qwen ---
+  qwen/qwen-2.5-72b-instruct
+    Name: Qwen2.5 72B Instruct
+    Context: 32768 tokens
+  qwen/qwen-2.5-7b-instruct
+    Name: Qwen: Qwen2.5 7B Instruct
+    Context: 32768 tokens
+  qwen/qwen-2.5-coder-32b-instruct
+    Name: Qwen2.5 Coder 32B Instruct
+    Context: 32768 tokens
+  qwen/qwen-2.5-vl-7b-instruct
+    Name: Qwen: Qwen2.5-VL 7B Instruct
+    Context: 32768 tokens
+  qwen/qwen-max
+    Name: Qwen: Qwen-Max 
+    Context: 32768 tokens
+  qwen/qwen-plus
+    Name: Qwen: Qwen-Plus
+    Context: 1000000 tokens
+  qwen/qwen-plus-2025-07-28
+    Name: Qwen: Qwen Plus 0728
+    Context: 1000000 tokens
+  qwen/qwen-plus-2025-07-28:thinking
+    Name: Qwen: Qwen Plus 0728 (thinking)
+    Context: 1000000 tokens
+  qwen/qwen-turbo
+    Name: Qwen: Qwen-Turbo
+    Context: 131072 tokens
+  qwen/qwen-vl-max
+    Name: Qwen: Qwen VL Max
+    Context: 131072 tokens
+  qwen/qwen-vl-plus
+    Name: Qwen: Qwen VL Plus
+    Context: 131072 tokens
+  qwen/qwen2.5-coder-7b-instruct
+    Name: Qwen: Qwen2.5 Coder 7B Instruct
+    Context: 32768 tokens
+  qwen/qwen2.5-vl-32b-instruct
+    Name: Qwen: Qwen2.5 VL 32B Instruct
+    Context: 128000 tokens
+  qwen/qwen2.5-vl-72b-instruct
+    Name: Qwen: Qwen2.5 VL 72B Instruct
+    Context: 32768 tokens
+  qwen/qwen3-14b
+    Name: Qwen: Qwen3 14B
+    Context: 40960 tokens
+  qwen/qwen3-235b-a22b
+    Name: Qwen: Qwen3 235B A22B
+    Context: 131072 tokens
+  qwen/qwen3-235b-a22b-2507
+    Name: Qwen: Qwen3 235B A22B Instruct 2507
+    Context: 262144 tokens
+  qwen/qwen3-235b-a22b-thinking-2507
+    Name: Qwen: Qwen3 235B A22B Thinking 2507
+    Context: 131072 tokens
+  qwen/qwen3-30b-a3b
+    Name: Qwen: Qwen3 30B A3B
+    Context: 40960 tokens
+  qwen/qwen3-30b-a3b-instruct-2507
+    Name: Qwen: Qwen3 30B A3B Instruct 2507
+    Context: 262144 tokens
+  qwen/qwen3-30b-a3b-thinking-2507
+    Name: Qwen: Qwen3 30B A3B Thinking 2507
+    Context: 131072 tokens
+  qwen/qwen3-32b
+    Name: Qwen: Qwen3 32B
+    Context: 40960 tokens
+  qwen/qwen3-4b:free [FREE]
+    Name: Qwen: Qwen3 4B (free)
+    Context: 40960 tokens
+  qwen/qwen3-8b
+    Name: Qwen: Qwen3 8B
+    Context: 40960 tokens
+  qwen/qwen3-coder
+    Name: Qwen: Qwen3 Coder 480B A35B
+    Context: 262144 tokens
+  qwen/qwen3-coder-30b-a3b-instruct
+    Name: Qwen: Qwen3 Coder 30B A3B Instruct
+    Context: 160000 tokens
+  qwen/qwen3-coder-flash
+    Name: Qwen: Qwen3 Coder Flash
+    Context: 1000000 tokens
+  qwen/qwen3-coder-next
+    Name: Qwen: Qwen3 Coder Next
+    Context: 262144 tokens
+  qwen/qwen3-coder-plus
+    Name: Qwen: Qwen3 Coder Plus
+    Context: 1000000 tokens
+  qwen/qwen3-coder:free [FREE]
+    Name: Qwen: Qwen3 Coder 480B A35B (free)
+    Context: 262000 tokens
+  qwen/qwen3-max
+    Name: Qwen: Qwen3 Max
+    Context: 262144 tokens
+  qwen/qwen3-max-thinking
+    Name: Qwen: Qwen3 Max Thinking
+    Context: 262144 tokens
+  qwen/qwen3-next-80b-a3b-instruct
+    Name: Qwen: Qwen3 Next 80B A3B Instruct
+    Context: 262144 tokens
+  qwen/qwen3-next-80b-a3b-instruct:free [FREE]
+    Name: Qwen: Qwen3 Next 80B A3B Instruct (free)
+    Context: 262144 tokens
+  qwen/qwen3-next-80b-a3b-thinking
+    Name: Qwen: Qwen3 Next 80B A3B Thinking
+    Context: 131072 tokens
+  qwen/qwen3-vl-235b-a22b-instruct
+    Name: Qwen: Qwen3 VL 235B A22B Instruct
+    Context: 262144 tokens
+  qwen/qwen3-vl-235b-a22b-thinking
+    Name: Qwen: Qwen3 VL 235B A22B Thinking
+    Context: 131072 tokens
+  qwen/qwen3-vl-30b-a3b-instruct
+    Name: Qwen: Qwen3 VL 30B A3B Instruct
+    Context: 131072 tokens
+  qwen/qwen3-vl-30b-a3b-thinking
+    Name: Qwen: Qwen3 VL 30B A3B Thinking
+    Context: 131072 tokens
+  qwen/qwen3-vl-32b-instruct
+    Name: Qwen: Qwen3 VL 32B Instruct
+    Context: 131072 tokens
+  qwen/qwen3-vl-8b-instruct
+    Name: Qwen: Qwen3 VL 8B Instruct
+    Context: 131072 tokens
+  qwen/qwen3-vl-8b-thinking
+    Name: Qwen: Qwen3 VL 8B Thinking
+    Context: 131072 tokens
+  qwen/qwen3.5-122b-a10b
+    Name: Qwen: Qwen3.5-122B-A10B
+    Context: 262144 tokens
+  qwen/qwen3.5-27b
+    Name: Qwen: Qwen3.5-27B
+    Context: 262144 tokens
+  qwen/qwen3.5-35b-a3b
+    Name: Qwen: Qwen3.5-35B-A3B
+    Context: 262144 tokens
+  qwen/qwen3.5-397b-a17b
+    Name: Qwen: Qwen3.5 397B A17B
+    Context: 262144 tokens
+  qwen/qwen3.5-9b
+    Name: Qwen: Qwen3.5-9B
+    Context: 256000 tokens
+  qwen/qwen3.5-flash-02-23
+    Name: Qwen: Qwen3.5-Flash
+    Context: 1000000 tokens
+  qwen/qwen3.5-plus-02-15
+    Name: Qwen: Qwen3.5 Plus 2026-02-15
+    Context: 1000000 tokens
+  qwen/qwq-32b
+    Name: Qwen: QwQ 32B
+    Context: 131072 tokens
+
+--- relace ---
+  relace/relace-apply-3
+    Name: Relace: Relace Apply 3
+    Context: 256000 tokens
+  relace/relace-search
+    Name: Relace: Relace Search
+    Context: 256000 tokens
+
+--- sao10k ---
+  sao10k/l3-euryale-70b
+    Name: Sao10k: Llama 3 Euryale 70B v2.1
+    Context: 8192 tokens
+  sao10k/l3-lunaris-8b
+    Name: Sao10K: Llama 3 8B Lunaris
+    Context: 8192 tokens
+  sao10k/l3.1-70b-hanami-x1
+    Name: Sao10K: Llama 3.1 70B Hanami x1
+    Context: 16000 tokens
+  sao10k/l3.1-euryale-70b
+    Name: Sao10K: Llama 3.1 Euryale 70B v2.2
+    Context: 131072 tokens
+  sao10k/l3.3-euryale-70b
+    Name: Sao10K: Llama 3.3 Euryale 70B
+    Context: 131072 tokens
+
+--- stepfun ---
+  stepfun/step-3.5-flash
+    Name: StepFun: Step 3.5 Flash
+    Context: 256000 tokens
+  stepfun/step-3.5-flash:free [FREE]
+    Name: StepFun: Step 3.5 Flash (free)
+    Context: 256000 tokens
+
+--- switchpoint ---
+  switchpoint/router
+    Name: Switchpoint Router
+    Context: 131072 tokens
+
+--- tencent ---
+  tencent/hunyuan-a13b-instruct
+    Name: Tencent: Hunyuan A13B Instruct
+    Context: 131072 tokens
+
+--- thedrummer ---
+  thedrummer/cydonia-24b-v4.1
+    Name: TheDrummer: Cydonia 24B V4.1
+    Context: 131072 tokens
+  thedrummer/rocinante-12b
+    Name: TheDrummer: Rocinante 12B
+    Context: 32768 tokens
+  thedrummer/skyfall-36b-v2
+    Name: TheDrummer: Skyfall 36B V2
+    Context: 32768 tokens
+  thedrummer/unslopnemo-12b
+    Name: TheDrummer: UnslopNemo 12B
+    Context: 32768 tokens
+
+--- tngtech ---
+  tngtech/deepseek-r1t2-chimera
+    Name: TNG: DeepSeek R1T2 Chimera
+    Context: 163840 tokens
+
+--- undi95 ---
+  undi95/remm-slerp-l2-13b
+    Name: ReMM SLERP 13B
+    Context: 6144 tokens
+
+--- upstage ---
+  upstage/solar-pro-3
+    Name: Upstage: Solar Pro 3
+    Context: 128000 tokens
+
+--- writer ---
+  writer/palmyra-x5
+    Name: Writer: Palmyra X5
+    Context: 1040000 tokens
+
+--- x-ai ---
+  x-ai/grok-3
+    Name: xAI: Grok 3
+    Context: 131072 tokens
+  x-ai/grok-3-beta
+    Name: xAI: Grok 3 Beta
+    Context: 131072 tokens
+  x-ai/grok-3-mini
+    Name: xAI: Grok 3 Mini
+    Context: 131072 tokens
+  x-ai/grok-3-mini-beta
+    Name: xAI: Grok 3 Mini Beta
+    Context: 131072 tokens
+  x-ai/grok-4
+    Name: xAI: Grok 4
+    Context: 256000 tokens
+  x-ai/grok-4-fast
+    Name: xAI: Grok 4 Fast
+    Context: 2000000 tokens
+  x-ai/grok-4.1-fast
+    Name: xAI: Grok 4.1 Fast
+    Context: 2000000 tokens
+  x-ai/grok-4.20-beta
+    Name: xAI: Grok 4.20 Beta
+    Context: 2000000 tokens
+  x-ai/grok-4.20-multi-agent-beta
+    Name: xAI: Grok 4.20 Multi-Agent Beta
+    Context: 2000000 tokens
+  x-ai/grok-code-fast-1
+    Name: xAI: Grok Code Fast 1
+    Context: 256000 tokens
+
+--- xiaomi ---
+  xiaomi/mimo-v2-flash
+    Name: Xiaomi: MiMo-V2-Flash
+    Context: 262144 tokens
+  xiaomi/mimo-v2-omni
+    Name: Xiaomi: MiMo-V2-Omni
+    Context: 262144 tokens
+  xiaomi/mimo-v2-pro
+    Name: Xiaomi: MiMo-V2-Pro
+    Context: 1048576 tokens
+
+--- z-ai ---
+  z-ai/glm-4-32b
+    Name: Z.ai: GLM 4 32B 
+    Context: 128000 tokens
+  z-ai/glm-4.5
+    Name: Z.ai: GLM 4.5
+    Context: 131072 tokens
+  z-ai/glm-4.5-air
+    Name: Z.ai: GLM 4.5 Air
+    Context: 131072 tokens
+  z-ai/glm-4.5-air:free [FREE]
+    Name: Z.ai: GLM 4.5 Air (free)
+    Context: 131072 tokens
+  z-ai/glm-4.5v
+    Name: Z.ai: GLM 4.5V
+    Context: 65536 tokens
+  z-ai/glm-4.6
+    Name: Z.ai: GLM 4.6
+    Context: 204800 tokens
+  z-ai/glm-4.6v
+    Name: Z.ai: GLM 4.6V
+    Context: 131072 tokens
+  z-ai/glm-4.7
+    Name: Z.ai: GLM 4.7
+    Context: 202752 tokens
+  z-ai/glm-4.7-flash
+    Name: Z.ai: GLM 4.7 Flash
+    Context: 202752 tokens
+  z-ai/glm-5
+    Name: Z.ai: GLM 5
+    Context: 80000 tokens
+  z-ai/glm-5-turbo
+    Name: Z.ai: GLM 5 Turbo
+    Context: 202752 tokens
+

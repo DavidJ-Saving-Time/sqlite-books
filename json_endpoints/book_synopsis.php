@@ -8,7 +8,7 @@ function get_book_synopsis(string $title, string $authors): string {
     $apiKey = getenv('OPENROUTER_API_KEY') ?: 'your_api_key_here';
 
     $payload = [
-        'model' => 'anthropic/claude-sonnet-4',
+        'model' => 'openai/gpt-5.1-chat',
         'messages' => [
             [
                 'role' => 'system',

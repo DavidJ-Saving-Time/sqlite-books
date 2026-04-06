@@ -111,11 +111,10 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Reading Challenge</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
+    <link rel="stylesheet" href="/theme.css.php">
 </head>
 <body class="pt-5">
-<?php include "navbar_other.php"; ?>
+<?php include "navbar.php"; ?>
 <div class="container my-4">
     <h1 class="mb-4 d-flex align-items-center">
         <i class="fa-solid fa-flag-checkered me-2 text-success"></i> 
@@ -281,6 +280,7 @@ try {
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="js/search.js"></script>
 <script src="js/reading_challenges.js"></script>
 </body>
 </html>

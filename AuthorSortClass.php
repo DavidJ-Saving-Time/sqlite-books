@@ -53,29 +53,32 @@ class AuthorSort
         }
 
         $parts = preg_split('/\s+/', trim($name));
-        $numParts = count($parts);
 
-        if ($numParts <= 1) {
+        if (count($parts) <= 1) {
             return $name; // Single name, no inversion
         }
 
-        // Check for suffix (last part is Jr, III, etc.)
+        // Check for suffix (last part is Jr, III, etc.) — suffix stays with given names
         $suffix = '';
-        $last = strtolower($parts[$numParts - 1]);
-        if (in_array($last, $this->suffixes)) {
+        if (in_array(strtolower(end($parts)), $this->suffixes)) {
             $suffix = ' ' . array_pop($parts);
-            $numParts--;
         }
 
-        // Identify last name (with possible particles like van, de)
+        if (count($parts) <= 1) {
+            // Only a last name remains after stripping suffix
+            return implode(' ', $parts) . $suffix;
+        }
+
+        // Identify last name, consuming any leading particles (van, de, von…)
+        // Use end() to always inspect the current last element rather than a stale index.
         $lastName = array_pop($parts);
-        while ($numParts > 1 && in_array(strtolower($parts[$numParts - 2]), $this->particles)) {
+        while (count($parts) > 1 && in_array(strtolower(end($parts)), $this->particles)) {
             $lastName = array_pop($parts) . ' ' . $lastName;
-            $numParts--;
         }
 
         $firstNames = implode(' ', $parts);
-        return trim($lastName . $suffix . ', ' . $firstNames);
+        // Suffix travels with the given-name side: "Smith, John Jr."
+        return trim($lastName . ', ' . $firstNames . $suffix);
     }
 
     public function setMethod($method)
@@ -99,9 +102,3 @@ class AuthorSort
         $this->suffixes = array_map('strtolower', $suffixes);
     }
 }
-
-// --- Example usage ---
-// $sorter = new AuthorSort('invert');
-// echo $sorter->sort("Vincent van Gogh & John Smith Jr.") . "\n";
-// Output: "van Gogh, Vincent & Smith Jr., John"
-

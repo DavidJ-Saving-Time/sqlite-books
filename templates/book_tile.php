@@ -8,7 +8,7 @@
     <figure class="mb-0 position-relative">
       <div class="cover-wrapper position-relative ratio ratio-2x3">
   <?php if (!empty($book['has_cover'])): ?>
-    <a href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>" class="d-block">
+    <a href="book.php?id=<?= urlencode($book['id']) ?>&sort=<?= urlencode($sort) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>" class="d-block">
       <img
         id="coverImage<?= (int)$book['id'] ?>"
         src="<?= htmlspecialchars(getLibraryWebPath() . '/' . $book['path'] . '/cover.jpg') ?>"
@@ -31,10 +31,13 @@
     <div class="card-body p-2 d-flex flex-column">
       <h6 class="card-title mb-1 line-clamp-2" itemprop="name">
         <a class="stretched-link text-decoration-none book-title"
-           href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>"
+           href="book.php?id=<?= urlencode($book['id']) ?>&sort=<?= urlencode($sort) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>"
            data-book-id="<?= htmlspecialchars($book['id']) ?>">
           <?= htmlspecialchars($book['title']) ?>
         </a>
+        <?php if (!empty($onDevice[$book['id']])): ?>
+            <i class="fa-solid fa-tablet-screen-button text-success" title="On device" style="font-size:0.75rem;"></i>
+        <?php endif; ?>
       </h6>
 
       <div class="text-muted small mb-2 book-authors" itemprop="author">
@@ -56,6 +59,15 @@
         <?php endif; ?>
       </div>
 
+      <?php if (isset($deviceProgress[$book['id']])): ?>
+      <?php $dp = $deviceProgress[$book['id']]; $fill = $dp['percent'] !== null ? round($dp['percent'] * 100) : 0; ?>
+      <div class="mb-2" title="<?= $fill ?>% read<?= $dp['pages'] !== null ? ' · ' . (int)$dp['pages'] . ' pages' : '' ?>">
+          <div style="height:4px; background:#dee2e6; border-radius:2px; overflow:hidden;">
+              <div style="width:<?= $fill ?>%; height:100%; background:#0d6efd;"></div>
+          </div>
+          <div class="text-muted" style="font-size:0.65rem; margin-top:2px;"><?= $fill ?>%<?= $dp['pages'] !== null ? ' · ' . (int)$dp['pages'] . ' pp' : '' ?></div>
+      </div>
+      <?php endif; ?>
       <div class="mt-auto">
         <?php $currentRating = (int)$book['rating']; ?>
         <div class="star-rating d-inline-flex align-items-center gap-1"

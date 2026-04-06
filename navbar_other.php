@@ -21,13 +21,6 @@
       <!-- Right: Buttons + User -->
       <ul class="navbar-nav align-items-center">
 
-        <!-- Add Book Button -->
-        <li class="nav-item me-2">
-          <a class="btn btn-primary" href="add_physical_book.php">
-            <i class="fa-solid fa-plus me-1"></i> Add Book
-          </a>
-        </li>
-
         <!-- Add Multiple Books Button -->
         <li class="nav-item me-2">
           <a class="btn btn-primary" href="add_physical_books.php">

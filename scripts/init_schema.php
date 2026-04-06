@@ -4,6 +4,14 @@ require_once __DIR__ . '/../db.php';
 $pdo = getDatabaseConnection();
 initializeCustomColumns($pdo);
 
+// Author identifiers table (stores OL author IDs, VIAF, etc. keyed by authors.id)
+$pdo->exec('CREATE TABLE IF NOT EXISTS author_identifiers (
+    author_id INTEGER NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
+    type      TEXT NOT NULL,
+    val       TEXT NOT NULL,
+    PRIMARY KEY (author_id, type)
+)');
+
 // Ensure indexes exist for common lookup tables
 try {
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_books_authors_link_book ON books_authors_link(book)');

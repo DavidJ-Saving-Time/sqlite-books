@@ -21,9 +21,11 @@ $statusNameVal = isset($statusName) ? $statusName : '';
 
     <!-- Left: Menu Button + Brand -->
     <div class="d-flex align-items-center">
+      <?php if (!empty($showOffcanvas)): ?>
       <button class="btn btn-primary me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu">
         <i class="fa-solid fa-bars"></i>
       </button>
+      <?php endif; ?>
       <a class="navbar-brand d-flex align-items-center" href="list_books.php">
         <i class="fa-solid fa-book-open me-2"></i> Books
       </a>
@@ -40,19 +42,13 @@ $statusNameVal = isset($statusName) ? $statusName : '';
       <!-- Center: Search + Sort -->
       <div class="d-flex flex-grow-1 justify-content-center align-items-center">
 
-        <!-- Search Form -->
-        <form class="d-flex me-3" method="get" action="<?= htmlspecialchars($action) ?>">
+        <!-- Search Form — always searches clean, no inherited filters -->
+        <form class="d-flex me-3" method="get" action="list_books.php">
           <input type="hidden" name="page" value="1">
           <input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>">
-          <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
-          <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
-          <?php if ($genreIdVal): ?><input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>"><?php endif; ?>
-          <?php if ($shelfNameVal !== ''): ?><input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>"><?php endif; ?>
-          <?php if ($statusNameVal !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($statusNameVal) ?>"><?php endif; ?>
 
           <div class="input-group position-relative">
             <input class="form-control" type="search" name="search" style="width: 20rem;" placeholder="Search books..." value="<?= htmlspecialchars($searchVal) ?>" aria-label="Search" autocomplete="off">
-            <ul id="searchSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none; top:100%; left:0;"></ul>
             <select name="source" class="form-select" style="max-width: 12rem;">
               <option value="local"<?= $sourceVal === 'local' ? ' selected' : '' ?>>Local</option>
               <option value="openlibrary"<?= $sourceVal === 'openlibrary' ? ' selected' : '' ?>>Open Library</option>
@@ -62,11 +58,12 @@ $statusNameVal = isset($statusName) ? $statusName : '';
             <button class="btn btn-primary" type="submit">
               <i class="fa-solid fa-magnifying-glass"></i> Search
             </button>
+            <ul id="searchSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none; top:100%; left:0;"></ul>
           </div>
         </form>
 
         <!-- Sort Form -->
-        <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
+        <form class="d-flex me-2" method="get" action="<?= htmlspecialchars($action) ?>">
           <?php if ($searchVal !== ''): ?><input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>"><?php endif; ?>
           <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
           <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
@@ -82,24 +79,40 @@ $statusNameVal = isset($statusName) ? $statusName : '';
               <option value="series"<?= $sortVal === 'series' ? ' selected' : '' ?>>Series</option>
               <option value="author_series"<?= $sortVal === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
               <option value="author_series_surname"<?= $sortVal === 'author_series_surname' ? ' selected' : '' ?>>Author &amp; Series Surname</option>
-                            <option value="last_modified"<?= $sortVal === 'last_modified' ? ' selected' : '' ?>>Last Updated</option>
+              <option value="last_modified"<?= $sortVal === 'last_modified' ? ' selected' : '' ?>>Last Updated</option>
               <option value="recommended"<?= $sortVal === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
             </select>
           </div>
         </form>
+
+        <!-- Status Selector (only on list_books.php) -->
+        <?php if (isset($statusOptions) && function_exists('buildBaseUrl')): ?>
+        <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
+          <input type="hidden" name="page" value="1">
+          <?php if ($searchVal !== ''): ?><input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>"><?php endif; ?>
+          <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
+          <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
+          <?php if ($genreIdVal): ?><input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>"><?php endif; ?>
+          <?php if ($shelfNameVal !== ''): ?><input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>"><?php endif; ?>
+          <?php if ($sortVal !== ''): ?><input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>"><?php endif; ?>
+
+          <div class="input-group">
+            <span class="input-group-text"><i class="fa-solid fa-list-check"></i></span>
+            <select class="form-select" name="status" id="statusSelect">
+              <option value=""<?= $statusNameVal === '' ? ' selected' : '' ?>>All Status</option>
+              <?php foreach ($statusOptions as $s): ?>
+                <option value="<?= htmlspecialchars($s) ?>"<?= $statusNameVal === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </form>
+        <?php endif; ?>
       </div>
 
       <!-- Right: Navigation Links + User -->
       <ul class="navbar-nav ms-3 align-items-center">
 
-        <!-- Add Book Button -->
-        <li class="nav-item me-2">
-          <a class="btn btn-primary" href="add_physical_book.php">
-            <i class="fa-solid fa-plus me-1"></i> Add Book
-          </a>
-        </li>
-
-        <!-- Add Multiple Books Button -->
+        <!-- Add Books Button -->
         <li class="nav-item me-2">
           <a class="btn btn-primary" href="add_physical_books.php">
             <i class="fa-solid fa-plus me-1"></i> Add Books
@@ -112,38 +125,20 @@ $statusNameVal = isset($statusName) ? $statusName : '';
             <i class="fa-solid fa-pen-nib me-1"></i> WordPro
           </a>
         </li>
-        
-                <!-- WordPro Button -->
+
+        <!-- Research Button -->
         <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/ircdashboard.php">
-            <i class="fa fa-terminal me-1"></i>IRC
+          <a class="btn btn-primary" href="/research/research-search.php">
+            <i class="fa-solid fa-flask me-1"></i> Research
           </a>
         </li>
 
-        <!-- Status Selector -->
-        <?php if (isset($statusOptions) && function_exists('buildBaseUrl')): ?>
-        <li class="nav-item">
-          <form class="d-flex" method="get" action="<?= htmlspecialchars($action) ?>">
-            <input type="hidden" name="page" value="1">
-            <?php if ($searchVal !== ''): ?><input type="hidden" name="search" value="<?= htmlspecialchars($searchVal) ?>"><?php endif; ?>
-            <?php if ($authorIdVal): ?><input type="hidden" name="author_id" value="<?= htmlspecialchars($authorIdVal) ?>"><?php endif; ?>
-            <?php if ($seriesIdVal): ?><input type="hidden" name="series_id" value="<?= htmlspecialchars($seriesIdVal) ?>"><?php endif; ?>
-            <?php if ($genreIdVal): ?><input type="hidden" name="genre_id" value="<?= htmlspecialchars($genreIdVal) ?>"><?php endif; ?>
-            <?php if ($shelfNameVal !== ''): ?><input type="hidden" name="shelf" value="<?= htmlspecialchars($shelfNameVal) ?>"><?php endif; ?>
-            <?php if ($sortVal !== ''): ?><input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>"><?php endif; ?>
-
-            <div class="input-group">
-              <span class="input-group-text"><i class="fa-solid fa-list-check"></i></span>
-              <select class="form-select" name="status" id="statusSelect">
-                <option value=""<?= $statusNameVal === '' ? ' selected' : '' ?>>All Status</option>
-                <?php foreach ($statusOptions as $s): ?>
-                  <option value="<?= htmlspecialchars($s) ?>"<?= $statusNameVal === $s ? ' selected' : '' ?>><?= htmlspecialchars($s) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-          </form>
+        <!-- IRC Button -->
+        <li class="nav-item me-2">
+          <a class="btn btn-primary" href="/ircdashboard.php">
+            <i class="fa fa-terminal me-1"></i> IRC
+          </a>
         </li>
-        <?php endif; ?>
 
         <!-- User Dropdown -->
         <?php if (currentUser()): ?>
@@ -163,12 +158,17 @@ $statusNameVal = isset($statusName) ? $statusName : '';
                 <i class="fa-solid fa-gear me-1"></i> Prefs
               </a>
             </li>
-                        <li>
-              <a class="dropdown-item" href="authors.php" target="_blank">
-                <i class="fa-solid fa-gear me-1"></i> Author List 
+            <li>
+              <a class="dropdown-item" href="themes.php">
+                <i class="fa-solid fa-palette me-1"></i> Themes
               </a>
             </li>
-                        <li>
+            <li>
+              <a class="dropdown-item" href="authors.php" target="_blank">
+                <i class="fa-solid fa-gear me-1"></i> Author List
+              </a>
+            </li>
+            <li>
               <a class="dropdown-item" href="series.php" target="_blank">
                 <i class="fa-solid fa-gear me-1"></i> Series List
               </a>
@@ -178,7 +178,11 @@ $statusNameVal = isset($statusName) ? $statusName : '';
                 <i class="fa-solid fa-gear me-1"></i> Subseries List
               </a>
             </li>
-
+            <li>
+              <a class="dropdown-item" href="/sync.php">
+                <i class="fa-solid fa-rotate me-1"></i> Sync
+              </a>
+            </li>
             <li><hr class="dropdown-divider"></li>
             <li>
               <a class="dropdown-item" href="logout.php">
@@ -199,6 +203,5 @@ $statusNameVal = isset($statusName) ? $statusName : '';
     </div>
   </div>
 </nav>
-
 
 <script src="js/navbar.js"></script>

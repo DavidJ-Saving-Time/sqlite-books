@@ -2,13 +2,16 @@
 require_once 'db.php';
 requireLogin();
 require_once 'annas_archive.php';
+require_once 'metadata/metadata_sources.php';
 
 $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
+$author = isset($_GET['author']) ? trim((string)$_GET['author']) : '';
 $sort = $_GET['sort'] ?? 'author_series';
 $source = 'annas';
 $books = [];
+$debugInfo = [];
 if ($search !== '') {
-    $books = search_annas_archive($search);
+    $books = search_annas_archive($search, $debugInfo, $author);
 }
 ?>
 <!DOCTYPE html>
@@ -17,14 +20,36 @@ if ($search !== '') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Anna's Archive Results</title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
+    <link rel="stylesheet" href="/theme.css.php">
     <script src="js/search.js"></script>
 </head>
 <body class="pt-5">
 <?php include "navbar_other.php"; ?>
 <div class="container my-4">
     <h1 class="mb-4">Anna's Archive Results</h1>
+
+    <?php if (!empty($debugInfo)): ?>
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark fw-bold">Debug Info</div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Search term</dt>
+                <dd class="col-sm-9"><?= htmlspecialchars($search) ?></dd>
+                <dt class="col-sm-3">URL called</dt>
+                <dd class="col-sm-9"><code><?= htmlspecialchars($debugInfo['url'] ?? '') ?></code></dd>
+                <dt class="col-sm-3">HTTP status</dt>
+                <dd class="col-sm-9"><?= htmlspecialchars((string)($debugInfo['http_code'] ?? 'n/a')) ?></dd>
+                <dt class="col-sm-3">cURL error</dt>
+                <dd class="col-sm-9"><?= htmlspecialchars($debugInfo['curl_error'] ?? 'none') ?></dd>
+                <dt class="col-sm-3">API key set</dt>
+                <dd class="col-sm-9"><?= $debugInfo['has_api_key'] ? 'Yes' : '<strong class="text-danger">NO</strong>' ?></dd>
+                <dt class="col-sm-3">Raw response</dt>
+                <dd class="col-sm-9"><pre class="small mb-0" style="max-height:300px;overflow:auto"><?= htmlspecialchars($debugInfo['raw_response'] ?? '') ?></pre></dd>
+            </dl>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <table class="table table-striped">
         <thead>
             <tr>
@@ -41,8 +66,8 @@ if ($search !== '') {
         <?php foreach ($books as $book): ?>
             <tr>
                 <td>
-                    <?php if (!empty($book['imgUrl'])): ?>
-                        <img src="<?= htmlspecialchars($book['imgUrl']) ?>" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
+                    <?php if (!empty($book['cover'])): ?>
+                        <img src="<?= htmlspecialchars($book['cover']) ?>" alt="Cover" class="img-thumbnail" style="width: 150px; height: auto;">
                     <?php else: ?>
                         &mdash;
                     <?php endif; ?>
@@ -56,22 +81,15 @@ if ($search !== '') {
                         <?= htmlspecialchars($book['title']) ?>
                     <?php endif; ?>
                 </td>
-                <td><?= $book['author'] !== '' ? htmlspecialchars($book['author']) : '&mdash;' ?></td>
-                <td><?= $book['genre'] !== '' ? htmlspecialchars($book['genre']) : '&mdash;' ?></td>
-                <td><?= $book['year'] !== '' ? htmlspecialchars($book['year']) : '&mdash;' ?></td>
-                <td><?= $book['size'] !== '' ? htmlspecialchars($book['size']) : '&mdash;' ?></td>
+                <td><?= ($book['authors'] ?? '') !== '' ? htmlspecialchars($book['authors']) : '&mdash;' ?></td>
+                <td><?= ($book['genre'] ?? '') !== '' ? htmlspecialchars($book['genre']) : '&mdash;' ?></td>
+                <td><?= ($book['year'] ?? '') !== '' ? htmlspecialchars($book['year']) : '&mdash;' ?></td>
+                <td><?= ($book['size'] ?? '') !== '' ? htmlspecialchars($book['size']) : '&mdash;' ?></td>
                 <td>
-                    <?php if (!empty($book['md5'])): ?>
-                        <button type="button" class="btn btn-sm btn-success annas-download" data-md5="<?= htmlspecialchars($book['md5']) ?>">
-                            Download<?php if (!empty($book['format'])): ?> <?= htmlspecialchars(strtoupper($book['format'])) ?><?php endif; ?>
-                        </button>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                    <button type="button" class="btn btn-sm btn-primary ms-1 annas-add"
+                    <button type="button" class="btn btn-sm btn-primary annas-add"
                             data-title="<?= htmlspecialchars($book['title'], ENT_QUOTES) ?>"
-                            data-authors="<?= htmlspecialchars($book['author'], ENT_QUOTES) ?>"
-                            data-thumbnail="<?= htmlspecialchars($book['imgUrl'], ENT_QUOTES) ?>"
+                            data-authors="<?= htmlspecialchars($book['authors'] ?? '', ENT_QUOTES) ?>"
+                            data-thumbnail="<?= htmlspecialchars($book['cover'] ?? '', ENT_QUOTES) ?>"
                             data-description="">
                         Add to Library
                     </button>

@@ -151,17 +151,20 @@ function firstBookFile(string $relativePath): ?string {
     if (!is_dir($dir)) {
         return null;
     }
-       $allowed = ['epub', 'mobi', 'azw3', 'pdf', 'txt', 'docx'];
+    // Try formats in preference order so epub is always chosen over azw3/mobi
+    $preferred = ['epub', 'mobi', 'azw3', 'pdf', 'txt', 'docx'];
+    $found = [];
     foreach (glob($dir . '/*') as $file) {
-        if (!is_file($file)) {
-            continue;
-        }
+        if (!is_file($file)) continue;
         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-        if (in_array($ext, $allowed, true)) {
-            return substr($file, strlen($library) + 1);
+        $pri = array_search($ext, $preferred, true);
+        if ($pri !== false) {
+            $found[$pri] = substr($file, strlen($library) + 1);
         }
     }
-    return null;
+    if (empty($found)) return null;
+    ksort($found);
+    return reset($found);
 }
 
 function getCustomColumnId(PDO $pdo, string $label): int {
@@ -181,6 +184,10 @@ function getDatabaseConnection(?string $path = null) {
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         // Enforce foreign key constraints for the connection
         $pdo->exec('PRAGMA foreign_keys = ON');
+        // WAL mode allows concurrent reads and a single writer without locking readers out,
+        // preventing "database is locked" / "disk image is malformed" errors under autosave load.
+        $pdo->exec('PRAGMA journal_mode=WAL');
+        $pdo->exec('PRAGMA busy_timeout=5000');
 
         // Register a PHP implementation of Calibre's title_sort function so
         // database triggers referring to title_sort() work correctly.

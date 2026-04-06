@@ -346,11 +346,7 @@ function snippet_for_page(PDO $db, int $itemId, int $pdfPage): string {
   <meta charset="utf-8">
   <title>Review Page Labels</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    .numcell { width: 7rem; }
-    .labcell { width: 12rem; }
-    .snip { color:#666; font-size: .9rem; }
-  </style>
+  <link rel="stylesheet" href="/css/research-theme.css">
 </head>
 <body class="p-4">
   <div class="container">
@@ -456,17 +452,17 @@ function snippet_for_page(PDO $db, int $itemId, int $pdfPage): string {
                   <input type="hidden" name="action" value="update_one">
                   <input type="hidden" name="item_id" value="<?= (int)$itemId ?>">
                   <input type="hidden" name="pdf_page" value="<?= (int)$row['pdf_page'] ?>">
-                  <td class="labcell">
+                  <td class="ra-labcell">
                     <input class="form-control form-control-sm" name="display_label"
                            value="<?= h($row['display_label']) ?>" placeholder="e.g. xii or 201">
                   </td>
-                  <td class="numcell">
+                  <td class="ra-numcell">
                     <input class="form-control form-control-sm" name="display_number"
                            value="<?= h($row['display_number']) ?>" placeholder="">
                   </td>
                   <td><?= h($row['method']) ?></td>
                   <td><?= h(number_format((float)$row['confidence'],2)) ?></td>
-                  <td class="snip"><?= h(snippet_for_page($db, $itemId, (int)$row['pdf_page'])) ?></td>
+                  <td class="ra-snip"><?= h(snippet_for_page($db, $itemId, (int)$row['pdf_page'])) ?></td>
                   <td><button class="btn btn-sm btn-outline-secondary">Save</button></td>
                 </form>
               </tr>

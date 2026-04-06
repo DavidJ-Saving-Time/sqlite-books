@@ -26,8 +26,7 @@ if (!$coverId && !empty($covers)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($workTitle) ?></title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
+    <link rel="stylesheet" href="/theme.css.php">
 </head>
 <body>
 <?php include "navbar_other.php"; ?>

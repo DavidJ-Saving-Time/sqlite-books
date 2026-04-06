@@ -1,7 +1,7 @@
 <?php // Research section navbar ?>
 <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
   <div class="container-fluid">
-    <a class="navbar-brand d-flex align-items-center" href="/research.php">
+    <a class="navbar-brand d-flex align-items-center" href="/research/research-search.php">
       <i class="fa-solid fa-flask me-2"></i> Research
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResearch" aria-controls="navbarResearch" aria-expanded="false" aria-label="Toggle navigation">
@@ -9,16 +9,14 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarResearch">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="/research.php">Search</a></li>
+        <li class="nav-item"><a class="nav-link" href="/research/research-search.php">Search</a></li>
         <li class="nav-item"><a class="nav-link" href="/research/research-ask.php">Ask</a></li>
-        <li class="nav-item"><a class="nav-link" href="/research/research-cite.php">Cite</a></li>
         <li class="nav-item"><a class="nav-link" href="/research/research-ai.php">AI Ingest</a></li>
-        <li class="nav-item"><a class="nav-link" href="/research/research-verifyPDF.php">Verify PDF</a></li>
       </ul>
       <ul class="navbar-nav ms-auto align-items-center">
         <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/add_physical_book.php">
-            <i class="fa-solid fa-plus me-1"></i> Add Book
+          <a class="btn btn-primary" href="/list_books.php">
+            <i class="fa-solid fa-book-open me-1"></i> Library
           </a>
         </li>
         <li class="nav-item me-2">

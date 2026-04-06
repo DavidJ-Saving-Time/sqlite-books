@@ -3,7 +3,32 @@ require_once 'db.php';
 requireLogin();
 
 function safe_filename(string $name, int $max_length = 150): string {
-    $name = preg_replace('/[^A-Za-z0-9 _.-]/', '', $name);
+    // Transliterate accented Latin characters to ASCII equivalents so that
+    // e.g. García → Garcia rather than being silently stripped to Garca.
+    if (function_exists('iconv')) {
+        $t = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+        if ($t !== false) {
+            $name = $t;
+        }
+    } else {
+        // Fallback map covering common Latin-1 / Latin Extended characters.
+        static $from = ['À','Á','Â','Ã','Ä','Å','Æ','Ç','È','É','Ê','Ë',
+                        'Ì','Í','Î','Ï','Ð','Ñ','Ò','Ó','Ô','Õ','Ö','Ø',
+                        'Ù','Ú','Û','Ü','Ý','Þ','ß','à','á','â','ã','ä',
+                        'å','æ','ç','è','é','ê','ë','ì','í','î','ï','ð',
+                        'ñ','ò','ó','ô','õ','ö','ø','ù','ú','û','ü','ý',
+                        'þ','ÿ','Ł','ł','Ś','ś','Ź','ź','Ż','ż','Ć','ć',
+                        'Ń','ń','Č','č','Š','š','Ž','ž','Ř','ř'];
+        static $to   = ['A','A','A','A','A','A','AE','C','E','E','E','E',
+                        'I','I','I','I','D','N','O','O','O','O','O','O',
+                        'U','U','U','U','Y','TH','ss','a','a','a','a','a',
+                        'a','ae','c','e','e','e','e','i','i','i','i','d',
+                        'n','o','o','o','o','o','o','u','u','u','u','y',
+                        'th','y','L','l','S','s','Z','z','Z','z','C','c',
+                        'N','n','C','c','S','s','Z','z','R','r'];
+        $name = str_replace($from, $to, $name);
+    }
+    $name = preg_replace('/[^A-Za-z0-9 _.\'-]/', '', $name);
     return substr(trim($name), 0, $max_length);
 }
 
@@ -86,12 +111,6 @@ $stmt = $pdo->prepare('SELECT * FROM books WHERE id = ?');
 $stmt->execute([$id]);
 $book = $stmt->fetch(PDO::FETCH_ASSOC);
 // Prefer ISBN stored in identifiers table if present
-$isbnStmt = $pdo->prepare('SELECT val FROM identifiers WHERE book = ? AND type = "isbn" COLLATE NOCASE');
-$isbnStmt->execute([$id]);
-$isbnVal = $isbnStmt->fetchColumn();
-if ($isbnVal !== false && $isbnVal !== null) {
-    $book['isbn'] = $isbnVal;
-}
 if (!$book) {
     die('Book not found');
 }
@@ -147,294 +166,80 @@ if ($returnItem !== '') {
 }
 
 $updated = false;
+$fsWarning = null;
 $sendMessage = null;
 $conversionMessage = null;
-$convertRequested = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['convert_to_pdf']));
-$sendRequested = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_to_device']));
+$epubFileRel = '';
+$pdfFileRel  = '';
+$convertRequested      = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['convert_to_pdf']));
+$convertEpubRequested  = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['convert_to_epub']));
+$sendRequested         = ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['send_to_device'] ?? '') === '1');
 
-if ($convertRequested) {
-    $bookRelPath = ltrim((string)($book['path'] ?? ''), '/');
-    if ($bookRelPath === '') {
-        $conversionMessage = ['type' => 'danger', 'text' => 'Book path is not set in the library.'];
-    } else {
-        $epubRelative = findBookFileByExtension($bookRelPath, 'epub');
-        if ($epubRelative === null) {
-            $conversionMessage = ['type' => 'danger', 'text' => 'No EPUB file found to convert.'];
-        } else {
-            $libraryPath = getLibraryPath();
-            $inputFile = $libraryPath . '/' . $epubRelative;
-            $outputDir = dirname($inputFile);
-            $outputFile = $outputDir . '/' . pathinfo($inputFile, PATHINFO_FILENAME) . '.pdf';
-            if (file_exists($outputFile)) {
-                $conversionMessage = ['type' => 'warning', 'text' => 'PDF already exists: ' . basename($outputFile)];
-            } else {
-                $cmd = 'LANG=C ebook-convert ' . escapeshellarg($inputFile) . ' ' . escapeshellarg($outputFile) . ' 2>&1';
-                $cmdOutput = [];
-                $exitCode = 0;
-                exec($cmd, $cmdOutput, $exitCode);
-                clearstatcache(true, $outputFile);
-                if ($exitCode === 0 && file_exists($outputFile)) {
-                    @chmod($outputFile, 0664);
-                    $conversionMessage = ['type' => 'success', 'text' => 'PDF created: ' . basename($outputFile)];
-                } else {
-                    if ($exitCode !== 0 && file_exists($outputFile)) {
-                        @unlink($outputFile);
-                    }
-                    $error = '';
-                    foreach ($cmdOutput as $line) {
-                        $line = trim($line);
-                        if ($line !== '') {
-                            $error = $line;
-                            break;
-                        }
-                    }
-                    if ($error === '') {
-                        $error = 'ebook-convert failed to create PDF.';
-                    }
-                    $conversionMessage = ['type' => 'danger', 'text' => $error];
-                }
-            }
-        }
-    }
+if ($convertRequested || $convertEpubRequested) {
+    require __DIR__ . '/book_actions/convert.php';
 }
 
-// Handle updates
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$convertRequested) {
-    $title = $_POST['title'] ?? '';
-    $authorsInput = trim($_POST['authors'] ?? '');
-    $authorSortInput = trim($_POST['author_sort'] ?? '');
-    $descriptionInput = trim($_POST['description'] ?? '');
-    $seriesNameInput = trim($_POST['series'] ?? '');
-    $seriesIndexInput = trim($_POST['series_index'] ?? '');
-    $subseriesNameInput = trim($_POST['subseries'] ?? '');
-    $subseriesIndexInput = trim($_POST['subseries_index'] ?? '');
-    $publisherInput = trim($_POST['publisher'] ?? '');
-    $pubdateInput = trim($_POST['pubdate'] ?? '');
-    $pubDate = $book['pubdate'];
-    $isbnInput = trim($_POST['isbn'] ?? '');
-    $notesInput = trim($_POST['notes'] ?? '');
-
-    $pdo->beginTransaction();
-    $stmt = $pdo->prepare('UPDATE books SET title = ?, last_modified = CURRENT_TIMESTAMP WHERE id = ?');
-    $stmt->execute([$title, $id]);
-
-    if ($authorsInput !== '') {
-        $authorsList = preg_split('/\s*(?:,|;| and )\s*/i', $authorsInput);
-        $authorsList = array_filter(array_map('trim', $authorsList), 'strlen');
-        if (empty($authorsList)) {
-            $authorsList = [$authorsInput];
-        }
-        $primaryAuthor = $authorsList[0];
-        $insertAuthor = $pdo->prepare(
-            'INSERT INTO authors (name, sort)
-             VALUES (:name, author_sort(:name))
-             ON CONFLICT(name) DO UPDATE SET sort = excluded.sort'
-        );
-        foreach ($authorsList as $a) {
-            $insertAuthor->execute([':name' => $a]);
-        }
-        $pdo->prepare('DELETE FROM books_authors_link WHERE book = :book')->execute([':book' => $id]);
-        foreach ($authorsList as $a) {
-            $aid = $pdo->query('SELECT id FROM authors WHERE name=' . $pdo->quote($a))->fetchColumn();
-            if ($aid !== false) {
-                $linkStmt = $pdo->prepare('INSERT INTO books_authors_link (book, author) VALUES (:book, :author)');
-                $linkStmt->execute([':book' => $id, ':author' => $aid]);
-            }
-        }
-        if ($authorSortInput === '') {
-            $sortStmt = $pdo->prepare('SELECT author_sort(:name)');
-            $sortStmt->execute([':name' => $primaryAuthor]);
-            $authorSortInput = (string)$sortStmt->fetchColumn();
-        }
-        $pdo->prepare('UPDATE books SET author_sort = :sort WHERE id = :id')
-            ->execute([':sort' => $authorSortInput, ':id' => $id]);
-    }
-
-    if ($descriptionInput !== '') {
-        $descStmt = $pdo->prepare('INSERT INTO comments (book, text) VALUES (:book, :text) '
-            . 'ON CONFLICT(book) DO UPDATE SET text = excluded.text');
-        $descStmt->execute([':book' => $id, ':text' => $descriptionInput]);
-    } else {
-        $pdo->prepare('DELETE FROM comments WHERE book = ?')->execute([$id]);
-    }
-
-    // Update notes in custom column
-    try {
-        $notesId = ensureSingleValueColumn($pdo, '#notes', 'Notes');
-        $notesValTable  = "custom_column_{$notesId}";
-        $notesLinkTable = "books_custom_column_{$notesId}_link";
-        $pdo->prepare("DELETE FROM $notesLinkTable WHERE book = :book")
-            ->execute([':book' => $id]);
-        if ($notesInput !== '') {
-            $pdo->prepare("INSERT OR IGNORE INTO $notesValTable (value) VALUES (:val)")
-                ->execute([':val' => $notesInput]);
-            $valStmt = $pdo->prepare("SELECT id FROM $notesValTable WHERE value = :val");
-            $valStmt->execute([':val' => $notesInput]);
-            $valId = $valStmt->fetchColumn();
-            if ($valId !== false) {
-                $pdo->prepare("INSERT INTO $notesLinkTable (book, value) VALUES (:book, :val)")
-                    ->execute([':book' => $id, ':val' => $valId]);
-            }
-        }
-    } catch (PDOException $e) {
-        // Ignore errors updating notes
-    }
-
-    // Handle series update
-    $seriesIndex = $seriesIndexInput !== '' ? (float)$seriesIndexInput : (float)$book['series_index'];
-    if ($seriesNameInput === '') {
-        $pdo->prepare('DELETE FROM books_series_link WHERE book = :book')
-            ->execute([':book' => $id]);
-    } else {
-        $stmt = $pdo->prepare('SELECT id FROM series WHERE name = :name');
-        $stmt->execute([':name' => $seriesNameInput]);
-        $seriesId = $stmt->fetchColumn();
-        if ($seriesId === false) {
-            $stmt = $pdo->prepare('INSERT INTO series (name, sort) VALUES (:name, :sort)');
-            $stmt->execute([':name' => $seriesNameInput, ':sort' => $seriesNameInput]);
-            $seriesId = $pdo->lastInsertId();
-        }
-        $pdo->prepare('DELETE FROM books_series_link WHERE book = :book')
-            ->execute([':book' => $id]);
-        $pdo->prepare('INSERT OR REPLACE INTO books_series_link (book, series) VALUES (:book, :series)')
-            ->execute([':book' => $id, ':series' => $seriesId]);
-    }
-    $pdo->prepare('UPDATE books SET series_index = :idx WHERE id = :id')
-        ->execute([':idx' => $seriesIndex, ':id' => $id]);
-
-    if ($hasSubseries) {
-        $subIndex = $subseriesIndexExists ? ($subseriesIndexInput !== '' ? (float)$subseriesIndexInput : ($book['subseries_index'] !== null ? (float)$book['subseries_index'] : null)) : null;
-        if ($subseriesNameInput === '') {
-            if ($subseriesIsCustom) {
-                $pdo->prepare("DELETE FROM $subseriesLinkTable WHERE book = :book")
-                    ->execute([':book' => $id]);
-            } else {
-                $pdo->prepare('DELETE FROM books_subseries_link WHERE book = :book')
-                    ->execute([':book' => $id]);
-                if ($subseriesIndexExists) {
-                    $pdo->prepare('UPDATE books SET subseries_index = NULL WHERE id = :id')
-                        ->execute([':id' => $id]);
-                }
-            }
-        } else {
-            if ($subseriesIsCustom) {
-                $stmt = $pdo->prepare("INSERT OR IGNORE INTO $subseriesValueTable (value) VALUES (:val)");
-                $stmt->execute([':val' => $subseriesNameInput]);
-                $stmt = $pdo->prepare("SELECT id FROM $subseriesValueTable WHERE value = :val");
-                $stmt->execute([':val' => $subseriesNameInput]);
-                $subId = (int)$stmt->fetchColumn();
-                $pdo->prepare("DELETE FROM $subseriesLinkTable WHERE book = :book")
-                    ->execute([':book' => $id]);
-                if ($subseriesIndexColumn && $subIndex !== null) {
-                    $pdo->prepare("INSERT INTO $subseriesLinkTable (book, value, $subseriesIndexColumn) VALUES (:book, :val, :idx)")
-                        ->execute([':book' => $id, ':val' => $subId, ':idx' => $subIndex]);
-                } else {
-                    $pdo->prepare("INSERT INTO $subseriesLinkTable (book, value) VALUES (:book, :val)")
-                        ->execute([':book' => $id, ':val' => $subId]);
-                }
-            } else {
-                $stmt = $pdo->prepare('INSERT OR IGNORE INTO subseries (name, sort) VALUES (:name, :sort)');
-                $stmt->execute([':name' => $subseriesNameInput, ':sort' => $subseriesNameInput]);
-                $stmt = $pdo->prepare('SELECT id FROM subseries WHERE name = :name');
-                $stmt->execute([':name' => $subseriesNameInput]);
-                $subId = (int)$stmt->fetchColumn();
-                $pdo->prepare('DELETE FROM books_subseries_link WHERE book = :book')
-                    ->execute([':book' => $id]);
-                $pdo->prepare('INSERT OR REPLACE INTO books_subseries_link (book, subseries) VALUES (:book, :sub)')
-                    ->execute([':book' => $id, ':sub' => $subId]);
-                if ($subseriesIndexExists) {
-                    $pdo->prepare('UPDATE books SET subseries_index = :idx WHERE id = :id')
-                        ->execute([':idx' => $subIndex, ':id' => $id]);
-                }
-            }
-        }
-    }
-
-    // Update publisher information
-    if ($publisherInput !== '') {
-        $pdo->prepare('INSERT OR IGNORE INTO publishers(name) VALUES (?)')->execute([$publisherInput]);
-        $pdo->prepare('DELETE FROM books_publishers_link WHERE book=?')->execute([$id]);
-        $pdo->prepare('INSERT INTO books_publishers_link(book,publisher) SELECT ?, id FROM publishers WHERE name=?')
-            ->execute([$id, $publisherInput]);
-    } else {
-        $pdo->prepare('DELETE FROM books_publishers_link WHERE book=?')->execute([$id]);
-    }
-
-    // Update publication date
-    if ($pubdateInput !== '') {
-        $pubDate = preg_match('/^\d{4}$/', $pubdateInput) ? $pubdateInput . '-01-01' : $pubdateInput;
-        $pdo->prepare('UPDATE books SET pubdate=? WHERE id=?')->execute([$pubDate, $id]);
-    }
-
-    // Update ISBN stored in both books table and identifiers table
-    $pdo->prepare('UPDATE books SET isbn=? WHERE id=?')->execute([$isbnInput, $id]);
-    $pdo->prepare('DELETE FROM identifiers WHERE book=? AND type="isbn"')->execute([$id]);
-    if ($isbnInput !== '') {
-        $pdo->prepare('INSERT INTO identifiers (book, type, val) VALUES (?, "isbn", ?)')
-            ->execute([$id, $isbnInput]);
-    }
-
-    // If authors changed adjust the filesystem path accordingly
-    if ($authorsInput !== '') {
-        $oldPath = $book['path'];
-        $oldBookFolder = $oldPath !== '' ? basename($oldPath) : safe_filename($title) . ' (' . $id . ')';
-        $oldAuthorFolder = $oldPath !== '' ? dirname($oldPath) : '';
-        $newAuthorFolder = safe_filename($primaryAuthor . (count($authorsList) > 1 ? ' et al.' : ''));
-        $newPath = $newAuthorFolder . '/' . $oldBookFolder;
-
-        if ($newPath !== $oldPath) {
-            $libraryPath = rtrim(getLibraryPath(), '/');
-            $oldFullPath = $oldPath !== '' ? $libraryPath . '/' . $oldPath : '';
-            $newFullPath = $libraryPath . '/' . $newPath;
-            $newAuthorDir = dirname($newFullPath);
-
-            // Create target author directory if needed
-            if (!is_dir($newAuthorDir)) {
-                mkdir($newAuthorDir, 0777, true);
-            }
-
-            // Move existing directory if present
-            if ($oldFullPath !== '' && is_dir($oldFullPath)) {
-                rename($oldFullPath, $newFullPath);
-
-                // Remove old author directory if empty
-                $oldAuthorDir = $oldAuthorFolder !== '' ? $libraryPath . '/' . $oldAuthorFolder : '';
-                if ($oldAuthorDir !== '' && is_dir($oldAuthorDir)) {
-                    $entries = array_diff(scandir($oldAuthorDir), ['.', '..']);
-                    if (count($entries) === 0) {
-                        rmdir($oldAuthorDir);
-                    }
-                }
-            } else if (!is_dir($newFullPath)) {
-                // If original folder missing just create the new one
-                mkdir($newFullPath, 0777, true);
-            }
-
-            $pdo->prepare('UPDATE books SET path = ? WHERE id = ?')->execute([$newPath, $id]);
-            $book['path'] = $newPath; // For subsequent operations
-        }
-    }
-
-    if (!empty($_FILES['cover']) && $_FILES['cover']['error'] === UPLOAD_ERR_OK) {
-        $libraryPath = getLibraryPath();
-        $destDir = $libraryPath . '/' . $book['path'];
-        if (!is_dir($destDir)) {
-            mkdir($destDir, 0777, true);
-        }
-        $destFile = $destDir . '/cover.jpg';
-        move_uploaded_file($_FILES['cover']['tmp_name'], $destFile);
-        $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = ?')->execute([$id]);
-    }
-
-    $pdo->commit();
-    $updated = true;
-
-    // Refresh description for display
-    $description = $descriptionInput;
-    $notes = $notesInput;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$convertRequested && !$convertEpubRequested && !$sendRequested) {
+    require __DIR__ . '/book_actions/save_metadata.php';
 }
+
 
 $sort = $_GET['sort'] ?? 'title';
+
+// ── Prev / Next navigation ────────────────────────────────────────────────────
+// Use ROW_NUMBER() CTE mirroring the exact ORDER BY from list_books.php so
+// that prev/next always matches the list view order.
+$authorSubquery = "
+    SELECT bal.book, GROUP_CONCAT(a.name, '|') AS authors
+    FROM books_authors_link bal
+    JOIN authors a ON bal.author = a.id
+    GROUP BY bal.book";
+
+$navOrderExpr = match($sort) {
+    'title'                 => "b.sort ASC, b.id ASC",
+    'author'                => "au.authors ASC, b.sort ASC, b.id ASC",
+    'author_series'         => "au.authors ASC, COALESCE(s.name,'') ASC, b.series_index ASC, b.sort ASC, b.id ASC",
+    'author_series_surname' => "b.author_sort ASC, COALESCE(s.name,'') ASC, b.series_index ASC, b.sort ASC, b.id ASC",
+    'series'                => "COALESCE(s.name,'') ASC, b.series_index ASC, b.sort ASC, b.id ASC",
+    'last_modified'         => "b.last_modified DESC, b.id DESC",
+    default                 => "au.authors ASC, COALESCE(s.name,'') ASC, b.series_index ASC, b.sort ASC, b.id ASC",
+};
+
+$navFromClause = "FROM books b
+    LEFT JOIN ($authorSubquery) au ON au.book = b.id
+    LEFT JOIN books_series_link bsl ON bsl.book = b.id
+    LEFT JOIN series s ON bsl.series = s.id";
+
+$navSql = "
+    WITH ordered AS (
+        SELECT b.id,
+               ROW_NUMBER() OVER (ORDER BY $navOrderExpr) AS rn
+        $navFromClause
+    ),
+    cur AS (SELECT rn FROM ordered WHERE id = :cur_id)
+    SELECT b.id, b.title,
+           CASE WHEN o.rn = (SELECT rn FROM cur) - 1 THEN 'prev' ELSE 'next' END AS dir
+    FROM ordered o
+    JOIN books b ON b.id = o.id
+    WHERE o.rn IN ((SELECT rn FROM cur) - 1, (SELECT rn FROM cur) + 1)
+";
+
+$navStmt = $pdo->prepare($navSql);
+$navStmt->execute([':cur_id' => $id]);
+$prevBook = null;
+$nextBook = null;
+foreach ($navStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    if ($row['dir'] === 'prev') $prevBook = $row;
+    else $nextBook = $row;
+}
+
+// Build a URL for a nav target, preserving sort/page params
+function navBookUrl(int $bookId, string $sort, ?int $page): string {
+    $p = ['id' => $bookId];
+    if ($sort !== 'title') $p['sort'] = $sort;
+    if ($page)             $p['page'] = $page;
+    return 'book.php?' . http_build_query($p);
+}
 
 // Prepare subseries fields if available
 $subseriesSelect = '';
@@ -452,7 +257,7 @@ if ($hasSubseries) {
 }
 
 // Fetch full book details for display
-$stmt = $pdo->prepare("SELECT b.*, 
+$stmt = $pdo->prepare("SELECT b.*,
         (SELECT GROUP_CONCAT(a.name, ', ')
             FROM books_authors_link bal
             JOIN authors a ON bal.author = a.id
@@ -465,7 +270,11 @@ $stmt = $pdo->prepare("SELECT b.*,
         s.name AS series,
         (SELECT name FROM publishers WHERE publishers.id IN
             (SELECT publisher FROM books_publishers_link WHERE book = b.id)
-            LIMIT 1) AS publisher" . $subseriesSelect . "
+            LIMIT 1) AS publisher,
+        (SELECT val FROM identifiers WHERE book = b.id AND type = 'isbn' COLLATE NOCASE LIMIT 1) AS isbn_identifier,
+        (SELECT val FROM identifiers WHERE book = b.id AND type = 'olid' LIMIT 1) AS olid,
+        (SELECT GROUP_CONCAT(t.name, ', ') FROM books_tags_link btl JOIN tags t ON btl.tag = t.id WHERE btl.book = b.id) AS tags,
+        (SELECT l.lang_code FROM languages l JOIN books_languages_link bl ON bl.lang_code = l.id WHERE bl.book = b.id ORDER BY bl.item_order LIMIT 1) AS lang_code" . $subseriesSelect . "
     FROM books b
     LEFT JOIN books_series_link bsl ON bsl.book = b.id
     LEFT JOIN series s ON bsl.series = s.id" . $subseriesJoin . "
@@ -473,29 +282,23 @@ $stmt = $pdo->prepare("SELECT b.*,
 $stmt->bindValue(':id', $id, PDO::PARAM_INT);
 $stmt->execute();
 $book = $stmt->fetch(PDO::FETCH_ASSOC);
-// Pull ISBN from identifiers table if available
-$isbnStmt = $pdo->prepare('SELECT val FROM identifiers WHERE book = ? AND type = "isbn" COLLATE NOCASE');
-$isbnStmt->execute([$id]);
-$isbnVal = $isbnStmt->fetchColumn();
-if ($isbnVal !== false && $isbnVal !== null) {
-    $book['isbn'] = $isbnVal;
-}
 if (!$book) {
     die('Book not found');
 }
-
-$commentStmt->execute([$id]);
-$comment = $commentStmt->fetchColumn();
-if ($comment !== false && $comment !== null) {
-    $description = $comment;
+if ($book['isbn_identifier'] !== null) {
+    $book['isbn'] = $book['isbn_identifier'];
 }
+$tags     = $book['tags'] ?? '';
+$langCode = (string)($book['lang_code'] ?? '');
 
-$tagsStmt = $pdo->prepare("SELECT GROUP_CONCAT(t.name, ', ')
-    FROM books_tags_link btl
-    JOIN tags t ON btl.tag = t.id
-    WHERE btl.book = ?");
-$tagsStmt->execute([$id]);
-$tags = $tagsStmt->fetchColumn();
+// All identifiers for display
+$allIdentifiers = [];
+$idRows = $pdo->prepare("SELECT type, val FROM identifiers WHERE book = ? ORDER BY type");
+$idRows->execute([$id]);
+foreach ($idRows->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $allIdentifiers[$row['type']] = $row['val'];
+}
+$isOlNotFound = ($allIdentifiers['olid'] ?? '') === 'NOT_FOUND';
 
 // Extract publication year for display
 $pubYear = '';
@@ -510,27 +313,36 @@ if (!empty($book['pubdate'])) {
     }
 }
 
-$researchPrefillUrl = '';
-if ($pdfFileRel !== '') {
-    $prefillParams = [
-        'prefill' => '1',
-        'title' => $book['title'] ?? '',
-        'library_book_id' => (string)($book['id'] ?? ''),
-        'pdf_path' => $pdfFileRel,
-    ];
-    if (!empty($book['authors'])) {
-        $prefillParams['author'] = $book['authors'];
-    }
-    if ($pubYear !== '') {
-        $prefillParams['year'] = $pubYear;
-    }
-    $libraryWebBase = rtrim(getLibraryWebPath(), '/');
-    if ($libraryWebBase !== '') {
-        $prefillParams['pdf_url'] = $libraryWebBase . '/' . ltrim($pdfFileRel, '/');
-    }
-    $researchPrefillUrl = 'research/research-ai.php?' . http_build_query($prefillParams, '', '&', PHP_QUERY_RFC3986);
-}
+$annasUrl = 'annas_results.php?search=' . urlencode($book['title'] ?? '') . '&author=' . urlencode($book['authors'] ?? '');
 
+// Fetch author details for Author tab
+$authorTabData = [];
+if (!empty($book['author_data'])) {
+    foreach (explode('|', $book['author_data']) as $pair) {
+        if (strpos($pair, ':') === false) continue;
+        [$aid, $aname] = explode(':', $pair, 2);
+        $aid = (int)$aid;
+        try {
+            $identStmt = $pdo->prepare('SELECT type, val FROM author_identifiers WHERE author_id = ?');
+            $identStmt->execute([$aid]);
+            $idents = [];
+            foreach ($identStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $idents[$row['type']] = $row['val'];
+            }
+        } catch (PDOException $e) {
+            $idents = [];
+        }
+        $authorTabData[] = [
+            'id'        => $aid,
+            'name'      => $aname,
+            'bio'       => $idents['bio']       ?? '',
+            'photo'     => $idents['photo']     ?? '',
+            'olaid'     => $idents['olaid']      ?? '',
+            'goodreads' => $idents['goodreads'] ?? '',
+            'wikidata'  => $idents['wikidata']  ?? '',
+        ];
+    }
+}
 
 // Fetch saved recommendations if present
 try {
@@ -583,91 +395,39 @@ if (!$missingFile && $book['path'] !== '') {
 }
 $pdfExists = ($pdfFileRel !== '');
 
-if ($sendRequested) {
-    $remoteDir = getUserPreference(currentUser(), 'REMOTE_DIR', getPreference('REMOTE_DIR', ''));
-    $device    = getUserPreference(currentUser(), 'DEVICE', getPreference('DEVICE', ''));
-    if ($remoteDir === '' || $device === '') {
-        $sendMessage = ['type' => 'danger', 'text' => 'Remote device not configured.'];
-    } elseif ($ebookFileRel === '') {
-        $sendMessage = ['type' => 'danger', 'text' => 'No book file to send.'];
-    } else {
-        try {
-            $genreId = ensureMultiValueColumn($pdo, '#genre', 'Genre');
-            $valTable = "custom_column_{$genreId}";
-            $linkTable = "books_custom_column_{$genreId}_link";
-            $gstmt = $pdo->prepare("SELECT gv.value FROM $linkTable l JOIN $valTable gv ON l.value = gv.id WHERE l.book = ? LIMIT 1");
-            $gstmt->execute([$id]);
-            $genre = $gstmt->fetchColumn() ?: 'Unknown';
-        } catch (PDOException $e) {
-            $genre = 'Unknown';
-        }
-        $author = trim(explode(',', $book['authors'])[0] ?? '');
-        if ($author === '') { $author = 'Unknown'; }
-
-        $genreDir  = safe_filename($genre);
-        if ($genreDir === '') { $genreDir = 'Unknown'; }
-        $authorDir = safe_filename($author);
-        if ($authorDir === '') { $authorDir = 'Unknown'; }
-        $seriesDir = '';
-        $series = trim($book['series'] ?? '');
-        if ($series !== '') {
-            $seriesDir = '/' . safe_filename($series);
-        }
-        $remotePath = rtrim($remoteDir, '/') . '/' . $genreDir . '/' . $authorDir . $seriesDir;
-
-        $localFile = getLibraryPath() . '/' . $ebookFileRel;
-        $baseName  = basename($ebookFileRel);
-        $nameOnly  = pathinfo($baseName, PATHINFO_FILENAME);
-        $ext       = pathinfo($baseName, PATHINFO_EXTENSION);
-        $remoteFileName = safe_filename($nameOnly);
-        if ($remoteFileName === '') { $remoteFileName = 'book'; }
-        if ($series !== '' && $book['series_index'] !== null && $book['series_index'] !== '') {
-            $seriesIdxStr = (string)$book['series_index'];
-            if (strpos($seriesIdxStr, '.') !== false) {
-                [$whole, $decimal] = explode('.', $seriesIdxStr, 2);
-                $seriesIdxStr = str_pad($whole, 2, '0', STR_PAD_LEFT);
-                $decimal = rtrim($decimal, '0');
-                if ($decimal !== '') {
-                    $seriesIdxStr .= '.' . $decimal;
-                }
-            } else {
-                $seriesIdxStr = str_pad($seriesIdxStr, 2, '0', STR_PAD_LEFT);
-            }
-            $remoteFileName = $seriesIdxStr . ' - ' . $remoteFileName;
-        }
-        if ($ext !== '') { $remoteFileName .= '.' . $ext; }
-
-        $identity  = '/home/david/.ssh/id_rsa';
-        $sshTarget = 'root@' . $device;
-
-        $mkdirCmd = sprintf(
-            'ssh -i %s %s %s',
-            escapeshellarg($identity),
-            escapeshellarg($sshTarget),
-            escapeshellarg('mkdir -p ' . escapeshellarg($remotePath))
-        );
-        exec($mkdirCmd, $out1, $ret1);
-
-        $scpCmd = sprintf(
-            'scp -i %s %s %s:%s',
-            escapeshellarg($identity),
-            escapeshellarg($localFile),
-            escapeshellarg($sshTarget),
-            escapeshellarg($remotePath . '/' . $remoteFileName)
-        );
-        exec($scpCmd, $out2, $ret2);
-
-        if ($ret1 === 0 && $ret2 === 0) {
-            $sendMessage = ['type' => 'success', 'text' => 'Book sent to device.'];
-        } else {
-            $cmds = $mkdirCmd . '; ' . $scpCmd;
-            $sendMessage = [
-                'type' => 'danger',
-                'text' => 'Failed to send book to device. Commands: ' . $cmds,
-            ];
-        }
+$researchPrefillUrl = '';
+if ($pdfFileRel !== '') {
+    $prefillParams = [
+        'prefill' => '1',
+        'title' => $book['title'] ?? '',
+        'library_book_id' => (string)($book['id'] ?? ''),
+        'pdf_path' => $pdfFileRel,
+    ];
+    if (!empty($book['authors'])) {
+        $prefillParams['author'] = $book['authors'];
     }
+    if ($pubYear !== '') {
+        $prefillParams['year'] = $pubYear;
+    }
+    $libraryWebBase = rtrim(getLibraryWebPath(), '/');
+    if ($libraryWebBase !== '') {
+        $prefillParams['pdf_url'] = $libraryWebBase . '/' . ltrim($pdfFileRel, '/');
+    }
+    $researchPrefillUrl = 'research/research-ai.php?' . http_build_query($prefillParams, '', '&', PHP_QUERY_RFC3986);
 }
+
+// All formats registered in DB for this book
+$bookFormats = [];
+try {
+    $fmtStmt = $pdo->prepare('SELECT format, name, uncompressed_size FROM data WHERE book = :id ORDER BY format');
+    $fmtStmt->execute([':id' => $id]);
+    $bookFormats = $fmtStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {}
+
+if ($sendRequested) {
+    require __DIR__ . '/book_actions/send_device.php';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -675,40 +435,16 @@ if ($sendRequested) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($book['title']) ?></title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="/theme.css.php">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
-    <script src="node_modules/tinymce/tinymce.min.js" referrerpolicy="origin"></script>
     <style>
         #description { min-height: 200px; resize: vertical; }
     </style>
-    <script>
-        tinymce.init({
-            selector: '#description',
-            license_key: 'gpl',
-            promotion: false,
-            branding: false,
-            height: 400
-        });
-    </script>
 </head>
 <body class="pt-5" data-book-id="<?= (int)$book['id'] ?>" data-search-query="<?= htmlspecialchars($book['title'] . ' ' . $book['authors'], ENT_QUOTES) ?>"<?php if($ebookFileRel): ?> data-ebook-file="<?= htmlspecialchars($ebookFileRel) ?>"<?php endif; ?><?php if(!empty($book['isbn'])): ?> data-isbn="<?= htmlspecialchars($book['isbn']) ?>"<?php endif; ?>>
-<?php include "navbar_other.php"; ?>
-<div class="container my-4">
-    <a href="<?= htmlspecialchars($backToListUrl) ?>" class="btn btn-secondary mb-3">
-        <i class="fa-solid fa-arrow-left me-1"></i> Back to list
-    </a>
-    <a href="list_books.php?search=<?= urlencode($book['title']) ?>&source=local" class="btn btn-secondary mb-3 ms-2">
-        <i class="fa-solid fa-magnifying-glass me-1"></i> Back to book
-    </a>
+<?php include "navbar.php"; ?>
+<div class="container my-4 mt-3">
 
-    <!-- Book Title and Info -->
-    <h1 class="mb-0">
-        <?php if ($missingFile): ?>
-            <i class="fa-solid fa-circle-exclamation text-danger me-1" title="File missing"></i>
-        <?php endif; ?>
-        <?= htmlspecialchars($book['title']) ?>
-    </h1>
 
     <?php
         $formattedPubdate = '';
@@ -721,54 +457,18 @@ if ($sendRequested) {
             }
         }
     ?>
-    <p class="mb-4 text-muted">
-        <?php if (!empty($book['isbn'])): ?>
-            <strong>ISBN:</strong> <?= htmlspecialchars($book['isbn']) ?><br>
-        <?php endif; ?>
-        <?php if ($formattedPubdate): ?>
-            <strong>Published:</strong> <?= htmlspecialchars($formattedPubdate) ?>
-        <?php endif; ?>
-    </p>
-
-    <!-- Actions Toolbar -->
-    <div class="btn-toolbar mb-4 flex-wrap">
-        <div class="btn-group me-2 mb-2">
-            <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary">
-                Get Recommendations
-            </button>
-            <button type="button" id="synopsisBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary">
-                Generate Synopsis
-            </button>
-        </div>
-        <div class="btn-group me-2 mb-2">
-            <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary">Anna's Archive</a>
-            <button type="button" id="metadataBtn" class="btn btn-secondary">Get Metadata</button>
-            <?php if (!$missingFile && $ebookFileRel): ?>
-            <button type="button" id="ebookMetaBtn" class="btn btn-secondary">File Metadata</button>
-            <?php endif; ?>
-        </div>
-        <?php if ($pdfFileRel !== '' && $researchPrefillUrl !== ''): ?>
-            <div class="btn-group me-2 mb-2">
-                <a href="<?= htmlspecialchars($researchPrefillUrl) ?>" class="btn btn-secondary">
-                    <i class="fa-solid fa-flask me-1"></i> Research AI
-                </a>
-            </div>
-        <?php endif; ?>
-        <?php if ($epubFileRel && !$pdfExists): ?>
-            <form method="post" class="btn-group me-2 mb-2">
-                <input type="hidden" name="convert_to_pdf" value="1">
-                <button type="submit" class="btn btn-secondary">
-                    <i class="fa-solid fa-file-pdf me-1"></i> Convert to PDF
-                </button>
-            </form>
-        <?php endif; ?>
-        <?php if ($missingFile): ?>
-            <div class="btn-group mb-2">
-                <button type="button" id="uploadFileButton" class="btn btn-secondary">Upload File</button>
-                <input type="file" id="bookFileInput" style="display:none">
-            </div>
-        <?php endif; ?>
-    </div>
+    <?php
+    // Build list of other libraries this book can be copied to
+    $allUsers = json_decode(file_get_contents(__DIR__ . '/users.json'), true) ?? [];
+    $transferTargets = [];
+    foreach ($allUsers as $uname => $udata) {
+        if ($uname === currentUser()) continue;
+        $dbp = $udata['prefs']['db_path'] ?? '';
+        if ($dbp !== '' && file_exists($dbp)) {
+            $transferTargets[$uname] = $uname;
+        }
+    }
+    ?>
     <?php if ($missingFile): ?>
         <div id="uploadMessage" class="mt-2 mb-2 h2"></div>
     <?php endif; ?>
@@ -788,75 +488,52 @@ if ($sendRequested) {
                 <div class="text-muted">No cover</div>
             <?php endif; ?>
 
-            <?php if ($ebookFileRel): ?>
-                <button type="button" id="extractCoverBtn" class="btn btn-secondary mb-4">Extract Cover</button>
-            <?php endif; ?>
-
-            <div class="border p-3 rounded bg-light shadow-sm">
-                <p><strong>Author(s):</strong>
-                    <?php if (!empty($book['author_data'])): ?>
-                        <?php
-                            $links = [];
-                            foreach (explode('|', $book['author_data']) as $pair) {
-                                list($aid, $aname) = explode(':', $pair, 2);
-                                $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
-                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
-                            }
-                            echo implode(', ', $links);
-                        ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </p>
-                <p><strong>Series:</strong>
-                    <?php if (!empty($book['series']) || !empty($book['subseries'])): ?>
-                        <?php if (!empty($book['series'])): ?>
-                            <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
-                                <?= htmlspecialchars($book['series']) ?>
-                            </a>
-                            <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
-                                (<?= htmlspecialchars($book['series_index']) ?>)
-                            <?php endif; ?>
-                        <?php endif; ?>
-                        <?php if (!empty($book['subseries'])): ?>
-                            <?php if (!empty($book['series'])): ?>&gt; <?php endif; ?>
-                            <?= htmlspecialchars($book['subseries']) ?>
-                            <?php if ($book['subseries_index'] !== null && $book['subseries_index'] !== ''): ?>
-                                (<?= htmlspecialchars($book['subseries_index']) ?>)
-                            <?php endif; ?>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </p>
-                <?php if (!empty($tags)): ?>
-                    <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                <?php if ($ebookFileRel): ?>
+                <button type="button" id="extractCoverBtn" class="btn btn-secondary">Extract Cover</button>
+                <?php endif; ?>
+                <a href="<?= htmlspecialchars($annasUrl) ?>" class="btn btn-secondary">AA</a>
+                <button type="button" id="metadataBtn" class="btn btn-secondary">Metadata</button>
+                <?php if ($researchPrefillUrl !== ''): ?>
+                <a href="<?= htmlspecialchars($researchPrefillUrl) ?>" class="btn btn-secondary">
+                    <i class="fa-solid fa-flask me-1"></i>Research
+                </a>
                 <?php endif; ?>
             </div>
+
         </div>
 
         <!-- Right Column: Edit Form with Tabs -->
         <div class="col-lg-8">
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h2 class="card-title mb-4">
-                        <i class="fa-solid fa-pen-to-square me-2"></i> Edit Book Metadata
-                    </h2>
                     <?php if ($updated): ?>
-                        <div class="alert alert-success">
+                        <div class="alert alert-success alert-dismissible fade show">
                             <i class="fa-solid fa-circle-check me-2"></i> Book updated successfully
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($fsWarning): ?>
+                        <div class="alert alert-warning alert-dismissible fade show">
+                            <i class="fa-solid fa-triangle-exclamation me-2"></i> <?= $fsWarning ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php endif; ?>
                     <?php if ($conversionMessage): ?>
-                        <div class="alert alert-<?= htmlspecialchars($conversionMessage['type']) ?>">
+                        <div class="alert alert-<?= htmlspecialchars($conversionMessage['type']) ?> alert-dismissible fade show">
                             <i class="fa-solid <?= $conversionMessage['type'] === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' ?> me-2"></i>
                             <?= htmlspecialchars($conversionMessage['text']) ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php endif; ?>
                     <?php if ($sendMessage): ?>
-                        <div class="alert alert-<?= htmlspecialchars($sendMessage['type']) ?>">
+                        <div class="alert alert-<?= htmlspecialchars($sendMessage['type']) ?> alert-dismissible fade show">
                             <i class="fa-solid <?= $sendMessage['type'] === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' ?> me-2"></i>
                             <?= htmlspecialchars($sendMessage['text']) ?>
+                            <?php if (!empty($sendMessage['detail'])): ?>
+                                <pre class="mt-2 mb-0 small"><?= htmlspecialchars($sendMessage['detail']) ?></pre>
+                            <?php endif; ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php endif; ?>
 
@@ -866,115 +543,180 @@ if ($sendRequested) {
                             <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabBasic">Basic Info</button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSeries">Series</button>
-                        </li>
-                        <li class="nav-item">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDescription">Description & Cover</button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabNotes">Notes</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRecommendations">Recommendations<?php if (!empty($savedRecommendations)): ?> <i class="fa-solid fa-circle-check text-success ms-1"></i><?php endif; ?></button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRecommendations">Recommendations</button>
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabInfo">Info</button>
                         </li>
+                        <?php if (!empty($authorTabData)): ?>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAuthor">
+                                <i class="fa-solid fa-user me-1"></i>Author<?php if (count($authorTabData) > 1): ?>s<?php endif; ?>
+                            </button>
+                        </li>
+                        <?php endif; ?>
                     </ul>
                     <form method="post" enctype="multipart/form-data">
                         <div class="tab-content">
                             <!-- Basic Info -->
                             <div class="tab-pane fade show active" id="tabBasic">
-                                <div class="mb-3">
+                                <?php
+                                $inlineIdLinks = [
+                                    'olid'         => ['fa-solid fa-book-open',       'Open Library',      'https://openlibrary.org/works/%s',         false],
+                                    'goodreads'    => ['fa-brands fa-goodreads',      'Goodreads',         'https://www.goodreads.com/book/show/%s',    false],
+                                    'amazon'       => ['fa-brands fa-amazon',         'Amazon',            'https://www.amazon.com/dp/%s',              false],
+                                    'asin'         => ['fa-brands fa-amazon',         'Amazon',            'https://www.amazon.com/dp/%s',              false],
+                                    'google'       => ['fa-brands fa-google',         'Google Books',      'https://books.google.com/books?id=%s',     false],
+                                    'librarything' => ['fa-solid fa-building-columns','LibraryThing',      'https://www.librarything.com/work/%s',     false],
+                                    'ff'           => ['fa-solid fa-hat-wizard',      'Fantastic Fiction', 'https://www.fantasticfiction.com/%s.htm',  true],
+                                    'fictiondb'    => ['fa-solid fa-database',        'FictionDB',         'https://www.fictiondb.com/author/%s.htm',  true],
+                                    'oclc'         => ['fa-solid fa-globe',           'WorldCat',          'https://www.worldcat.org/oclc/%s',         false],
+                                ];
+                                $idLinkItems = [];
+                                foreach ($allIdentifiers as $iType => $iVal) {
+                                    if (!isset($inlineIdLinks[$iType])) continue;
+                                    if ($iVal === 'NOT_FOUND') continue;
+                                    [$icon, $label2, $urlTpl, $raw] = $inlineIdLinks[$iType];
+                                    $idLinkItems[] = [
+                                        'href'  => sprintf($urlTpl, $raw ? $iVal : rawurlencode($iVal)),
+                                        'icon'  => $icon,
+                                        'label' => $label2,
+                                    ];
+                                }
+                                if ($idLinkItems): ?>
+                                <div class="alert alert-primary d-flex flex-wrap gap-3 py-2 mb-3">
+                                    <?php foreach ($idLinkItems as $item): ?>
+                                    <a href="<?= htmlspecialchars($item['href']) ?>" target="_blank" rel="noopener"
+                                       class="text-decoration-none d-inline-flex align-items-center gap-1 small">
+                                        <i class="<?= $item['icon'] ?>" style="color:var(--accent)"></i><?= htmlspecialchars($item['label']) ?>
+                                    </a>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endif; ?>
+                                <div class="mb-3 position-relative">
                                     <label for="title" class="form-label">
                                         <i class="fa-solid fa-book me-1 text-primary"></i> Title
                                     </label>
-                                    <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control" required>
+                                    <input type="text" id="title" name="title" value="<?= htmlspecialchars($book['title']) ?>" class="form-control" required autocomplete="off">
+                                    <ul id="titleSuggestions" class="list-group position-absolute w-100" style="z-index:1050;display:none;max-height:200px;overflow-y:auto;"></ul>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="authors" class="form-label">
-                                        <i class="fa-solid fa-user me-1 text-primary"></i> Author(s)
-                                    </label>
-                                    <div class="input-group">
-                                        <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" list="authorSuggestionsEdit">
-                                        <button type="button" id="applyAuthorSortBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-arrow-right"></i></button>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6 position-relative">
+                                        <label for="authors" class="form-label">
+                                            <i class="fa-solid fa-user me-1 text-primary"></i> Author(s)
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="text" id="authors" name="authors" value="<?= htmlspecialchars($book['authors']) ?>" class="form-control" placeholder="Separate multiple authors with commas" autocomplete="off">
+                                            <button type="button" id="applyAuthorSortBtn" class="btn btn-outline-secondary" title="Apply to Author Sort"><i class="fa-solid fa-arrow-right"></i></button>
+                                        </div>
+                                        <ul id="authorSuggestionsEdit" class="list-group position-absolute w-100" style="z-index:1050;display:none;max-height:200px;overflow-y:auto;"></ul>
                                     </div>
-                                    <datalist id="authorSuggestionsEdit"></datalist>
+                                    <div class="col-md-6">
+                                        <label for="authorSort" class="form-label">
+                                            <i class="fa-solid fa-user-pen me-1 text-primary"></i> Author Sort
+                                        </label>
+                                        <input type="text" id="authorSort" name="author_sort" value="<?= htmlspecialchars($book['author_sort']) ?>" class="form-control">
+                                    </div>
                                 </div>
-                                <div class="mb-3">
-                                    <label for="authorSort" class="form-label">
-                                        <i class="fa-solid fa-user-pen me-1 text-primary"></i> Author Sort
-                                    </label>
-                                    <input type="text" id="authorSort" name="author_sort" value="<?= htmlspecialchars($book['author_sort']) ?>" class="form-control">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="libraryBasePath" class="form-label">
-                                        <i class="fa-solid fa-folder-open me-1 text-primary"></i> Library Base Directory
-                                    </label>
-                                    <input type="text" id="libraryBasePath" class="form-control" value="<?= htmlspecialchars($libraryDirPath) ?>" readonly>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="publisher" class="form-label">
-                                        <i class="fa-solid fa-building me-1 text-primary"></i> Publisher
-                                    </label>
-                                    <input type="text" id="publisher" name="publisher" value="<?= htmlspecialchars($book['publisher'] ?? '') ?>" class="form-control">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="pubdate" class="form-label">
-                                        <i class="fa-solid fa-calendar me-1 text-primary"></i> Publication Year
-                                    </label>
-                                    <input type="text" id="pubdate" name="pubdate" value="<?= htmlspecialchars($pubYear) ?>" class="form-control">
-                                </div>
-                                <div class="mb-3">
-                                    <label for="isbn" class="form-label">
-                                        <i class="fa-solid fa-barcode me-1 text-primary"></i> ISBN
-                                    </label>
-                                    <input type="text" id="isbn" name="isbn" value="<?= htmlspecialchars($book['isbn']) ?>" class="form-control">
-                                </div>
-                            </div>
-
-                            <!-- Series Info -->
-                            <div class="tab-pane fade" id="tabSeries">
-                                <div class="mb-3 position-relative">
-                                    <label for="seriesInput" class="form-label">
-                                        <i class="fa-solid fa-layer-group me-1 text-primary"></i> Series
-                                    </label>
-                                    <input type="text" id="seriesInput" name="series" value="<?= htmlspecialchars($book['series']) ?>" class="form-control" autocomplete="off">
-                                    <ul id="seriesSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="seriesIndex" class="form-label">
-                                        <i class="fa-solid fa-hashtag me-1 text-primary"></i> Number in Series
-                                    </label>
-                                    <input type="number" step="0.1" id="seriesIndex" name="series_index" value="<?= htmlspecialchars($book['series_index']) ?>" class="form-control">
+                                <hr class="my-3">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-8 position-relative">
+                                        <label for="seriesInput" class="form-label">
+                                            <i class="fa-solid fa-layer-group me-1 text-primary"></i> Series
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="text" id="seriesInput" name="series" value="<?= htmlspecialchars($book['series']) ?>" class="form-control" autocomplete="off" placeholder="None">
+                                            <input type="number" step="0.1" id="seriesIndex" name="series_index" value="<?= htmlspecialchars($book['series_index']) ?>" class="form-control" style="max-width:90px" placeholder="#" title="Number in series">
+                                        </div>
+                                        <ul id="seriesSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
+                                    </div>
                                 </div>
                                 <?php if ($hasSubseries): ?>
-                                <div class="mb-3 position-relative">
-                                    <label for="subseriesInput" class="form-label">
-                                        <i class="fa-solid fa-diagram-project me-1 text-primary"></i> Subseries
-                                    </label>
-                                    <input type="text" id="subseriesInput" name="subseries" value="<?= htmlspecialchars($book['subseries'] ?? '') ?>" class="form-control" autocomplete="off">
-                                    <ul id="subseriesSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
-                                </div>
-                                <?php if ($subseriesIndexExists): ?>
-                                <div class="mb-3">
-                                    <label for="subseriesIndex" class="form-label">
-                                        <i class="fa-solid fa-hashtag me-1 text-primary"></i> Number in Subseries
-                                    </label>
-                                    <input type="number" step="0.1" id="subseriesIndex" name="subseries_index" value="<?= htmlspecialchars($book['subseries_index'] ?? '') ?>" class="form-control">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-8 position-relative">
+                                        <label for="subseriesInput" class="form-label">
+                                            <i class="fa-solid fa-diagram-project me-1 text-primary"></i> Subseries
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="text" id="subseriesInput" name="subseries" value="<?= htmlspecialchars($book['subseries'] ?? '') ?>" class="form-control" autocomplete="off" placeholder="None">
+                                            <?php if ($subseriesIndexExists): ?>
+                                            <input type="number" step="0.1" id="subseriesIndex" name="subseries_index" value="<?= htmlspecialchars($book['subseries_index'] ?? '') ?>" class="form-control" style="max-width:90px" placeholder="#" title="Number in subseries">
+                                            <?php endif; ?>
+                                        </div>
+                                        <ul id="subseriesSuggestions" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></ul>
+                                    </div>
+                                    <div class="col-md-4 d-flex align-items-end">
+                                        <button type="button" id="swapSeriesSubseriesBtn" class="btn btn-secondary">
+                                            <i class="fa-solid fa-right-left me-1"></i> Swap Series
+                                        </button>
+                                    </div>
                                 </div>
                                 <?php endif; ?>
-                                <div class="mb-3">
-                                    <button type="button" id="swapSeriesSubseriesBtn" class="btn btn-outline-secondary">
-                                        <i class="fa-solid fa-right-left me-1"></i> Swap Series/Subseries
-                                    </button>
+                                <hr class="my-3">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-8">
+                                        <label for="publisher" class="form-label">
+                                            <i class="fa-solid fa-building me-1 text-primary"></i> Publisher
+                                        </label>
+                                        <input type="text" id="publisher" name="publisher" value="<?= htmlspecialchars($book['publisher'] ?? '') ?>" class="form-control">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="pubdate" class="form-label">
+                                            <i class="fa-solid fa-calendar me-1 text-primary"></i> Publication Year
+                                        </label>
+                                        <input type="text" id="pubdate" name="pubdate" value="<?= htmlspecialchars($pubYear) ?>" class="form-control">
+                                    </div>
                                 </div>
-                                <?php endif; ?>
+                                <?php $olid = $book['olid'] ?? ''; ?>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-4">
+                                        <label for="isbn" class="form-label">
+                                            <i class="fa-solid fa-barcode me-1 text-primary"></i> ISBN
+                                        </label>
+                                        <input type="text" id="isbn" name="isbn" value="<?= htmlspecialchars($book['isbn']) ?>" class="form-control">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label">
+                                            <i class="fa-solid fa-book me-1 text-primary"></i> Open Library Work ID
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="text" id="olid" name="olid" value="<?= htmlspecialchars($olid) ?>" class="form-control" placeholder="e.g. OL12345W">
+                                            <?php if ($olid !== ''): ?>
+                                            <a href="https://openlibrary.org/works/<?= urlencode($olid) ?>" target="_blank" rel="noopener" class="btn btn-outline-secondary" title="View on Open Library">
+                                                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                            </a>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="language" class="form-label">
+                                            <i class="fa-solid fa-language me-1 text-primary"></i> Language
+                                        </label>
+                                        <input type="text" id="language" name="language" value="<?= htmlspecialchars($langCode) ?>" class="form-control" placeholder="e.g. eng" maxlength="3">
+                                        <div class="form-text">ISO 639-2</div>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Description & Cover -->
                             <div class="tab-pane fade" id="tabDescription">
                                 <div class="mb-3">
-                                    <label for="description" class="form-label">
-                                        <i class="fa-solid fa-align-left me-1 text-primary"></i> Description
-                                    </label>
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <label for="description" class="form-label mb-0">
+                                            <i class="fa-solid fa-align-left me-1 text-primary"></i> Description
+                                        </label>
+                                        <div class="d-flex gap-2">
+                                            <button type="button" id="synopsisBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary btn-sm">
+                                                <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Generate Synopsis
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" id="stripHtmlBtn" title="Remove all HTML tags from the description">
+                                                <i class="fa-solid fa-eraser me-1"></i> Strip HTML
+                                            </button>
+                                        </div>
+                                    </div>
                                     <textarea id="description" name="description" class="form-control" rows="10"><?= htmlspecialchars($description) ?></textarea>
                                 </div>
                                 <div class="mb-3">
@@ -985,34 +727,232 @@ if ($sendRequested) {
                                     <div id="isbnCover" class="mt-2"></div>
                                 </div>
                             </div>
-                            <!-- Notes -->
-                            <div class="tab-pane fade" id="tabNotes">
-                                <div class="mb-3">
-                                    <label for="notes" class="form-label">
-                                        <i class="fa-solid fa-note-sticky me-1 text-primary"></i> Notes
-                                    </label>
-                                    <textarea id="notes" name="notes" class="form-control" rows="10"><?= htmlspecialchars($notes) ?></textarea>
-                                </div>
-                            </div>
                             <!-- Recommendations -->
                             <div class="tab-pane fade" id="tabRecommendations">
+                                <div class="mb-3">
+                                    <button type="button" id="recommendBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" data-genres="<?= htmlspecialchars($tags) ?>" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Get Recommendations
+                                    </button>
+                                </div>
                                 <div id="recommendSection"<?php if (!empty($savedRecommendations)): ?> data-saved="<?= htmlspecialchars($savedRecommendations, ENT_QUOTES) ?>"<?php endif; ?>></div>
                             </div>
+
+                            <!-- Info -->
+                            <div class="tab-pane fade" id="tabInfo">
+                                <p><strong>Author(s):</strong>
+                                    <?php if (!empty($book['author_data'])): ?>
+                                        <?php
+                                            $links = [];
+                                            foreach (explode('|', $book['author_data']) as $pair) {
+                                                list($aid, $aname) = explode(':', $pair, 2);
+                                                $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
+                                                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
+                                            }
+                                            echo implode(', ', $links);
+                                        ?>
+                                    <?php else: ?>
+                                        &mdash;
+                                    <?php endif; ?>
+                                </p>
+                                <p><strong>Series:</strong>
+                                    <?php if (!empty($book['series']) || !empty($book['subseries'])): ?>
+                                        <?php if (!empty($book['series'])): ?>
+                                            <a href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
+                                                <?= htmlspecialchars($book['series']) ?>
+                                            </a>
+                                            <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
+                                                (<?= htmlspecialchars($book['series_index']) ?>)
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                        <?php if (!empty($book['subseries'])): ?>
+                                            <?php if (!empty($book['series'])): ?>&gt; <?php endif; ?>
+                                            <?= htmlspecialchars($book['subseries']) ?>
+                                            <?php if ($book['subseries_index'] !== null && $book['subseries_index'] !== ''): ?>
+                                                (<?= htmlspecialchars($book['subseries_index']) ?>)
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        &mdash;
+                                    <?php endif; ?>
+                                </p>
+                                <?php if (!empty($tags)): ?>
+                                    <p><strong>Tags:</strong> <?= htmlspecialchars($tags) ?></p>
+                                <?php endif; ?>
+                                <?php if ($formattedPubdate): ?>
+                                    <p><strong>Published:</strong> <?= htmlspecialchars($formattedPubdate) ?></p>
+                                <?php endif; ?>
+                                <p class="mb-1"><strong>Path:</strong> <span class="text-muted small"><?= htmlspecialchars($libraryDirPath) ?></span></p>
+                                <?php if ($bookFormats): ?>
+                                    <p class="mb-1"><strong>Formats:</strong></p>
+                                    <div class="d-flex flex-wrap gap-1 mb-1">
+                                        <?php foreach ($bookFormats as $fmt): ?>
+                                            <?php
+                                                $libraryWebPath = getLibraryWebPath();
+                                                $fmtExt  = strtolower($fmt['format']);
+                                                $fmtUrl  = rtrim($libraryWebPath, '/') . '/' . $book['path'] . '/' . $fmt['name'] . '.' . $fmtExt;
+                                                $fmtSize = $fmt['uncompressed_size'] > 0
+                                                    ? ' (' . round($fmt['uncompressed_size'] / 1048576, 1) . ' MB)'
+                                                    : '';
+                                                $fmtIcon = match($fmt['format']) {
+                                                    'EPUB'       => 'fa-book-open',
+                                                    'PDF'        => 'fa-file-pdf',
+                                                    'MOBI','AZW3'=> 'fa-tablet-screen-button',
+                                                    default      => 'fa-file',
+                                                };
+                                            ?>
+                                            <a href="<?= htmlspecialchars($fmtUrl) ?>"
+                                               class="badge text-decoration-none bg-secondary"
+                                               title="<?= htmlspecialchars($fmt['format'] . $fmtSize) ?>">
+                                                <i class="fa-solid <?= $fmtIcon ?> me-1"></i><?= htmlspecialchars($fmt['format']) ?>
+                                            </a>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="form-check mt-2 mb-2">
+                                    <input class="form-check-input" type="checkbox"
+                                           name="ol_not_found" id="olNotFound" value="1"
+                                           <?= $isOlNotFound ? 'checked' : '' ?>>
+                                    <label class="form-check-label small text-muted" for="olNotFound">
+                                        Marked as NOT_FOUND — skip OL Work ID lookup
+                                    </label>
+                                </div>
+                                <?php if ($allIdentifiers): ?>
+                                    <?php
+                                    $idLinks = [
+                                        'olid'         => ['Open Library',   'https://openlibrary.org/works/%s'],
+                                        'isbn'         => ['ISBN',           null],
+                                        'isbn13'       => ['ISBN-13',        null],
+                                        'goodreads'    => ['Goodreads',      'https://www.goodreads.com/book/show/%s'],
+                                        'amazon'       => ['Amazon',         'https://www.amazon.com/dp/%s'],
+                                        'asin'         => ['ASIN',           'https://www.amazon.com/dp/%s'],
+                                        'google'       => ['Google Books',   'https://books.google.com/books?id=%s'],
+                                        'librarything' => ['LibraryThing',        'https://www.librarything.com/work/%s'],
+                                        'oclc'         => ['WorldCat',            'https://www.worldcat.org/oclc/%s'],
+                                        'ff'           => ['Fantastic Fiction',   'https://www.fantasticfiction.com/%s.htm'],
+                                        'fictiondb'    => ['FictionDB',           'https://www.fictiondb.com/author/%s.htm'],
+                                    ];
+                                    ?>
+                                    <p class="mb-1"><strong>Identifiers:</strong></p>
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <?php foreach ($allIdentifiers as $type => $val):
+                                            if ($val === 'NOT_FOUND') continue;
+                                            if ($type === 'ol_ids_fetched') continue;
+                                            $meta  = $idLinks[$type] ?? [strtoupper($type), null];
+                                            $label = $meta[0];
+                                            $noEncode = in_array($type, ['ff', 'fictiondb'], true);
+                                            $url   = $meta[1] ? sprintf($meta[1], $noEncode ? $val : rawurlencode($val)) : null;
+                                        ?>
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle" style="font-size:0.75rem">
+                                            <span class="text-muted me-1"><?= htmlspecialchars($label) ?>:</span>
+                                            <?php if ($url): ?>
+                                                <a href="<?= htmlspecialchars($url) ?>" target="_blank" rel="noopener" class="text-reset text-decoration-none"><?= htmlspecialchars($val) ?> <i class="fa-solid fa-arrow-up-right-from-square fa-xs"></i></a>
+                                            <?php else: ?>
+                                                <?= htmlspecialchars($val) ?>
+                                            <?php endif; ?>
+                                        </span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+
+                            <!-- Author Tab -->
+                            <?php if (!empty($authorTabData)): ?>
+                            <div class="tab-pane fade" id="tabAuthor">
+                                <?php foreach ($authorTabData as $idx => $author): ?>
+                                    <?php if ($idx > 0): ?><hr><?php endif; ?>
+                                    <div class="mb-4" data-author-id="<?= (int)$author['id'] ?>">
+                                        <div class="d-flex align-items-start gap-3 mb-3">
+                                            <?php if (!empty($author['photo'])): ?>
+                                                <img src="<?= htmlspecialchars($author['photo']) ?>"
+                                                     alt="<?= htmlspecialchars($author['name']) ?>"
+                                                     class="rounded"
+                                                     style="width:80px;height:80px;object-fit:cover;flex-shrink:0;">
+                                            <?php endif; ?>
+                                            <div class="flex-grow-1">
+                                                <h5 class="mb-1"><?= htmlspecialchars($author['name']) ?></h5>
+                                                <div class="d-flex flex-wrap gap-2 mb-1">
+                                                    <a href="list_books.php?author_id=<?= (int)$author['id'] ?>" class="btn btn-sm btn-primary">
+                                                        <i class="fa-solid fa-filter me-1"></i> Books by this author
+                                                    </a>
+                                                    <?php if (!empty($author['olaid'])): ?>
+                                                        <a href="https://openlibrary.org/authors/<?= urlencode($author['olaid']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+                                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Open Library
+                                                        </a>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($author['goodreads'])): ?>
+                                                        <a href="https://www.goodreads.com/author/show/<?= urlencode($author['goodreads']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+                                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Goodreads
+                                                        </a>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($author['wikidata'])): ?>
+                                                        <a href="https://www.wikidata.org/wiki/<?= urlencode($author['wikidata']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+                                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Wikidata
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label fw-semibold">
+                                                <i class="fa-solid fa-align-left me-1 text-primary"></i> Biography
+                                            </label>
+                                            <textarea class="form-control author-bio-editor" rows="10"
+                                                      data-author-id="<?= (int)$author['id'] ?>"><?= htmlspecialchars($author['bio']) ?></textarea>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn btn-primary btn-sm save-author-bio-btn"
+                                                    data-author-id="<?= (int)$author['id'] ?>">
+                                                <i class="fa-solid fa-floppy-disk me-1"></i> Save Bio
+                                            </button>
+                                            <span class="author-bio-status text-muted small"
+                                                  data-author-id="<?= (int)$author['id'] ?>"></span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Form Actions -->
+                        <?php if ($ebookFileRel): ?>
+                            <button type="button" id="writeMetaBtn" style="display:none"
+                                    data-book-id="<?= (int)$book['id'] ?>"></button>
+                            <input type="hidden" name="send_to_device" id="sendToDeviceHidden" value="">
+                        <?php endif; ?>
                         <div class="d-flex justify-content-between mt-4">
-                            <div>
-                                <a href="<?= htmlspecialchars($backToListUrl) ?>" class="btn btn-secondary">
-                                    <i class="fa-solid fa-arrow-left me-1"></i> Back to list
-                                </a>
-                                <a href="list_books.php?search=<?= urlencode($book['title']) ?>&source=local" class="btn btn-secondary ms-2">
-                                    <i class="fa-solid fa-magnifying-glass me-1"></i> Back to book
-                                </a>
+                            <div class="d-flex flex-wrap gap-2">
+                                <?php if ($epubFileRel && !$pdfExists): ?>
+                                    <button id="convertPdfBtn" type="submit" form="convertPdfForm" class="btn btn-secondary">
+                                        <i class="fa-solid fa-file-pdf me-1"></i> Convert to PDF
+                                    </button>
+                                <?php endif; ?>
+                                <?php if (!$epubFileRel && !$missingFile): ?>
+                                    <button id="convertEpubBtn" type="submit" form="convertEpubForm" class="btn btn-secondary">
+                                        <i class="fa-solid fa-book-open me-1"></i> Convert to EPUB
+                                    </button>
+                                <?php endif; ?>
+                                <?php if (!empty($transferTargets)): ?>
+                                    <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#transferModal">
+                                        <i class="fa-solid fa-copy me-1"></i> Copy to Library
+                                    </button>
+                                <?php endif; ?>
+                                <?php if (!empty($book['olid'])): ?>
+                                    <a href="/oltransfer/index.php?book_id=<?= (int)$book['id'] ?>" class="btn btn-secondary">
+                                        <i class="fa-solid fa-arrow-up-from-bracket me-1"></i>OL Transfer
+                                    </a>
+                                <?php endif; ?>
+                                <?php if ($missingFile): ?>
+                                    <button type="button" id="uploadFileButton" class="btn btn-secondary">
+                                        <i class="fa-solid fa-upload me-1"></i>Upload File
+                                    </button>
+                                    <input type="file" id="bookFileInput" style="display:none">
+                                <?php endif; ?>
                             </div>
-                            <div>
+                            <div class="d-flex flex-wrap gap-2">
                                 <?php if ($ebookFileRel): ?>
-                                    <button type="submit" name="send_to_device" value="1" class="btn btn-outline-success me-2">
+                                    <button type="button" id="sendToDeviceBtn"
+                                            data-book-id="<?= (int)$book['id'] ?>"
+                                            class="btn btn-success">
                                         <i class="fa-solid fa-paper-plane me-1"></i> Send to device
                                     </button>
                                 <?php endif; ?>
@@ -1031,9 +971,107 @@ if ($sendRequested) {
 
     <?php include 'metadata_modal.php'; ?>
     <?php include 'cover_modal.php'; ?>
+    <?php if ($epubFileRel && !$pdfExists): ?>
+        <form id="convertPdfForm" method="post"><input type="hidden" name="convert_to_pdf" value="1"></form>
+    <?php endif; ?>
+    <?php if (!$epubFileRel && !$missingFile): ?>
+        <form id="convertEpubForm" method="post"><input type="hidden" name="convert_to_epub" value="1"></form>
+    <?php endif; ?>
+
+    <?php if (!empty($transferTargets)): ?>
+    <div class="modal fade" id="transferModal" tabindex="-1" aria-labelledby="transferModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="transferModalLabel">
+                        <i class="fa-solid fa-copy me-2"></i>Copy to Library
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Copies <strong><?= htmlspecialchars($book['title']) ?></strong> — including metadata, cover, and book files — into the selected library.</p>
+                    <label for="transferTarget" class="form-label fw-semibold">Target library</label>
+                    <select id="transferTarget" class="form-select">
+                        <?php foreach ($transferTargets as $uname): ?>
+                        <option value="<?= htmlspecialchars($uname) ?>"><?= htmlspecialchars($uname) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div id="transferStatus" class="mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="transferConfirmBtn">
+                        <i class="fa-solid fa-copy me-1"></i> Copy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Prev / Next nav -->
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-3">
+        <div>
+            <?php if ($prevBook): ?>
+            <a href="<?= htmlspecialchars(navBookUrl((int)$prevBook['id'], $sort, $returnPage)) ?>"
+               class="text-decoration-none text-muted small" title="<?= htmlspecialchars($prevBook['title']) ?>">
+                <i class="fa-solid fa-chevron-left me-1"></i><?= htmlspecialchars(mb_strimwidth($prevBook['title'], 0, 40, '…')) ?>
+            </a>
+            <?php endif; ?>
+        </div>
+        <a href="<?= htmlspecialchars($backToListUrl) ?>" class="text-decoration-none text-muted small">
+            <i class="fa-solid fa-list me-1"></i>Library
+        </a>
+        <div>
+            <?php if ($nextBook): ?>
+            <a href="<?= htmlspecialchars(navBookUrl((int)$nextBook['id'], $sort, $returnPage)) ?>"
+               class="text-decoration-none text-muted small" title="<?= htmlspecialchars($nextBook['title']) ?>">
+                <?= htmlspecialchars(mb_strimwidth($nextBook['title'], 0, 40, '…')) ?><i class="fa-solid fa-chevron-right ms-1"></i>
+            </a>
+            <?php endif; ?>
+        </div>
+    </div>
+
   </div>
-    
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+    selector: '#description',
+    license_key: 'gpl',
+    promotion: false,
+    branding: false,
+    height: 400
+});
+</script>
+<script src="js/search.js"></script>
+<script src="js/recommendations.js"></script>
 <script src="js/book.js"></script>
+<div id="convertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:1rem">
+    <div class="spinner-border" style="width:3rem;height:3rem" role="status"></div>
+    <div id="convertOverlayMsg" style="font-size:1.1rem;font-weight:500">Converting…</div>
+</div>
+<script>
+['convertPdfBtn', 'convertEpubBtn'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', function () {
+        const msg = id === 'convertPdfBtn' ? 'Converting to PDF…' : 'Converting to EPUB…';
+        const overlay = document.getElementById('convertOverlay');
+        document.getElementById('convertOverlayMsg').textContent = msg;
+        overlay.style.display = 'flex';
+    });
+});
+
+document.getElementById('stripHtmlBtn')?.addEventListener('click', function () {
+    const ta = document.getElementById('description');
+    const tmp = document.createElement('div');
+    tmp.innerHTML = ta.value;
+    // Collapse block elements to a single newline, inline elements to nothing
+    tmp.querySelectorAll('p, br, div, li').forEach(el => {
+        el.before(document.createTextNode('\n'));
+    });
+    ta.value = (tmp.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+});
+</script>
 </body>
 </html>

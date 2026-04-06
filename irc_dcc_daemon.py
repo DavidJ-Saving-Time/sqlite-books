@@ -4,12 +4,22 @@ import threading
 import time
 import os
 import re
+import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from collections import deque
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all endpoints
+
+# Suppress Werkzeug access-log noise for frequent polling endpoints
+_SILENT_PATHS = {'/status', '/logs', '/downloaded-files'}
+class _PollFilter(logging.Filter):
+    def filter(self, record):
+        msg = record.getMessage()
+        return not any(f'"GET {p} HTTP' in msg for p in _SILENT_PATHS)
+
+logging.getLogger('werkzeug').addFilter(_PollFilter())
 
 # ======================
 # CONFIGURATION

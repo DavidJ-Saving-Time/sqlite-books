@@ -8,19 +8,20 @@ function get_book_recommendations(string $preferences): string {
     $apiKey = getenv('OPENROUTER_API_KEY') ?: 'your_api_key_here';
 
     $payload = [
-        'model' => 'anthropic/claude-sonnet-4',
+        'model' => 'openai/gpt-5.4-mini',
         'messages' => [
             [
                 'role' => 'system',
-                'content' => "You are a knowledgeable book recommendation assistant. Suggest books tailored to the user's taste with a short explanation for each recommendation."
+                'content' => "You are a knowledgeable book recommendation assistant. You MUST respond with a valid JSON object only — no markdown, no code fences, no explanation. Use this exact structure: {\"recommendations\":[{\"title\":\"Book Name\",\"author\":\"Author Name\",\"reason\":\"Why this book fits.\"}]}"
             ],
             [
                 'role' => 'user',
-                'content' => "I enjoy {$preferences}. Can you recommend 7 similar books with a one-sentence reason for each?"
+                'content' => "I enjoy {$preferences}. Recommend up to 7 similar books. Return up to 7 recommendations. If you are unsure about a title or author, omit it.Ensure each recommendation is a real book with a correct author. Return only the JSON object."
             ]
         ],
+        'response_format' => ['type' => 'json_object'],
         'temperature' => 0.7,
-        'max_tokens' => 800
+        'max_tokens' => 1000
     ];
 
     $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
@@ -51,5 +52,18 @@ function get_book_recommendations(string $preferences): string {
         throw new Exception('Invalid API response');
     }
 
-    return trim($data['choices'][0]['message']['content']);
+    $content = trim($data['choices'][0]['message']['content']);
+
+    // Validate the returned JSON has the expected structure
+    $decoded = json_decode($content, true);
+    if (!is_array($decoded) || !isset($decoded['recommendations']) || !is_array($decoded['recommendations'])) {
+        throw new Exception('AI returned invalid recommendation structure — try again');
+    }
+    foreach ($decoded['recommendations'] as $item) {
+        if (!isset($item['title']) || !isset($item['author'])) {
+            throw new Exception('AI returned malformed recommendation items — try again');
+        }
+    }
+
+    return $content;
 }

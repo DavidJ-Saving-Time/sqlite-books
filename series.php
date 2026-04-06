@@ -67,12 +67,11 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Series</title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="/theme.css.php">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
 </head>
 <body class="pt-5 bg-light">
-<?php include 'navbar_other.php'; ?>
+<?php include 'navbar.php'; ?>
 <div class="container my-4">
     <h1>Series</h1>
     <div class="mb-4">
@@ -116,10 +115,46 @@ try {
     <?php if (empty($series)): ?>
         <p class="text-muted">No series found.</p>
     <?php else: ?>
-        <ul class="list-group">
+    <?php
+        $seriesLetters = [];
+        foreach ($series as $s) {
+            $first = strtoupper(mb_substr($s['name'], 0, 1));
+            if (ctype_alpha($first)) $seriesLetters[$first] = true;
+            else $seriesLetters['#'] = true;
+        }
+        ksort($seriesLetters);
+    ?>
+    <style>
+        .letter-btn.active { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
+        .filter-hidden { display: none !important; }
+    </style>
+
+    <!-- Filter bar -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <input type="search" id="seriesFilter" class="form-control form-control-sm" style="max-width:20rem;" placeholder="Filter series…" autocomplete="off">
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="hideEmptySeries">
+            <label class="form-check-label small" for="hideEmptySeries">Hide empty</label>
+        </div>
+        <span class="text-muted small" id="seriesCount"></span>
+    </div>
+    <div class="d-flex flex-wrap gap-1 mb-3" id="seriesLetterBar">
+        <button class="btn btn-sm btn-outline-secondary letter-btn" data-letter="">All</button>
+        <?php foreach ($seriesLetters as $letter => $_): ?>
+            <button class="btn btn-sm btn-outline-secondary letter-btn" data-letter="<?= htmlspecialchars($letter) ?>"><?= htmlspecialchars($letter) ?></button>
+        <?php endforeach; ?>
+    </div>
+
+        <ul class="list-group" id="seriesList">
             <?php foreach ($series as $s): ?>
-                <?php $subs = ($hasSubseries && isset($s['subseries_list']) && $s['subseries_list'] !== '') ? explode('|', $s['subseries_list']) : []; ?>
-                <li class="list-group-item<?= ((int)$s['book_count'] === 0) ? ' list-group-item-warning' : '' ?>">
+                <?php
+                    $subs = ($hasSubseries && isset($s['subseries_list']) && $s['subseries_list'] !== '') ? explode('|', $s['subseries_list']) : [];
+                    $firstChar = strtoupper(mb_substr($s['name'], 0, 1));
+                ?>
+                <li class="list-group-item<?= ((int)$s['book_count'] === 0) ? ' list-group-item-warning' : '' ?>"
+                    data-name="<?= htmlspecialchars(strtolower($s['name'])) ?>"
+                    data-letter="<?= htmlspecialchars(ctype_alpha($firstChar) ? $firstChar : '#') ?>"
+                    data-empty="<?= (int)$s['book_count'] === 0 ? '1' : '0' ?>">
                     <div class="d-flex justify-content-between align-items-center">
                         <a href="list_books.php?series_id=<?= (int)$s['id'] ?>">
                             <?= htmlspecialchars($s['name']) ?>
@@ -144,6 +179,46 @@ try {
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="js/search.js"></script>
+<script>
+(function () {
+    const filterInput = document.getElementById('seriesFilter');
+    const hideEmpty   = document.getElementById('hideEmptySeries');
+    const countEl     = document.getElementById('seriesCount');
+    const letterBar   = document.getElementById('seriesLetterBar');
+    if (!filterInput) return;
+    const rows = document.querySelectorAll('#seriesList li');
+    let activeLetter = '';
+
+    function applyFilters() {
+        const q = filterInput.value.trim().toLowerCase();
+        const noEmpty = hideEmpty.checked;
+        let visible = 0;
+        rows.forEach(row => {
+            const name   = row.dataset.name || '';
+            const letter = row.dataset.letter || '';
+            const empty  = row.dataset.empty === '1';
+            const show = (!q || name.includes(q))
+                      && (!activeLetter || letter === activeLetter)
+                      && !(noEmpty && empty);
+            row.classList.toggle('filter-hidden', !show);
+            if (show) visible++;
+        });
+        countEl.textContent = visible + ' of ' + rows.length;
+    }
+
+    filterInput.addEventListener('input', applyFilters);
+    hideEmpty.addEventListener('change', applyFilters);
+    letterBar.addEventListener('click', e => {
+        const btn = e.target.closest('.letter-btn');
+        if (!btn) return;
+        activeLetter = btn.dataset.letter;
+        letterBar.querySelectorAll('.letter-btn').forEach(b => b.classList.toggle('active', b === btn));
+        applyFilters();
+    });
+    applyFilters();
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const addSeriesBtn = document.getElementById('addSeriesBtn');

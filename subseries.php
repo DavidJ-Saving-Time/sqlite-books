@@ -53,12 +53,11 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Subseries</title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="/theme.css.php">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
-    <script src="js/theme.js"></script>
 </head>
 <body class="pt-5 bg-light">
-<?php include 'navbar_other.php'; ?>
+<?php include 'navbar.php'; ?>
 <div class="container my-4">
     <h1>Subseries</h1>
     <div class="mb-4">
@@ -91,10 +90,23 @@ try {
     <?php if (empty($subseries)): ?>
         <p class="text-muted">No subseries found.</p>
     <?php else: ?>
-        <ul class="list-group">
+    <style>.filter-hidden { display: none !important; }</style>
+    <!-- Filter bar -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <input type="search" id="subseriesFilter" class="form-control form-control-sm" style="max-width:20rem;" placeholder="Filter subseries…" autocomplete="off">
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="hideEmptySubseries">
+            <label class="form-check-label small" for="hideEmptySubseries">Hide empty</label>
+        </div>
+        <span class="text-muted small" id="subseriesCount"></span>
+    </div>
+
+        <ul class="list-group" id="subseriesList">
             <?php foreach ($subseries as $s): ?>
                 <?php $seriesList = ($s['series_list'] !== null && $s['series_list'] !== '') ? explode('|', $s['series_list']) : []; ?>
-                <li class="list-group-item<?= ((int)$s['book_count'] === 0) ? ' list-group-item-warning' : '' ?>">
+                <li class="list-group-item<?= ((int)$s['book_count'] === 0) ? ' list-group-item-warning' : '' ?>"
+                    data-name="<?= htmlspecialchars(strtolower($s['name'])) ?>"
+                    data-empty="<?= (int)$s['book_count'] === 0 ? '1' : '0' ?>">
                     <div class="d-flex justify-content-between align-items-center">
                         <a href="list_books.php?subseries_id=<?= (int)$s['id'] ?>">
                             <?= htmlspecialchars($s['name']) ?>
@@ -119,6 +131,33 @@ try {
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="js/search.js"></script>
+<script>
+(function () {
+    const filterInput = document.getElementById('subseriesFilter');
+    const hideEmpty   = document.getElementById('hideEmptySubseries');
+    const countEl     = document.getElementById('subseriesCount');
+    if (!filterInput) return;
+    const rows = document.querySelectorAll('#subseriesList li');
+
+    function applyFilters() {
+        const q = filterInput.value.trim().toLowerCase();
+        const noEmpty = hideEmpty.checked;
+        let visible = 0;
+        rows.forEach(row => {
+            const show = (!q || (row.dataset.name || '').includes(q))
+                      && !(noEmpty && row.dataset.empty === '1');
+            row.classList.toggle('filter-hidden', !show);
+            if (show) visible++;
+        });
+        countEl.textContent = visible + ' of ' + rows.length;
+    }
+
+    filterInput.addEventListener('input', applyFilters);
+    hideEmpty.addEventListener('change', applyFilters);
+    applyFilters();
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const subseriesSelect = document.getElementById('subseriesSelect');

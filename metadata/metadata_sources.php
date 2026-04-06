@@ -7,14 +7,19 @@
  * @param string $query
  * @return array
  */
-function search_annas_archive(string $query): array {
+function search_annas_archive(string $query, array &$debug = [], string $author = ''): array {
     $apiKey = getenv('ANNA_API_KEY');
+    $debug['has_api_key'] = !empty($apiKey);
     if (!$apiKey) {
         return [];
     }
 
     $url = 'https://annas-archive-api.p.rapidapi.com/search?q=' . urlencode($query)
-        . '&skip=0&limit=5&source=libgenLi,libgenRs,zLibrary,sciHub';
+        . '&page=1&sort=mostRelevant&source=libgenLi,libgenRs,zLibrary,sciHub';
+    if ($author !== '') {
+        $url .= '&author=' . urlencode($author);
+    }
+    $debug['url'] = $url;
 
     $curl = curl_init();
     curl_setopt_array($curl, [
@@ -26,13 +31,19 @@ function search_annas_archive(string $query): array {
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_CUSTOMREQUEST => 'GET',
         CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
             'x-rapidapi-host: annas-archive-api.p.rapidapi.com',
             'x-rapidapi-key: ' . $apiKey,
         ],
     ]);
 
     $response = curl_exec($curl);
+    $debug['curl_error'] = curl_error($curl) ?: null;
+    $debug['http_code']  = curl_getinfo($curl, CURLINFO_HTTP_CODE);
     curl_close($curl);
+
+    $debug['raw_response'] = is_string($response) ? substr($response, 0, 2000) : '(no response)';
+
     if ($response === false) {
         return [];
     }
@@ -46,16 +57,20 @@ function search_annas_archive(string $query): array {
     foreach (array_slice($data['books'], 0, 5) as $book) {
         $md5 = $book['md5'] ?? '';
         $results[] = [
-            'title' => $book['title'] ?? '',
-            'authors' => $book['author'] ?? '',
-            'year' => $book['year'] ?? '',
+            'title'       => $book['title'] ?? '',
+            'authors'     => $book['author'] ?? '',
+            'year'        => $book['year'] ?? '',
             'description' => '',
-            'cover' => $book['imgUrl'] ?? '',
-            'source_id' => 'annas_archive',
+            'cover'       => $book['imgUrl'] ?? '',
+            'genre'       => $book['genre'] ?? '',
+            'size'        => $book['size'] ?? '',
+            'format'      => $book['format'] ?? '',
+            'md5'         => $md5,
+            'source_id'   => 'annas_archive',
             'source_link' => $md5 !== '' ? 'https://annas-archive.org/md5/' . $md5 : '',
-            'isbn' => '',
-            'publisher' => '',
-            'series' => '',
+            'isbn'        => '',
+            'publisher'   => '',
+            'series'      => '',
         ];
     }
 
@@ -170,6 +185,154 @@ function fetch_openlibrary_json(string $url): ?array {
  * @param int $limit
  * @return array
  */
+function fetch_openlibrary_by_olid(string $olid): array {
+    $olid = preg_replace('/[^A-Za-z0-9]/', '', $olid);
+    if ($olid === '') return [];
+
+    // Fetch work
+    $work = fetch_openlibrary_json("https://openlibrary.org/works/{$olid}.json");
+    if (!$work) return [];
+
+    $description = '';
+    if (!empty($work['description'])) {
+        $description = is_array($work['description'])
+            ? ($work['description']['value'] ?? '')
+            : (string)$work['description'];
+    }
+
+    $cover = '';
+    foreach ((array)($work['covers'] ?? []) as $cid) {
+        if ((int)$cid > 0) {
+            $cover = "https://covers.openlibrary.org/b/id/{$cid}-L.jpg";
+            break;
+        }
+    }
+
+    $subjects = array_slice((array)($work['subjects'] ?? []), 0, 20);
+
+    // Fetch first edition for ISBN, publisher, publish date
+    $isbn      = '';
+    $publisher = '';
+    $year      = '';
+    $editions  = fetch_openlibrary_json("https://openlibrary.org/works/{$olid}/editions.json?limit=10");
+    if ($editions && !empty($editions['entries'])) {
+        foreach ($editions['entries'] as $ed) {
+            // Prefer editions with an ISBN
+            $isbn13 = $ed['isbn_13'][0] ?? '';
+            $isbn10 = $ed['isbn_10'][0] ?? '';
+            $edIsbn = $isbn13 ?: $isbn10;
+            if ($edIsbn !== '') {
+                $isbn = $edIsbn;
+                $publisher = $ed['publishers'][0] ?? '';
+                $pubDate   = $ed['publish_date'] ?? '';
+                if ($pubDate && preg_match('/(\d{4})/', $pubDate, $m)) $year = $m[1];
+                break;
+            }
+        }
+        // If no edition had an ISBN, still grab publisher/year from first entry
+        if ($isbn === '' && isset($editions['entries'][0])) {
+            $first     = $editions['entries'][0];
+            $publisher = $first['publishers'][0] ?? '';
+            $pubDate   = $first['publish_date'] ?? '';
+            if ($pubDate && preg_match('/(\d{4})/', $pubDate, $m)) $year = $m[1];
+        }
+    }
+
+    return [[
+        'title'       => $work['title'] ?? '',
+        'authors'     => '',   // already known from Calibre
+        'year'        => $year,
+        'description' => $description,
+        'subjects'    => $subjects,
+        'cover'       => $cover,
+        'key'         => "/works/{$olid}",
+        'source_id'   => 'openlibrary',
+        'source_link' => "https://openlibrary.org/works/{$olid}",
+        'isbn'        => $isbn,
+        'publisher'   => $publisher,
+        'series'      => '',
+    ]];
+}
+
+function search_openlibrary_isbn(string $isbn): array {
+    $isbn = preg_replace('/[^0-9X]/', '', strtoupper($isbn));
+    if ($isbn === '') {
+        return [];
+    }
+
+    $url = 'https://openlibrary.org/api/books?bibkeys=ISBN:' . urlencode($isbn)
+         . '&format=json&jscmd=data';
+    $data = fetch_openlibrary_json($url);
+    if ($data === null || empty($data)) {
+        return [];
+    }
+
+    $results = [];
+    foreach ($data as $key => $book) {
+        $cover = '';
+        if (!empty($book['cover']['large'])) {
+            $cover = $book['cover']['large'];
+        } elseif (!empty($book['cover']['medium'])) {
+            $cover = $book['cover']['medium'];
+        }
+
+        $authors = '';
+        if (!empty($book['authors']) && is_array($book['authors'])) {
+            $authors = implode(', ', array_column($book['authors'], 'name'));
+        }
+
+        $description = '';
+        if (!empty($book['excerpts'][0]['text'])) {
+            $description = $book['excerpts'][0]['text'];
+        }
+
+        $publisher = '';
+        if (!empty($book['publishers'][0]['name'])) {
+            $publisher = $book['publishers'][0]['name'];
+        }
+
+        $year = '';
+        if (!empty($book['publish_date'])) {
+            if (preg_match('/(\d{4})/', $book['publish_date'], $m)) {
+                $year = $m[1];
+            }
+        }
+
+        $isbnVal = '';
+        if (!empty($book['identifiers']['isbn_13'][0])) {
+            $isbnVal = $book['identifiers']['isbn_13'][0];
+        } elseif (!empty($book['identifiers']['isbn_10'][0])) {
+            $isbnVal = $book['identifiers']['isbn_10'][0];
+        }
+
+        $subjects = [];
+        if (!empty($book['subjects']) && is_array($book['subjects'])) {
+            $subjects = array_column($book['subjects'], 'name');
+        }
+
+        // Prefer the works key over the edition key so we get a valid OLID
+        $worksKey = $book['works'][0]['key'] ?? '';
+        $olKey    = $worksKey !== '' ? $worksKey : ($book['key'] ?? '');
+
+        $results[] = [
+            'title'       => $book['title'] ?? '',
+            'authors'     => $authors,
+            'year'        => $year,
+            'description' => $description,
+            'subjects'    => $subjects,
+            'cover'       => $cover,
+            'key'         => $olKey,
+            'source_id'   => 'openlibrary',
+            'source_link' => $worksKey !== '' ? 'https://openlibrary.org' . $worksKey : ($olKey !== '' ? 'https://openlibrary.org' . $olKey : ''),
+            'isbn'        => $isbnVal,
+            'publisher'   => $publisher,
+            'series'      => '',
+        ];
+    }
+
+    return $results;
+}
+
 function search_openlibrary(string $query, int $limit = 20): array {
     $url = 'https://openlibrary.org/search.json?q=' . urlencode($query) . '&limit=' . $limit;
     $data = fetch_openlibrary_json($url);

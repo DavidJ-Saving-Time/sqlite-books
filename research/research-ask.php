@@ -133,24 +133,23 @@ function cleanFtsQuery(string $q): string {
 
 // Fetch list of all books for the selection modal
 $bookList = [];
-// Fetch list of existing notes for saving answers
-$noteList = [];
 try {
-    // Books are stored in the embedding database used for retrieval
     $dbList = new PDO('sqlite:' . __DIR__ . '/../library.sqlite');
-    $stmt = $dbList->query('SELECT id, title FROM items ORDER BY title');
+    $stmt = $dbList->query('SELECT id, title, author FROM items ORDER BY author, title');
     $bookList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Ignore if the database is unavailable
 }
 
-try {
-    // Notes live in the main metadata database
-    $noteDb = getDatabaseConnection();
-    $noteStmt = $noteDb->query('SELECT id, title FROM notepad ORDER BY title');
-    $noteList = $noteStmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    // Ignore if the database is unavailable
+// Titles of the books selected for this query (used in the auto-saved note title)
+$selectedBookTitles = [];
+if ($bookIds) {
+    $bookTitleById = array_column($bookList, 'title', 'id');
+    foreach ($bookIds as $bid) {
+        if (isset($bookTitleById[$bid])) {
+            $selectedBookTitles[] = $bookTitleById[$bid];
+        }
+    }
 }
 
 if ($question !== '') {
@@ -166,8 +165,8 @@ if ($question !== '') {
         if (!$openaiKey) {
             throw new Exception('Set OPENAI_API_KEY for embeddings.');
         }
-        if ($useWhich === 'claude' && !$orKey) {
-            throw new Exception('Set OPENROUTER_API_KEY when using Claude.');
+        if (!$orKey) {
+            throw new Exception('Set OPENROUTER_API_KEY.');
         }
 
         $db = new PDO('sqlite:' . __DIR__ . '/../library.sqlite');
@@ -393,13 +392,8 @@ $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
 
             // 5) Generate answer
             $maxOut = $maxTokens;
-            if ($useWhich === 'claude') {
-                $answerModel = $modelName ?: 'anthropic/claude-sonnet-4';
-                $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxOut);
-            } else {
-                $answerModel = $modelName ?: 'gpt-4o-mini';
-                $answer = generate_with_openai($answerModel, $sys, $user, $openaiKey, 0.1, $maxOut);
-            }
+            $answerModel = $modelName ?: 'anthropic/claude-sonnet-4.6';
+            $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxOut);
         }
     } catch (Exception $e) {
         $error = $e->getMessage();
@@ -447,221 +441,308 @@ if ($sources) {
 <title>Research Ask</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/research-theme.css">
 </head>
-<body class="pt-5">
+<body>
 <?php include 'navbar.php'; ?>
-<div class="container my-4">
-<h1 class="mb-4"><i class="fa-solid fa-magnifying-glass"></i> Research Ask</h1>
-<form method="post" class="mb-4">
-    <div class="mb-3">
-        <label for="question" class="form-label">Question</label>
-        <textarea id="question" name="question" class="form-control" rows="3" required><?= htmlspecialchars($_REQUEST['question'] ?? '') ?></textarea>
+
+<main class="ra-page">
+
+  <!-- Header -->
+  <header class="ra-header">
+    <div class="ra-header-rule">Archive</div>
+    <h1>Research Ask</h1>
+    <p>Pose a question. Surface what the sources know.</p>
+  </header>
+
+  <!-- Form -->
+  <form method="post" class="ra-form">
+
+    <!-- Question -->
+    <div class="ra-field">
+      <label class="ra-label" for="question">Your Question</label>
+      <textarea id="question" name="question" class="ra-question" rows="4"
+        placeholder="What would you like to know from your library?" required><?= htmlspecialchars($_REQUEST['question'] ?? '') ?></textarea>
     </div>
-    <div class="row">
-        <div class="col-md-4 mb-3">
-            <label for="book_id" class="form-label">Book IDs (comma separated)</label>
-            <div class="input-group">
-                <input type="text" id="book_id" name="book_id" class="form-control" value="<?= htmlspecialchars($_REQUEST['book_id'] ?? '') ?>">
-                <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#bookModal">Select</button>
-            </div>
+
+    <!-- Main settings grid -->
+    <div class="ra-settings-grid">
+
+      <!-- Books -->
+      <div class="ra-field ra-field--flush">
+        <label class="ra-label">Sources</label>
+        <button class="ra-books-btn" type="button" data-bs-toggle="modal" data-bs-target="#bookModal">
+          <i class="fa-solid fa-book ra-icon-xs"></i> Select Books
+        </button>
+        <input type="hidden" id="book_id" name="book_id" value="<?= htmlspecialchars($_REQUEST['book_id'] ?? '') ?>">
+        <div id="selectedBooksList"></div>
+      </div>
+
+      <!-- Model -->
+      <div class="ra-field ra-field--flush">
+        <label class="ra-label" for="model">Model</label>
+        <div class="ra-select-wrap">
+          <select id="model" name="model" class="ra-select">
+            <option value="" <?= (($_REQUEST['model'] ?? '') === '') ? 'selected' : '' ?>>Auto (claude-sonnet-4.6)</option>
+            <optgroup label="── Anthropic">
+            <option value="anthropic/claude-opus-4.6" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-opus-4.6') ? 'selected' : '' ?>>claude-opus-4.6</option>
+            <option value="anthropic/claude-sonnet-4.6" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-sonnet-4.6') ? 'selected' : '' ?>>claude-sonnet-4.6</option>
+            </optgroup>
+            <optgroup label="── OpenAI">
+            <option value="openai/gpt-5.4" <?= (($_REQUEST['model'] ?? '') === 'openai/gpt-5.4') ? 'selected' : '' ?>>gpt-5.4</option>
+            <option value="openai/gpt-5.4-mini" <?= (($_REQUEST['model'] ?? '') === 'openai/gpt-5.4-mini') ? 'selected' : '' ?>>gpt-5.4-mini</option>
+            </optgroup>
+            <optgroup label="── Google">
+            <option value="google/gemini-3.1-pro-preview" <?= (($_REQUEST['model'] ?? '') === 'google/gemini-3.1-pro-preview') ? 'selected' : '' ?>>gemini-3.1-pro-preview</option>
+            <option value="google/gemini-3.1-flash-lite-preview" <?= (($_REQUEST['model'] ?? '') === 'google/gemini-3.1-flash-lite-preview') ? 'selected' : '' ?>>gemini-3.1-flash-lite</option>
+            </optgroup>
+            <optgroup label="── xAI">
+            <option value="x-ai/grok-4.20-beta" <?= (($_REQUEST['model'] ?? '') === 'x-ai/grok-4.20-beta') ? 'selected' : '' ?>>grok-4.20-beta</option>
+            </optgroup>
+            <optgroup label="── Mistral">
+            <option value="mistralai/mistral-small-2603" <?= (($_REQUEST['model'] ?? '') === 'mistralai/mistral-small-2603') ? 'selected' : '' ?>>mistral-small-4</option>
+            </optgroup>
+            <optgroup label="── DeepSeek">
+            <option value="deepseek/deepseek-r1-0528" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-r1-0528') ? 'selected' : '' ?>>deepseek-r1-0528</option>
+            <option value="deepseek/deepseek-v3.2" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-v3.2') ? 'selected' : '' ?>>deepseek-v3.2</option>
+            </optgroup>
+            <optgroup label="── Free">
+            <option value="meta-llama/llama-3.3-70b-instruct:free" <?= (($_REQUEST['model'] ?? '') === 'meta-llama/llama-3.3-70b-instruct:free') ? 'selected' : '' ?>>llama-3.3-70b (free)</option>
+            <option value="qwen/qwen3-coder:free" <?= (($_REQUEST['model'] ?? '') === 'qwen/qwen3-coder:free') ? 'selected' : '' ?>>qwen3-coder (free)</option>
+            </optgroup>
+          </select>
         </div>
-        <div class="col-md-2 mb-3">
-            <label for="max_chunks" class="form-label">Max Chunks</label>
-            <input type="number" id="max_chunks" name="max_chunks" class="form-control" value="<?= htmlspecialchars($_REQUEST['max_chunks'] ?? '8') ?>">
-        </div>
-        <div class="col-md-2 mb-3">
-            <label for="max_tokens" class="form-label">Max Tokens</label>
-            <input type="number" id="max_tokens" name="max_tokens" class="form-control" value="<?= htmlspecialchars($_REQUEST['max_tokens'] ?? '2000') ?>">
-        </div>
-        <div class="col-md-2 mb-3">
-            <label for="use" class="form-label">Provider</label>
-            <input type="text" id="use" name="use" class="form-control" value="<?= htmlspecialchars($_REQUEST['use'] ?? 'claude') ?>">
-        </div>
-        <div class="col-md-2 mb-3">
-            <label for="model" class="form-label">Model</label>
-            <select id="model" name="model" class="form-select">
-                <option value="" <?= (($_REQUEST['model'] ?? '') === '') ? 'selected' : '' ?>>Auto</option>
-                <option value="deepseek/deepseek-r1-0528:free" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-r1-0528:free') ? 'selected' : '' ?>>deepseek/deepseek-r1-0528:free</option>
-                <option value="deepseek/deepseek-r1" <?= (($_REQUEST['model'] ?? '') === 'deepseek/deepseek-r1') ? 'selected' : '' ?>>deepseek/deepseek-r1</option>
-                <option value="anthropic/claude-3.7-sonnet" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-3.7-sonnet') ? 'selected' : '' ?>>anthropic/claude-3.7-sonnet</option>
-                <option value="mistralai/mistral-medium-3.1" <?= (($_REQUEST['model'] ?? '') === 'mistralai/mistral-medium-3.1') ? 'selected' : '' ?>>mistralai/mistral-medium-3.1</option>
-                <option value="google/gemini-2.5-flash" <?= (($_REQUEST['model'] ?? '') === 'google/gemini-2.5-flash') ? 'selected' : '' ?>>google/gemini-2.5-flash</option>
-                <option value="anthropic/claude-sonnet-4" <?= (($_REQUEST['model'] ?? '') === 'anthropic/claude-sonnet-4') ? 'selected' : '' ?>>anthropic/claude-sonnet-4</option>
-                 <option value="x-ai/grok-4" <?= (($_REQUEST['model'] ?? '') === 'x-ai/grok-4') ? 'selected' : '' ?>>x-ai/grok-4</option>
-            </select>
-        </div>
+      </div>
+
+    </div><!-- /settings-grid -->
+
+    <!-- Toggles -->
+    <div class="ra-toggles">
+      <label class="ra-toggle-label">
+        <input type="checkbox" id="show_pdf_pages" name="show_pdf_pages" value="1" <?= (!empty($_REQUEST['show_pdf_pages'] ?? '')) ? 'checked' : '' ?>>
+        <span class="ra-toggle-track"></span>
+        Show PDF pages
+      </label>
+      <label class="ra-toggle-label">
+        <input type="checkbox" id="simple_terms" name="simple_terms" value="1" <?= (!empty($_REQUEST['simple_terms'] ?? '')) ? 'checked' : '' ?>>
+        <span class="ra-toggle-track"></span>
+        In simple terms
+      </label>
     </div>
-    <div class="row">
-        <div class="col-md-2 mb-3">
-            <label for="min_distinct" class="form-label">Min Distinct</label>
-            <input type="number" id="min_distinct" name="min_distinct" class="form-control" value="<?= htmlspecialchars($_REQUEST['min_distinct'] ?? ($_REQUEST['min-distinct'] ?? '3')) ?>">
+
+    <!-- Advanced -->
+    <details class="ra-advanced">
+      <summary>Advanced options</summary>
+      <div class="ra-advanced-grid">
+        <div class="ra-field ra-field--flush">
+          <label class="ra-label" for="max_chunks">Max Chunks</label>
+          <input type="number" id="max_chunks" name="max_chunks" class="ra-input"
+            value="<?= htmlspecialchars($_REQUEST['max_chunks'] ?? '8') ?>">
         </div>
+        <div class="ra-field ra-field--flush">
+          <label class="ra-label" for="max_tokens">Max Tokens</label>
+          <input type="number" id="max_tokens" name="max_tokens" class="ra-input"
+            value="<?= htmlspecialchars($_REQUEST['max_tokens'] ?? '2000') ?>">
+        </div>
+        <div class="ra-field ra-field--flush">
+          <label class="ra-label" for="min_distinct">Min Distinct Books</label>
+          <input type="number" id="min_distinct" name="min_distinct" class="ra-input"
+            value="<?= htmlspecialchars($_REQUEST['min_distinct'] ?? '3') ?>">
+        </div>
+      </div>
+    </details>
+
+    <button type="submit" class="ra-submit" id="askSubmitBtn">Ask the Archive</button>
+
+  </form>
+
+  <!-- Error -->
+  <?php if ($error): ?>
+  <div class="ra-error"><i class="fa-solid fa-triangle-exclamation me-2"></i><?= htmlspecialchars($error) ?></div>
+  <?php endif; ?>
+
+  <!-- Answer -->
+  <?php if ($answer): ?>
+  <section class="ra-answer-section">
+    <div class="ra-answer-header">
+      <h2>Answer</h2>
+      <button class="ra-save-btn" type="button" id="saveNoteBtn">
+        <i class="fa-solid fa-floppy-disk"></i> Save to Notes
+      </button>
     </div>
-    <div class="form-check form-switch mb-3">
-        <input class="form-check-input" type="checkbox" id="show_pdf_pages" name="show_pdf_pages" value="1" <?= (!empty($_REQUEST['show_pdf_pages'] ?? $_REQUEST['show-pdf-pages'] ?? '')) ? 'checked' : '' ?>>
-        <label class="form-check-label" for="show_pdf_pages">Show PDF page numbers</label>
+    <div id="answer-md"></div>
+  </section>
+  <?php endif; ?>
+
+  <!-- Sources -->
+  <?php if ($sources): ?>
+  <section class="ra-sources-section">
+    <div class="ra-sources-header">
+      <h2>Sources consulted</h2>
     </div>
-    <div class="form-check form-switch mb-3">
-        <input class="form-check-input" type="checkbox" id="simple_terms" name="simple_terms" value="1" <?= (!empty($_REQUEST['simple_terms'] ?? $_REQUEST['simple-terms'] ?? '')) ? 'checked' : '' ?>>
-        <label class="form-check-label" for="simple_terms">In simple terms</label>
+    <?php foreach ($sources as $s): ?>
+    <div class="ra-source-item">
+      <?php if (!empty($s['url'])): ?>
+        <a href="<?= htmlspecialchars($s['url']) ?>" target="_blank"><?= htmlspecialchars($s['text']) ?></a>
+      <?php else: ?>
+        <?= htmlspecialchars($s['text']) ?>
+      <?php endif; ?>
     </div>
-    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Ask</button>
-</form>
+    <?php endforeach; ?>
+  </section>
+  <?php endif; ?>
+
+</main>
 
 <!-- Book selection modal -->
 <div class="modal fade" id="bookModal" tabindex="-1" aria-labelledby="bookModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="bookModalLabel">Select Books</h5>
+        <h5 class="modal-title" id="bookModalLabel">Select Sources</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <input type="text" id="bookSearch" class="form-control mb-3" placeholder="Filter books">
+        <input type="text" id="bookSearch" class="form-control mb-3" placeholder="Filter by title or author…">
         <div class="list-group" id="bookList">
           <?php foreach ($bookList as $b): ?>
-            <label class="list-group-item">
-              <input class="form-check-input me-1 book-checkbox" type="checkbox" value="<?= (int)$b['id'] ?>">
-              <?= htmlspecialchars($b['id']) ?> – <?= htmlspecialchars($b['title']) ?>
+            <label class="list-group-item d-flex align-items-center gap-2">
+              <input class="book-checkbox" type="checkbox" value="<?= (int)$b['id'] ?>" data-title="<?= htmlspecialchars($b['title']) ?>">
+              <span>
+                <?php if (!empty($b['author'])): ?>
+                  <span class="book-author-tag"><?= htmlspecialchars($b['author']) ?> — </span>
+                <?php endif; ?>
+                <?= htmlspecialchars($b['title']) ?>
+              </span>
             </label>
           <?php endforeach; ?>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-primary" id="applyBooks" data-bs-dismiss="modal">Apply</button>
+        <button type="button" class="btn btn-primary" id="applyBooks" data-bs-dismiss="modal">Apply Selection</button>
       </div>
     </div>
   </div>
 </div>
-<?php if ($error): ?>
-<div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
-<?php endif; ?>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <?php if ($answer): ?>
-<div class="card mb-3">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Answer</span>
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="saveAnswerBtn" data-bs-toggle="modal" data-bs-target="#saveNoteModal">
-            <i class="fa-solid fa-floppy-disk"></i> Save
-        </button>
-    </div>
-    <div class="card-body">
-        <div id="answer-md"></div>
-    </div>
-</div>
-
-<!-- Save answer modal -->
-<div class="modal fade" id="saveNoteModal" tabindex="-1" aria-labelledby="saveNoteLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="saveNoteLabel">Save to Notepad</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label for="noteSelect" class="form-label">Existing Note</label>
-          <select id="noteSelect" class="form-select">
-            <option value="">-- New Note --</option>
-            <?php foreach ($noteList as $n): ?>
-              <option value="<?= (int)$n['id'] ?>"><?= htmlspecialchars($n['title']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="mb-3" id="newNoteTitleGroup">
-          <label for="newNoteTitle" class="form-label">Title</label>
-          <input type="text" id="newNoteTitle" class="form-control" placeholder="Enter title">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="saveNoteConfirm">Save</button>
-      </div>
-    </div>
-  </div>
-</div>
-<?php endif; ?>
-<?php if ($sources): ?>
-<div class="card">
-    <div class="card-header">Sources used</div>
-    <ul class="list-group list-group-flush">
-        <?php foreach ($sources as $s): ?>
-        <li class="list-group-item">
-            <?php if (!empty($s['url'])): ?>
-                <a href="<?= htmlspecialchars($s['url']) ?>" target="_blank"><?= htmlspecialchars($s['text']) ?></a>
-            <?php else: ?>
-                <?= htmlspecialchars($s['text']) ?>
-            <?php endif; ?>
-        </li>
-        <?php endforeach; ?>
-    </ul>
-</div>
-<?php endif; ?>
-</div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <?php if ($answer): ?>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
-  <script>
-    const rawAns = <?= json_encode($answer) ?>;
-    const answerHTML = DOMPurify.sanitize(marked.parse(rawAns));
-    const questionFirstLine = <?= json_encode(preg_split('/\r?\n/', $question)[0] ?? '') ?>;
-    const sourcesHTML = <?= json_encode($sources_note_html) ?>;
-    document.getElementById('answer-md').innerHTML = answerHTML;
-
-    document.getElementById('noteSelect').addEventListener('change', function(){
-      document.getElementById('newNoteTitleGroup').style.display = this.value === '' ? '' : 'none';
-    });
-
-    document.getElementById('saveNoteConfirm').addEventListener('click', async () => {
-      const noteId = document.getElementById('noteSelect').value;
-      const title = document.getElementById('newNoteTitle').value.trim();
-      const params = new URLSearchParams();
-      const header = `<h1>${DOMPurify.sanitize(questionFirstLine)}</h1>`;
-      const fullHtml = header + answerHTML + sourcesHTML;
-      params.append('text', fullHtml);
-      if (noteId) {
-        params.append('mode', 'append');
-        params.append('id', noteId);
-      } else {
-        params.append('mode', 'new');
-        params.append('title', title);
-      }
-      try {
-        const res = await fetch('/json_endpoints/save_note.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params.toString()
-        });
-        const data = await res.json();
-        if (data.status === 'ok') {
-          alert('Saved');
-          const modalEl = document.getElementById('saveNoteModal');
-          const modal = bootstrap.Modal.getInstance(modalEl);
-          modal.hide();
-        } else {
-          alert('Error: ' + (data.error || 'unknown'));
-        }
-      } catch (e) {
-        alert('Error saving note');
-      }
-    });
-  </script>
-  <?php endif; ?>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
 <script>
-// Apply selected book IDs to input field
-document.getElementById('applyBooks').addEventListener('click', () => {
-  const ids = Array.from(document.querySelectorAll('.book-checkbox:checked'))
-    .map(cb => cb.value)
-    .join(',');
-  document.getElementById('book_id').value = ids;
+  const rawAns = <?= json_encode($answer) ?>;
+  const answerHTML = DOMPurify.sanitize(marked.parse(rawAns));
+  const questionFirstLine = <?= json_encode(preg_split('/\r?\n/', $question)[0] ?? '') ?>;
+  const sourcesHTML = <?= json_encode($sources_note_html) ?>;
+  document.getElementById('answer-md').innerHTML = answerHTML;
+  document.querySelector('.ra-answer-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  (async () => {
+    const saveBtn = document.getElementById('saveNoteBtn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+    const params = new URLSearchParams();
+    const selectedBookTitles = <?= json_encode($selectedBookTitles) ?>;
+    const bookSuffix = selectedBookTitles.length ? ' [' + selectedBookTitles.join(', ') + ']' : '';
+    params.append('mode', 'new');
+    params.append('title', (questionFirstLine.trim() || 'Research Answer') + bookSuffix);
+    params.append('text', `<h1>${DOMPurify.sanitize(questionFirstLine)}</h1>` + answerHTML + sourcesHTML);
+    try {
+      const res  = await fetch('/json_endpoints/save_note.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString()
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Saved to Notes';
+        saveBtn.style.borderColor = 'var(--accent)';
+        saveBtn.style.color = 'var(--accent)';
+      } else {
+        saveBtn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Save failed';
+      }
+    } catch (e) {
+      saveBtn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Save failed';
+    }
+  })();
+</script>
+<?php endif; ?>
+
+<script>
+const bookTitleMap = <?= json_encode(array_column($bookList, 'title', 'id')) ?>;
+let selectedBooks = {};
+
+function renderSelectedBooks() {
+  const container = document.getElementById('selectedBooksList');
+  const ids = Object.keys(selectedBooks);
+  if (ids.length === 0) {
+    container.innerHTML = '<span class="ra-all-books">All ingested books</span>';
+    return;
+  }
+  container.innerHTML = ids.map(id =>
+    `<span class="ra-book-tag">
+      ${selectedBooks[id]}
+      <button type="button" class="ra-book-tag-remove" data-id="${id}" aria-label="Remove">✕</button>
+    </span>`
+  ).join('');
+  container.querySelectorAll('[data-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      delete selectedBooks[btn.dataset.id];
+      const cb = document.querySelector(`.book-checkbox[value="${btn.dataset.id}"]`);
+      if (cb) cb.checked = false;
+      document.getElementById('book_id').value = Object.keys(selectedBooks).join(',');
+      renderSelectedBooks();
+    });
+  });
+}
+
+(function() {
+  const existing = document.getElementById('book_id').value;
+  if (!existing) { renderSelectedBooks(); return; }
+  existing.split(',').map(s => s.trim()).filter(Boolean).forEach(id => {
+    if (bookTitleMap[id] !== undefined) selectedBooks[id] = bookTitleMap[id];
+  });
+  renderSelectedBooks();
+})();
+
+document.getElementById('bookModal').addEventListener('show.bs.modal', () => {
+  document.querySelectorAll('.book-checkbox').forEach(cb => {
+    cb.checked = !!selectedBooks[cb.value];
+  });
 });
 
-// Simple filter for the book list
-document.getElementById('bookSearch').addEventListener('input', (e) => {
+document.getElementById('applyBooks').addEventListener('click', () => {
+  selectedBooks = {};
+  document.querySelectorAll('.book-checkbox:checked').forEach(cb => {
+    selectedBooks[cb.value] = cb.dataset.title;
+  });
+  document.getElementById('book_id').value = Object.keys(selectedBooks).join(',');
+  renderSelectedBooks();
+});
+
+document.getElementById('bookSearch').addEventListener('input', e => {
   const term = e.target.value.toLowerCase();
   document.querySelectorAll('#bookList label').forEach(lbl => {
     lbl.style.display = lbl.textContent.toLowerCase().includes(term) ? '' : 'none';
   });
+});
+
+document.querySelector('form').addEventListener('submit', () => {
+  const btn = document.getElementById('askSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = `
+    <span class="ra-loading">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+          <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.9s" repeatCount="indefinite"/>
+        </path>
+      </svg>
+      Searching the Archive…
+    </span>`;
 });
 </script>
 </body>

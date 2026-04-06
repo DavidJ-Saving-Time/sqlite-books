@@ -4,45 +4,50 @@ require __DIR__ . '/vendor/autoload.php';
 use Meilisearch\Client;
 use Meilisearch\Contracts\DocumentsQuery;
 
-// 1. Connect to your Meilisearch server
-$client = new Client('http://127.0.0.1:7700', 'pqpv3Qse4V0YQDgfLmpGYt8nmYyKIVb2Mp0XFkUWu3s');
-$index  = $client->index('lines');
+$client    = new Client('http://127.0.0.1:7700', 'pqpv3Qse4V0YQDgfLmpGYt8nmYyKIVb2Mp0XFkUWu3s');
+$index     = $client->index('lines');
 
-$limit    = 1000;
-$offset   = 0;
-$toDelete = [];
+$fetchSize  = 1000;   // documents fetched per GET
+$deleteSize = 500;    // IDs sent per delete batch
+$offset     = 0;
+$toDelete   = [];
+$totalDeleted = 0;
 
 while (true) {
-    // 2. Build a DocumentsQuery instance for this page
     $query = (new DocumentsQuery())
-        ->setLimit($limit)
+        ->setLimit($fetchSize)
         ->setOffset($offset);
 
-    // 3. Fetch documents for this page
-    $results = $index->getDocuments($query);
-    $docs    = $results->getResults();
+    $docs = $index->getDocuments($query)->getResults();
 
-    // 4. Stop if no more docs
     if (empty($docs)) {
         break;
     }
 
     foreach ($docs as $doc) {
-        // 5. Mark for deletion if text does NOT start with "!"
-        if (strpos($doc['text'], '!') !== 0) {
+        if (strpos($doc['text'] ?? '', '!') !== 0) {
             $toDelete[] = $doc['id'];
+        }
+
+        // Flush a batch when we reach deleteSize
+        if (count($toDelete) >= $deleteSize) {
+            $task = $index->deleteDocuments($toDelete);
+            $totalDeleted += count($toDelete);
+            echo "Enqueued task {$task['taskUid']} ({$totalDeleted} queued so far)\n";
+            $toDelete = [];
         }
     }
 
-    $offset += $limit;
+    $offset += $fetchSize;
 }
 
-// 6. Send one batch‐delete request if needed
+// Flush any remaining IDs
 if (!empty($toDelete)) {
     $task = $index->deleteDocuments($toDelete);
-    echo "Enqueued deletion task UID: {$task['taskUid']}\n";
-} else {
-    echo "No documents to delete.\n";
+    $totalDeleted += count($toDelete);
+    echo "Enqueued task {$task['taskUid']} ({$totalDeleted} queued so far)\n";
 }
+
+echo $totalDeleted > 0 ? "Done. Total enqueued for deletion: {$totalDeleted}\n" : "No documents to delete.\n";
 
 

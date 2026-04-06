@@ -26,57 +26,44 @@ $statusIsLink = true;
 $statusList = getCachedStatuses($pdo);
 $statusOptions = array_column($statusList, 'value');
 
-$recId = getCustomColumnId($pdo, 'recommendation');
-$recTable = "custom_column_{$recId}";
-$recLinkTable = "books_custom_column_{$recId}_link";
-$recColumnExists = true;
-
-$hasSubseries = false;
-$subseriesIsCustom = false;
-$subseriesLinkTable = '';
-$subseriesValueTable = '';
-$subseriesIndexColumn = null;
-
+$recColumnExists = false;
+$recTable = '';
+$recLinkTable = '';
 try {
-    $subseriesColumnId = getCustomColumnId($pdo, 'subseries');
-    if ($subseriesColumnId) {
-        $hasSubseries = true;
-        $subseriesIsCustom = true;
-        $subseriesValueTable = "custom_column_{$subseriesColumnId}";
-        $subseriesLinkTable  = "books_custom_column_{$subseriesColumnId}_link";
-        $cols = $pdo->query("PRAGMA table_info($subseriesLinkTable)")->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($cols as $col) {
-            if (in_array($col['name'], ['book_index', 'sort', 'extra'], true)) {
-                $subseriesIndexColumn = $col['name'];
-                break;
-            }
-        }
-    } else {
-        $subTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='subseries'")->fetchColumn();
-        $subLinkTable = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='books_subseries_link'")->fetchColumn();
-        if ($subTable && $subLinkTable) {
-            $cols = $pdo->query('PRAGMA table_info(books)')->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($cols as $col) {
-                if ($col['name'] === 'subseries_index') {
-                    $hasSubseries = true;
-                    break;
-                }
-            }
-        }
+    $recId = getCustomColumnId($pdo, 'recommendation');
+    if ($recId) {
+        $recTable = "custom_column_{$recId}";
+        $recLinkTable = "books_custom_column_{$recId}_link";
+        $recColumnExists = true;
     }
-} catch (PDOException $e) {
-    $hasSubseries = false;
+} catch (Exception $e) {
+    // recommendation column absent — has_recs will default to 0
 }
 
-$perPage = 20;
+$subseriesInfo        = getCachedSubseriesInfo($pdo);
+$hasSubseries         = $subseriesInfo['exists'];
+$subseriesIsCustom    = $subseriesInfo['isCustom'];
+$subseriesLinkTable   = $subseriesInfo['linkTable'];
+$subseriesValueTable  = $subseriesInfo['valueTable'];
+$subseriesIndexColumn = $subseriesInfo['indexColumn'];
+
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] === '1';
 $sort = $_GET['sort'] ?? 'author_series';
-$view = ($_GET['view'] ?? 'list') === 'grid' ? 'grid' : 'list';
+if (isset($_GET['view']) && in_array($_GET['view'], ['list', 'grid', 'simple', 'two'], true)) {
+    $view = $_GET['view'];
+    setcookie('book_view', $view, ['expires' => time() + 60 * 60 * 24 * 365, 'path' => '/']);
+} else {
+    $cookieView = $_COOKIE['book_view'] ?? '';
+    $view = in_array($cookieView, ['list', 'grid', 'simple', 'two'], true) ? $cookieView : 'list';
+}
+$perPage = $view === 'simple' ? 100 : 20;
 $authorId = isset($_GET['author_id']) ? (int)$_GET['author_id'] : null;
 $seriesId = isset($_GET['series_id']) ? (int)$_GET['series_id'] : null;
 $subseriesId = isset($_GET['subseries_id']) ? (int)$_GET['subseries_id'] : null;
 $genreName = isset($_GET['genre']) ? trim((string)$_GET['genre']) : '';
+$genreNone = ($genreName === '__none__');
+if ($genreNone) $genreName = '';
 $statusName = isset($_GET['status']) ? trim((string)$_GET['status']) : '';
 if ($statusName !== '' && !in_array($statusName, $statusOptions, true)) {
     $statusName = '';
@@ -133,6 +120,49 @@ $orderByMap = [
 ];
 $orderBy = $orderByMap[$sort];
 
+// Build device book map early so it can be used as a WHERE filter
+$onDevice        = [];
+$deviceProgress  = []; // library_id => ['percent' => float|null, 'pages' => int|null]
+$deviceTotalCount = null;
+
+// Other libraries this user can transfer books to
+$allUsers = json_decode(file_get_contents(__DIR__ . '/users.json'), true) ?? [];
+$transferTargets = [];
+foreach ($allUsers as $uname => $udata) {
+    if ($uname === currentUser()) continue;
+    $dbp = $udata['prefs']['db_path'] ?? '';
+    if ($dbp !== '' && file_exists($dbp)) {
+        $transferTargets[] = $uname;
+    }
+}
+$recentlyReadOnDevice = []; // top 10 by lua_last_accessed
+$deviceCacheFile = __DIR__ . '/cache/' . currentUser() . '/device_books.json';
+if (file_exists($deviceCacheFile)) {
+    $deviceCache = json_decode(file_get_contents($deviceCacheFile), true);
+    $deviceTotalCount = $deviceCache['count'] ?? count($deviceCache['books'] ?? []);
+    $recentCandidates = [];
+    foreach ($deviceCache['books'] ?? [] as $db) {
+        if (!empty($db['library_id'])) {
+            $onDevice[$db['library_id']] = $db['path'];
+            if (!empty($db['lua_exists'])) {
+                $deviceProgress[$db['library_id']] = [
+                    'percent'       => $db['lua_percent']       ?? null,
+                    'pages'         => $db['lua_pages']         ?? null,
+                    'last_accessed' => $db['lua_last_accessed'] ?? null,
+                ];
+                if (!empty($db['lua_last_accessed'])) {
+                    $recentCandidates[] = $db;
+                }
+            }
+        }
+    }
+    usort($recentCandidates, fn($a, $b) => strcmp($b['lua_last_accessed'], $a['lua_last_accessed']));
+    $recentlyReadOnDevice = array_slice($recentCandidates, 0, 10);
+}
+
+$filterNotOnDevice = isset($_GET['not_on_device']) && $_GET['not_on_device'] === '1';
+$filterOnDevice    = isset($_GET['on_device'])     && $_GET['on_device']     === '1';
+
 $whereClauses = [];
 $params = [];
 if ($authorId) {
@@ -151,7 +181,9 @@ if ($subseriesId) {
     }
     $params[':subseries_id'] = $subseriesId;
 }
-if ($genreName !== '') {
+if ($genreNone) {
+    $whereClauses[] = 'NOT EXISTS (SELECT 1 FROM ' . $genreLinkTable . ' gl WHERE gl.book = b.id)';
+} elseif ($genreName !== '') {
     $whereClauses[] = 'EXISTS (SELECT 1 FROM ' . $genreLinkTable . ' gl JOIN custom_column_' . (int)$genreColumnId . ' gv ON gl.value = gv.id WHERE gl.book = b.id AND gv.value = :genre_val)';
     $params[':genre_val'] = $genreName;
 }
@@ -210,6 +242,14 @@ if ($search !== '') {
         $params[':fts_query'] = $ftsQuery;
     }
 }
+if ($filterNotOnDevice && !empty($onDevice)) {
+    $ids = implode(',', array_map('intval', array_keys($onDevice)));
+    $whereClauses[] = "b.id NOT IN ($ids)";
+}
+if ($filterOnDevice && !empty($onDevice)) {
+    $ids = implode(',', array_map('intval', array_keys($onDevice)));
+    $whereClauses[] = "b.id IN ($ids)";
+}
 $where = $whereClauses ? 'WHERE ' . implode(' AND ', $whereClauses) : '';
 
 // Names for filter display
@@ -235,7 +275,7 @@ if ($subseriesId) {
     $stmt->execute([$subseriesId]);
     $filterSubseriesName = $stmt->fetchColumn();
 }
-$filterGenreName = $genreName !== '' ? $genreName : null;
+$filterGenreName = $genreNone ? 'No Genre' : ($genreName !== '' ? $genreName : null);
 $filterStatusName = $statusName !== '' ? $statusName : null;
 $filterShelfName = $shelfName !== '' ? $shelfName : null;
 $filterFileTypeName = $fileType !== '' ? $fileType : null;
@@ -243,14 +283,19 @@ $filterFileTypeName = $fileType !== '' ? $fileType : null;
 // Fetch full genre list for sidebar (with counts)
 $genreList = getCachedGenres($pdo);
 
+// Count books with no genre assigned
+$noGenreCount = (int)$pdo->query(
+    "SELECT COUNT(DISTINCT b.id) FROM books b WHERE NOT EXISTS (SELECT 1 FROM $genreLinkTable gl WHERE gl.book = b.id)"
+)->fetchColumn();
+
+// Fetch series list for inline editing
+$seriesList = $pdo->query('SELECT id, name FROM series ORDER BY sort COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+
 $books = [];
     try {
         $totalSql = "SELECT COUNT(*) FROM books b $where";
         $totalStmt = $pdo->prepare($totalSql);
-        foreach ($params as $key => $val) {
-            $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
-            $totalStmt->bindValue($key, $val, $type);
-        }
+        bindParams($totalStmt, $params);
         $totalStmt->execute();
         $totalBooks = (int)$totalStmt->fetchColumn();
 
@@ -263,7 +308,12 @@ $books = [];
                        ge.genres,
                        bc11.value AS shelf,
                        com.text AS description,
-                       r.rating AS rating";
+                       r.rating AS rating,
+                       (SELECT val FROM identifiers WHERE book = b.id AND type = 'isbn' LIMIT 1) AS isbn,
+                       (SELECT val FROM identifiers WHERE book = b.id AND type = 'olid' LIMIT 1) AS olid,
+                       (SELECT val FROM identifiers WHERE book = b.id AND type = 'goodreads' LIMIT 1) AS goodreads,
+                       (SELECT val FROM identifiers WHERE book = b.id AND type = 'amazon' LIMIT 1) AS amazon,
+                       (SELECT val FROM identifiers WHERE book = b.id AND type = 'librarything' LIMIT 1) AS librarything";
         if ($hasSubseries) {
             if ($subseriesIsCustom) {
                 $idxExpr = $subseriesIndexColumn ? "bssl.$subseriesIndexColumn" : 'NULL';
@@ -281,6 +331,7 @@ $books = [];
         }
         if ($recColumnExists) {
             $selectFields .= ", EXISTS(SELECT 1 FROM $recLinkTable rl JOIN $recTable rt ON rl.value = rt.id WHERE rl.book = b.id AND TRIM(COALESCE(rt.value, '')) <> '') AS has_recs";
+            $selectFields .= ", (SELECT rt.value FROM $recLinkTable rl JOIN $recTable rt ON rl.value = rt.id WHERE rl.book = b.id LIMIT 1) AS rec_text";
         }
 
         $sql = "SELECT $selectFields
@@ -330,21 +381,18 @@ $books = [];
                 ORDER BY {$orderBy}
                 LIMIT :limit OFFSET :offset";
         $stmt = $pdo->prepare($sql);
-        foreach ($params as $key => $val) {
-            $type = is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR;
-            $stmt->bindValue($key, $val, $type);
-        }
+        bindParams($stmt, $params);
         $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
         $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!$recColumnExists) {
+            array_walk($books, fn(&$b) => $b['has_recs'] = 0);
+        }
+        if (!$statusTable) {
+            array_walk($books, fn(&$b) => $b['status'] = null);
+        }
         foreach ($books as &$b) {
-            if (!$recColumnExists) {
-                $b['has_recs'] = 0;
-            }
-            if (!$statusTable) {
-                $b['status'] = null;
-            }
             if ($b['rating'] !== null) {
                 $b['rating'] = (int)($b['rating'] / 2);
             }
@@ -368,7 +416,7 @@ function render_book_rows(array $books, array $templateData, int $offset = 0): v
         $firstFile = $missing ? null : firstBookFile($book['path']);
 
         extract($templateData, EXTR_SKIP);
-        $template = $view === 'grid' ? 'book_tile.php' : 'book_row.php';
+        $template = $view === 'grid' ? 'book_tile.php' : ($view === 'simple' ? 'book_row_simple.php' : ($view === 'two' ? 'book_row_two.php' : 'book_row.php'));
         include __DIR__ . "/templates/$template";
     }
 }
@@ -377,8 +425,11 @@ $rowTemplateData = [
     'shelfList' => $shelfList,
     'statusOptions' => $statusOptions,
     'genreList' => $genreList,
+    'seriesList' => $seriesList,
     'sort' => $sort,
     'page' => $page,
+    'onDevice'       => $onDevice,
+    'deviceProgress' => $deviceProgress,
 ];
 
 if ($isAjax) {
@@ -399,7 +450,9 @@ function buildBaseUrl(array $params, array $exclude = []): string {
         'status'    => $GLOBALS['statusName'] ?? '',
         'filetype'  => $GLOBALS['fileType'] ?? '',
         'author_initial' => $GLOBALS['authorInitial'] ?? '',
-        'view' => $GLOBALS['view'] ?? '',
+        'view'          => $GLOBALS['view'] ?? '',
+        'not_on_device' => ($GLOBALS['filterNotOnDevice'] ?? false) ? '1' : '',
+        'on_device'     => ($GLOBALS['filterOnDevice']    ?? false) ? '1' : '',
     ];
 
     // Remove excluded keys
@@ -414,6 +467,12 @@ function buildBaseUrl(array $params, array $exclude = []): string {
     $query = array_filter($params, fn($v) => $v !== '' && $v !== null);
 
     return 'list_books.php?' . http_build_query($query);
+}
+
+function bindParams(PDOStatement $stmt, array $params): void {
+    foreach ($params as $key => $val) {
+        $stmt->bindValue($key, $val, is_int($val) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    }
 }
 
 function linkActive(string $current, string $compare): string {
@@ -449,6 +508,12 @@ if ($filterStatusName !== null) {
 if ($filterFileTypeName !== null) {
     $breadcrumbs[] = ['label' => strtoupper($filterFileTypeName), 'url' => buildBaseUrl([], ['filetype'])];
 }
+if ($filterNotOnDevice) {
+    $breadcrumbs[] = ['label' => 'Not on device', 'url' => buildBaseUrl([], ['not_on_device'])];
+}
+if ($filterOnDevice) {
+    $breadcrumbs[] = ['label' => 'On device', 'url' => buildBaseUrl([], ['on_device'])];
+}
 if ($recommendedOnly) {
     $breadcrumbs[] = ['label' => 'Recommended', 'url' => buildBaseUrl([], ['sort'])];
 }
@@ -467,15 +532,107 @@ if (count($breadcrumbs) === 1) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Book List</title>
-    <link id="themeStylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="/theme.css.php">
     <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
     
     <link rel="stylesheet" href="/css/duotone.css">
     
-    <script src="js/theme.js"></script>
     <script src="js/search.js"></script>
     <!-- Removed jQuery and jQuery UI -->
     <style>
+        /* Simple view table-like grid */
+        .simple-row {
+            display: grid;
+            grid-template-columns: 1.5rem 16rem 1fr 14rem 10rem 5rem;
+            align-items: center;
+            gap: 0 0.75rem;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.85rem;
+            min-height: 2rem;
+        }
+        .simple-row .form-select-sm {
+            padding-top: 0.1rem;
+            padding-bottom: 0.1rem;
+            font-size: 0.8rem;
+        }
+
+        /* Cancel card styles for simple-row so rows sit flush like a table */
+        .simple-row[data-book-block-id] {
+            border-radius: 0;
+            margin-bottom: 0;
+            padding: 0.2rem 0.5rem;
+            border: none;
+            border-bottom: 1px solid var(--bs-border-color);
+        }
+
+        .simple-row[data-book-block-id] {
+            cursor: pointer;
+        }
+        .simple-row[data-book-block-id]:hover {
+            box-shadow: none;
+            transform: none;
+            background-color: var(--bs-primary-bg-subtle) !important;
+        }
+        .simple-row[data-book-block-id].row-selected {
+            background-color: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+            border-bottom-color: color-mix(in srgb, var(--accent) 40%, transparent);
+        }
+
+        /* Cover preview panel (simple view) */
+        #coverPreviewPanel {
+            width: 280px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 5rem;
+            align-self: flex-start;
+            background: var(--bs-body-bg);
+            border: 1px solid var(--bs-border-color);
+            border-radius: 0.5rem;
+            padding: 0.6rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            min-height: 12rem;
+        }
+        #coverPreviewPanel img {
+            width: 100%;
+            border-radius: 0.25rem;
+        }
+        #coverPreviewPanel .cover-title {
+            font-size: 0.78rem;
+            font-weight: 600;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+        #coverPreviewPanel .cover-author {
+            font-size: 0.72rem;
+            color: var(--bs-secondary-color);
+            word-break: break-word;
+        }
+        .cover-empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--bs-secondary-color);
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        /* Column header row */
+        .simple-row-header {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--bs-secondary-color);
+            border-top: 2px solid var(--bs-border-color) !important;
+            border-bottom: 2px solid var(--bs-border-color) !important;
+            padding-top: 0.3rem;
+            padding-bottom: 0.3rem;
+        }
+
         .title-col {
             max-width: 700px;
             word-break: break-word;
@@ -484,6 +641,16 @@ if (count($breadcrumbs) === 1) {
 .line-clamp-2 {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+
+
+.book-title {
+  font-size: 1.2 rem;
+  font-weight: 400;
+  font-style: italic;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+
 
 .ratio-2x3 { --bs-aspect-ratio: 150%; } /* height/width = 3/2 */
 /* Modern full-width book blocks */
@@ -496,9 +663,12 @@ if (count($breadcrumbs) === 1) {
     margin-bottom: 1rem;
 }
 
-/* Striped effect (theme aware) */
+/* Striped effect — row A (odd) and row B (even), falls back to legacy --row-stripe */
+[data-book-block-id]:nth-of-type(odd) {
+    background-color: var(--row-stripe-a, transparent);
+}
 [data-book-block-id]:nth-of-type(even) {
-    background-color: var(--bs-gray-200);
+    background-color: var(--row-stripe-b, var(--row-stripe, transparent));
 }
 
 /* Hover effect */
@@ -539,6 +709,9 @@ if (count($breadcrumbs) === 1) {
 .star-rating .fa-xmark {
     cursor: pointer;
 }
+html {
+    overflow-anchor: none;
+}
 body {
     padding-bottom: 3rem;
 }
@@ -551,7 +724,11 @@ body {
     </style>
 </head>
 <body class="pt-5" data-page="<?php echo $page; ?>" data-total-pages="<?php echo $totalPages; ?>" data-base-url="<?php echo htmlspecialchars($baseUrl, ENT_QUOTES); ?>" data-per-page="<?php echo $perPage; ?>" data-total-items="<?php echo $totalLibraryBooks; ?>">
-<?php include "navbar.php"; ?>
+<?php
+$showOffcanvas = true;
+$viewOptions   = ['list' => 'List', 'simple' => 'Simple', 'two' => 'Cards', 'grid' => 'Grid'];
+include "navbar.php";
+?>
 <div class="container-fluid my-4">
     <div class="row">
        
@@ -576,6 +753,57 @@ body {
     </button>
 
     <div id="genreSidebar" class="collapse d-md-block">
+
+        <!-- Device -->
+        <?php if ($deviceTotalCount !== null): ?>
+        <div class="mb-3">
+            <h6 class="fw-semibold mb-2">Device</h6>
+            <?php $deviceUrlBase = buildBaseUrl([], ['not_on_device']); ?>
+            <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= !$filterNotOnDevice ? ' active' : '' ?>">
+                    <a href="<?= htmlspecialchars($deviceUrlBase) ?>" class="flex-grow-1 text-decoration-none<?= !$filterNotOnDevice ? ' text-white' : '' ?>">All books</a>
+                    <span class="badge bg-secondary rounded-pill"><?= $totalLibraryBooks ?></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= $filterNotOnDevice ? ' active' : '' ?>">
+                    <a href="<?= htmlspecialchars(buildBaseUrl(['not_on_device' => '1'], ['on_device'])) ?>" class="flex-grow-1 text-decoration-none<?= $filterNotOnDevice ? ' text-white' : '' ?>">
+                        <i class="fa-solid fa-tablet-screen-button me-1"></i>Not on device
+                    </a>
+                    <span class="badge bg-secondary rounded-pill"><?= $totalLibraryBooks - count($onDevice) ?></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= $filterOnDevice ? ' active' : '' ?>">
+                    <a href="<?= htmlspecialchars(buildBaseUrl(['on_device' => '1'], ['not_on_device'])) ?>" class="flex-grow-1 text-decoration-none<?= $filterOnDevice ? ' text-white' : '' ?>">
+                        <i class="fa-solid fa-tablet-screen-button text-success me-1"></i>On device
+                    </a>
+                    <span class="badge bg-secondary rounded-pill"><?= count($onDevice) ?></span>
+                </li>
+            </ul>
+        </div>
+        <?php endif; ?>
+
+        <!-- Recently Read on Device -->
+        <?php if (!empty($recentlyReadOnDevice)): ?>
+        <div class="mb-3">
+            <h6 class="fw-semibold mb-2">
+                <a class="text-decoration-none text-body d-flex align-items-center justify-content-between"
+                   data-bs-toggle="collapse" href="#recentDeviceList" role="button" aria-expanded="false">
+                    <span><i class="fa-solid fa-clock-rotate-left me-1"></i>Recently on Device</span>
+                    <i class="fa-solid fa-chevron-down small"></i>
+                </a>
+            </h6>
+            <div class="collapse" id="recentDeviceList">
+                <ul class="list-group">
+                    <?php foreach ($recentlyReadOnDevice as $r): ?>
+                    <li class="list-group-item px-2 py-1">
+                        <a href="book.php?id=<?= (int)$r['library_id'] ?>" class="text-decoration-none d-block text-truncate" title="<?= htmlspecialchars($r['title']) ?>">
+                            <?= htmlspecialchars($r['title']) ?>
+                        </a>
+                        <small class="text-muted"><?= htmlspecialchars($r['lua_last_accessed']) ?></small>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- Shelves -->
         <div class="mb-3">
@@ -661,10 +889,17 @@ body {
             <h6 class="fw-semibold mb-2">Genres</h6>
             <?php $genreBase = buildBaseUrl([], ['genre']); ?>
             <ul class="list-group" id="genreList">
-                <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreName !== '' ? '' : ' active' ?>">
-                    <a href="<?= htmlspecialchars($genreBase) ?>" class="flex-grow-1 text-decoration-none<?= $genreName !== '' ? '' : ' text-white' ?>">All Genres</a>
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= (!$genreNone && $genreName === '') ? ' active' : '' ?>">
+                    <a href="<?= htmlspecialchars($genreBase) ?>" class="flex-grow-1 text-decoration-none<?= (!$genreNone && $genreName === '') ? ' text-white' : '' ?>">All Genres</a>
                     <span class="badge bg-secondary rounded-pill"><?= $totalLibraryBooks ?></span>
                 </li>
+                <?php if ($noGenreCount > 0): ?>
+                <?php $noGenreUrl = buildBaseUrl(['genre' => '__none__']); ?>
+                <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreNone ? ' active' : '' ?>">
+                    <a href="<?= htmlspecialchars($noGenreUrl) ?>" class="flex-grow-1 text-decoration-none<?= $genreNone ? ' text-white' : ' text-muted fst-italic' ?>">No Genre</a>
+                    <span class="badge bg-secondary rounded-pill"><?= $noGenreCount ?></span>
+                </li>
+                <?php endif; ?>
                 <?php foreach ($genreList as $g): ?>
                     <?php $url = buildBaseUrl(['genre' => $g['value']]); ?>
                     <li class="list-group-item d-flex justify-content-between align-items-center<?= $genreName === $g['value'] ? ' active' : '' ?>">
@@ -697,7 +932,6 @@ body {
 
 <div class="container-fluid">      
         <div class="col-md-12">
-             <h1 class="mb-4">Books (<?= $totalLibraryBooks ?>)</h1>
             <nav aria-label="breadcrumb" class="mb-3">
                 <ol class="breadcrumb mb-0">
                     <?php foreach ($breadcrumbs as $index => $bc): ?>
@@ -715,70 +949,89 @@ body {
                     <?php endforeach; ?>
                 </ol>
             </nav>
-        <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName || $filterFileTypeName || $search !== ''): ?>
+        <?php
+        $filterParts = array_filter([
+            $filterAuthorName   ? 'author: '   . htmlspecialchars($filterAuthorName)              : null,
+            $filterSeriesName   ? 'series: '   . htmlspecialchars($filterSeriesName)              : null,
+            $filterGenreName    ? 'genre: '    . htmlspecialchars($filterGenreName)               : null,
+            $filterShelfName    ? 'shelf: '    . htmlspecialchars($filterShelfName)               : null,
+            $filterStatusName   ? 'status: '   . htmlspecialchars($filterStatusName)              : null,
+            $filterFileTypeName ? 'filetype: ' . htmlspecialchars(strtoupper($filterFileTypeName)) : null,
+            $search !== ''      ? 'search: "'  . htmlspecialchars($search) . '"'                  : null,
+            $filterNotOnDevice  ? 'not on device'                                                  : null,
+            $recommendedOnly    ? 'recommended only'                                               : null,
+        ]);
+        ?>
+        <?php if ($filterParts): ?>
         <div class="alert alert-info mb-3">
-            Showing
-            <?php if ($filterAuthorName): ?>
-                author: <?= htmlspecialchars($filterAuthorName) ?>
-            <?php endif; ?>
-            <?php if ($filterAuthorName && $filterSeriesName): ?>
-                ,
-            <?php endif; ?>
-            <?php if ($filterSeriesName): ?>
-                series: <?= htmlspecialchars($filterSeriesName) ?>
-            <?php endif; ?>
-            <?php if (($filterAuthorName || $filterSeriesName) && $filterGenreName): ?>
-                ,
-            <?php endif; ?>
-            <?php if ($filterGenreName): ?>
-                genre: <?= htmlspecialchars($filterGenreName) ?>
-            <?php endif; ?>
-            <?php if ($filterShelfName): ?>
-                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
-                <?php endif; ?>
-                shelf: <?= htmlspecialchars($filterShelfName) ?>
-            <?php endif; ?>
-            <?php if ($filterStatusName): ?>
-                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName): ?>,
-                <?php endif; ?>
-                status: <?= htmlspecialchars($filterStatusName) ?>
-            <?php endif; ?>
-            <?php if ($filterFileTypeName): ?>
-                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $filterShelfName || $filterStatusName): ?>,
-                <?php endif; ?>
-                filetype: <?= htmlspecialchars(strtoupper($filterFileTypeName)) ?>
-            <?php endif; ?>
-            <?php if ($search !== ''): ?>
-                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName): ?>,
-                <?php endif; ?>
-                search: "<?= htmlspecialchars($search) ?>"
-            <?php endif; ?>
-            <?php if ($recommendedOnly): ?>
-                <?php if ($filterAuthorName || $filterSeriesName || $filterGenreName || $search !== ''): ?>,
-                <?php endif; ?>
-                recommended only
-            <?php endif; ?>
+            Showing <?= implode(', ', $filterParts) ?>
             <a class="btn btn-sm btn-secondary ms-2" href="list_books.php?sort=<?= urlencode($sort) ?>">Clear</a>
         </div>
-    <?php endif; ?>
+        <?php endif; ?>
 
             
             <!-- Main Content -->
+<?php if ($view === 'simple'): ?>
+<div class="d-flex align-items-flex-start gap-3">
+<div style="flex:1;min-width:0">
+<?php else: ?>
 <div class="col-md-12">
+<?php endif; ?>
   <div id="contentArea">
-      <div class="d-flex justify-content-end mb-3">
-          <?php $toggleView = $view === 'grid' ? 'list' : 'grid'; ?>
-          <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(buildBaseUrl(['view' => $toggleView, 'page' => 1], ['page'])) ?>">
-              Switch to <?= $toggleView === 'grid' ? 'Grid' : 'List' ?> view
-          </a>
+      <?php if ($view === 'simple'): ?>
+      <div class="d-flex align-items-center gap-2 mb-3">
+          <div id="bulkToolbar" class="d-flex align-items-center gap-2">
+              <input type="checkbox" class="form-check-input" id="bulkSelectAll" title="Select all">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="bulkSelectNotOnDevice" title="Select all not on device">
+                  <i class="fa-solid fa-paper-plane me-1"></i>Select not on device
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-success" id="bulkSendBtn" disabled>
+                  <i class="fa-solid fa-paper-plane me-1"></i> Send selected
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-warning" id="bulkRemoveDevBtn" disabled>
+                  <i class="fa-solid fa-tablet-screen-button me-1"></i> Remove from device
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger" id="bulkDeleteBtn" disabled>
+                  <i class="fa-solid fa-trash me-1"></i> Delete selected
+              </button>
+              <?php if (!empty($transferTargets)): ?>
+              <div class="d-flex align-items-center gap-1 ms-2">
+                  <select id="bulkTransferTarget" class="form-select form-select-sm" style="width:auto">
+                      <?php foreach ($transferTargets as $uname): ?>
+                      <option value="<?= htmlspecialchars($uname) ?>"><?= htmlspecialchars($uname) ?></option>
+                      <?php endforeach; ?>
+                  </select>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="bulkTransferBtn" disabled>
+                      <i class="fa-solid fa-copy me-1"></i> Copy to library
+                  </button>
+              </div>
+              <?php endif; ?>
+              <span id="bulkStatus" class="small text-muted"></span>
+          </div>
       </div>
+      <?php endif; ?>
       <?php if ($view === 'grid'): ?>
       <div class="row row-cols-2 row-cols-md-6 g-4">
       <?php endif; ?>
+      <?php if ($view === 'two'): ?>
+      <div class="row g-3">
+      <?php endif; ?>
+      <?php if ($view === 'simple'): ?>
+      <div class="simple-row simple-row-header">
+          <span></span>
+          <span>Author</span>
+          <span>Title</span>
+          <span>Series</span>
+          <span>Genre</span>
+          <span></span>
+      </div>
+      <?php endif; ?>
+      <div id="topSpacer" style="height:0"></div>
       <div id="topSentinel"></div>
       <?php render_book_rows($books, $rowTemplateData, $offset); ?>
       <div id="bottomSentinel"></div>
-      <?php if ($view === 'grid'): ?>
+      <div id="bottomSpacer" style="height:0"></div>
+      <?php if ($view === 'grid' || $view === 'two'): ?>
       </div>
       <?php endif; ?>
       <nav id="pageNav" aria-label="Page navigation" class="mt-3">
@@ -791,27 +1044,28 @@ body {
           </li>
         </ul>
       </nav>
-  </div>
+  </div><!-- #contentArea -->
+<?php if ($view === 'simple'): ?>
+</div><!-- book-list flex child -->
+<div id="coverPreviewPanel">
+    <div id="coverPreviewEmpty" class="cover-empty-state">
+        <i class="fa-regular fa-image fa-2x mb-2"></i>
+        <span>Select a book</span>
+    </div>
+    <img id="coverPreviewImg" src="" alt="" style="display:none">
+    <div class="cover-title" id="coverPreviewTitle"></div>
+    <div class="cover-author" id="coverPreviewAuthor"></div>
 </div>
+</div><!-- flex container -->
+<?php else: ?>
+</div><!-- col-md-12 -->
+<?php endif; ?>
         </div>
 
-    <!-- Open Library Metadata Modal -->
-    <div class="modal fade" id="openLibraryModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Open Library Results</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div id="openLibraryResults">Loading...</div>
-          </div>
-        </div>
-      </div>
-    </div>
         </div>
     </div>
-    <div id="alphabetBar" class="position-fixed bottom-0 start-0 end-0 bg-light text-center py-2">
+    <div id="alphabetBar" class="position-fixed bottom-0 start-0 end-0 bg-dark d-flex align-items-center px-3 py-1">
+        <div class="flex-grow-1 text-center">
         <?php
         $baseLetterParams = $_GET;
         unset($baseLetterParams['author_initial'], $baseLetterParams['page']);
@@ -819,24 +1073,50 @@ body {
             $letterParams = $baseLetterParams;
             $letterParams['author_initial'] = $letter;
             $url = 'list_books.php?' . http_build_query($letterParams);
-            $active = ($authorInitial === $letter) ? 'fw-bold h4' : '';
-            echo '<a href="' . htmlspecialchars($url) . '" class="mx-1 ' . $active . '">' . $letter . '</a>';
+            $active = ($authorInitial === $letter) ? 'fw-bold h4 text-white' : '';
+            echo '<a href="' . htmlspecialchars($url) . '" class="mx-1 text-decoration-none ' . $active . '" style="color:var(--accent);">' . $letter . '</a>';
         }
         if ($authorInitial !== '') {
             $url = 'list_books.php?' . http_build_query($baseLetterParams);
-            echo '<a href="' . htmlspecialchars($url) . '" class="mx-1">Clear</a>';
+            echo '<a href="' . htmlspecialchars($url) . '" class="mx-1 text-decoration-none" style="color:var(--accent);">Clear</a>';
         }
         ?>
+        </div>
+        <div class="small text-nowrap ms-3 d-flex gap-3 align-items-center" style="color:#adb5bd;">
+            <?php
+            $viewIcons = ['list' => 'fa-list', 'simple' => 'fa-table-list', 'two' => 'fa-grip', 'grid' => 'fa-border-all'];
+            foreach ($viewIcons as $v => $icon):
+                $isActive = $view === $v;
+            ?>
+            <a href="<?= htmlspecialchars(buildBaseUrl(['view' => $v, 'page' => 1], ['page'])) ?>"
+               class="text-decoration-none" title="<?= htmlspecialchars($viewOptions[$v]) ?>"
+               style="color:<?= $isActive ? 'var(--accent)' : '#adb5bd' ?>; font-size:<?= $isActive ? '1rem' : '0.85rem' ?>">
+                <i class="fa-solid <?= $icon ?>"></i>
+            </a>
+            <?php endforeach; ?>
+            <span><i class="fa-solid fa-book me-1"></i><?= number_format($totalLibraryBooks) ?> books</span>
+            <?php if ($deviceTotalCount !== null): ?>
+            <span><i class="fa-solid fa-tablet-screen-button me-1"></i><?= number_format(count($onDevice)) ?> synced</span>
+            <?php endif; ?>
+            <a href="#" id="refreshCacheBtn" class="text-decoration-none fw-medium" style="color:var(--accent);" title="Refresh caches">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </a>
+        </div>
     </div>
     <a href="#" id="backToTop" class="btn btn-primary position-fixed end-0 m-3 d-none"><i class="fa-solid fa-arrow-up"></i></a>
 
-    <div id="loadingSpinner" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-white bg-opacity-75 d-none" style="z-index:1050;">
+    <div id="loadingSpinner" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-body bg-opacity-75 d-none" style="z-index:1050;">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
     </div>
 
+    <?php require __DIR__ . '/templates/modals.php'; ?>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js" referrerpolicy="origin"></script>
+    <script>window.seriesList = <?= json_encode($seriesList, JSON_HEX_TAG) ?>;</script>
+    <script src="js/recommendations.js"></script>
     <script src="js/list_books.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -859,8 +1139,57 @@ body {
             const url = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
             window.location.href = url;
         });
+
+        const refreshCacheBtn = document.getElementById('refreshCacheBtn');
+        if (refreshCacheBtn) {
+            refreshCacheBtn.addEventListener('click', async e => {
+                e.preventDefault();
+                const icon = refreshCacheBtn.querySelector('i');
+                icon.classList.add('fa-spin');
+                refreshCacheBtn.style.pointerEvents = 'none';
+                try {
+                    await fetch('json_endpoints/clear_cache.php', { method: 'POST' });
+                    window.location.reload();
+                } catch {
+                    icon.classList.remove('fa-spin');
+                    refreshCacheBtn.style.pointerEvents = '';
+                }
+            });
+        }
     });
     </script>
+<?php if ($view === 'simple'): ?>
+<script>
+(function () {
+    const img      = document.getElementById('coverPreviewImg');
+    const empty    = document.getElementById('coverPreviewEmpty');
+    const titleEl  = document.getElementById('coverPreviewTitle');
+    const authorEl = document.getElementById('coverPreviewAuthor');
+
+    document.addEventListener('click', e => {
+        const row = e.target.closest('.simple-row[data-book-block-id]');
+        if (!row) return;
+        if (e.target.closest('a, button, select, input, label')) return;
+
+        const cover  = row.dataset.cover  || '';
+        const title  = row.dataset.title  || '';
+        const author = row.dataset.author || '';
+
+        titleEl.textContent  = title;
+        authorEl.textContent = author;
+        empty.style.display  = 'none';
+
+        if (cover) {
+            img.src = cover;
+            img.style.display = '';
+        } else {
+            img.style.display = 'none';
+            img.src = '';
+        }
+    });
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>
 
