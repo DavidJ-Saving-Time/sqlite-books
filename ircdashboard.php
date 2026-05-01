@@ -1,47 +1,29 @@
+<?php
+require_once 'db.php';
+requireLogin();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#212529">
+  <link rel="apple-touch-icon" href="/app-icons/icon-192.png">
   <meta charset="UTF-8" />
   <title>IRC DCC Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/theme.css.php">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="/css/all.min.css" crossorigin="anonymous">
 </head>
-<body class="bg-light" style="padding-top: 80px">
-
-<nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-dark mb-4">
-  <div class="container-fluid">
-    <a class="navbar-brand d-flex align-items-center" href="list_books.php">
-      <i class="fa-solid fa-book-open me-2"></i> Books
-    </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarContent">
-      <div class="flex-grow-1"></div>
-      <ul class="navbar-nav align-items-center">
-        <li class="nav-item me-2">
-          <a class="btn btn-primary" href="add_physical_books.php">
-            <i class="fa-solid fa-plus me-1"></i> Add Book
-          </a>
-        </li>
-        <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/notes/">
-            <i class="fa-solid fa-pen-nib me-1"></i> WordPro
-          </a>
-        </li>
-      </ul>
-    </div>
-  </div>
-</nav>
+<body class="pt-5">
+<?php include 'navbar.php'; ?>
 
 <div class="container py-5">
   <header class="mb-4 text-center">
     <h1 class="display-5 fw-bold">
       <i class="fa-solid fa-terminal me-2"></i>IRC DCC Dashboard
     </h1>
-    <a class="btn btn-primary" href="/irc_search.html" target="_blank">
-      <i class="fa-solid fa-terminal me-1"></i>Open the Search
+    <a class="btn btn-primary" href="/irc_search.php">
+      <i class="fa-solid fa-magnifying-glass me-1"></i>Open the Search
     </a>
   </header>
 
@@ -346,6 +328,7 @@
   refreshAll();
   setInterval(refreshAll, 5000);
 </script>
+<script src="js/search.js"></script>
 
 </body>
 </html>

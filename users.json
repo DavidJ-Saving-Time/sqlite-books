@@ -33,7 +33,7 @@
             "METABAR_LABEL": "#b0b0b0",
             "BORDER_COLOR": "#4f4f4f",
             "LINK_COLOR": "#ffa200",
-            "THEME_JSON": "{\"bootswatch\":\"https:\\\/\\\/cdn.jsdelivr.net\\\/npm\\\/bootswatch@5.3.8\\\/dist\\\/darkly\\\/bootstrap.min.css\",\"vars\":{\"--accent\":\"#fd8c00\",\"--row-stripe-a\":\"#404040\",\"--row-stripe-b\":\"#333333\",\"--metabar-bg\":\"#4d4d4d\",\"--metabar-border\":\"#404564\",\"--metabar-label\":\"#bdbdbd\",\"--bs-border-color\":\"#383839\",\"--form-control-color\":\"#d9d9d9\",\"--form-control-bg\":\"#333333\",\"--bs-link-color-rgb\":\"122, 132, 179\"}}"
+            "THEME_JSON": "{\"bootswatch\":\"https:\\\/\\\/cdn.jsdelivr.net\\\/npm\\\/bootswatch@5.3.8\\\/dist\\\/darkly\\\/bootstrap.min.css\",\"vars\":{\"--accent\":\"#fd8c00\",\"--row-stripe-a\":\"#404040\",\"--row-stripe-b\":\"#333333\",\"--row-select\":\"#955404\",\"--row-hover\":\"#625f5b\",\"--metabar-bg\":\"#4d4d4d\",\"--metabar-border\":\"#404564\",\"--metabar-label\":\"#bdbdbd\",\"--bs-border-color\":\"#383839\",\"--form-control-color\":\"#d9d9d9\",\"--form-control-bg\":\"#333333\",\"--form-control-focus-border\":\"#ff8800\",\"--award-won\":\"#f0b400\",\"--award-citation\":\"#cd7f32\",\"--award-nominated\":\"#b1abde\",\"--hugo-nebula-author\":\"#e8a000\",\"--bs-link-color-rgb\":\"251, 229, 86\"}}"
         }
     },
     "test": {

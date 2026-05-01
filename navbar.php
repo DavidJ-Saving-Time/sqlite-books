@@ -2,13 +2,13 @@
 $searchVal = isset($search) ? $search : '';
 $sortVal = isset($sort) ? $sort : 'title';
 $sourceVal = isset($source) ? $source : 'local';
-$action = 'list_books.php';
+$action = '/list_books.php';
 if ($sourceVal === 'openlibrary') {
-    $action = 'openlibrary_results.php';
+    $action = '/openlibrary_results.php';
 } elseif ($sourceVal === 'google') {
-    $action = 'google_results.php';
+    $action = '/google_results.php';
 } elseif ($sourceVal === 'annas') {
-    $action = 'annas_results.php';
+    $action = '/annas_results.php';
 }
 $authorIdVal = isset($authorId) ? $authorId : null;
 $seriesIdVal = isset($seriesId) ? $seriesId : null;
@@ -26,8 +26,8 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         <i class="fa-solid fa-bars"></i>
       </button>
       <?php endif; ?>
-      <a class="navbar-brand d-flex align-items-center" href="list_books.php">
-        <i class="fa-solid fa-book-open me-2"></i> Books
+      <a class="navbar-brand d-flex align-items-center" href="/list_books.php">
+      <i class="fa-duotone fa-regular fa-house-user me-2 ms-2"></i>
       </a>
     </div>
 
@@ -43,7 +43,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
       <div class="d-flex flex-grow-1 justify-content-center align-items-center">
 
         <!-- Search Form — always searches clean, no inherited filters -->
-        <form class="d-flex me-3" method="get" action="list_books.php">
+        <form class="d-flex me-3" method="get" action="/list_books.php">
           <input type="hidden" name="page" value="1">
           <input type="hidden" name="sort" value="<?= htmlspecialchars($sortVal) ?>">
 
@@ -79,7 +79,8 @@ $statusNameVal = isset($statusName) ? $statusName : '';
               <option value="series"<?= $sortVal === 'series' ? ' selected' : '' ?>>Series</option>
               <option value="author_series"<?= $sortVal === 'author_series' ? ' selected' : '' ?>>Author &amp; Series</option>
               <option value="author_series_surname"<?= $sortVal === 'author_series_surname' ? ' selected' : '' ?>>Author &amp; Series Surname</option>
-              <option value="last_modified"<?= $sortVal === 'last_modified' ? ' selected' : '' ?>>Last Updated</option>
+              <option value="last_modified"<?= $sortVal === 'last_modified' ? ' selected' : '' ?>>Last Updated (DB)</option>
+              <option value="file_modified"<?= $sortVal === 'file_modified' ? ' selected' : '' ?>>Last Updated (File)</option>
               <option value="recommended"<?= $sortVal === 'recommended' ? ' selected' : '' ?>>Recommended Only</option>
             </select>
           </div>
@@ -112,32 +113,94 @@ $statusNameVal = isset($statusName) ? $statusName : '';
       <!-- Right: Navigation Links + User -->
       <ul class="navbar-nav ms-3 align-items-center">
 
+        <!-- PWA Install Button (hidden until beforeinstallprompt fires) -->
+        <li class="nav-item me-2" id="pwa-install-btn" style="display:none">
+          <button class="btn btn-outline-light btn-sm" onclick="installPWA()" title="Install as app">
+            <i class="fa-solid fa-download me-1"></i> Install App
+          </button>
+        </li>
+
         <!-- Add Books Button -->
         <li class="nav-item me-2">
-          <a class="btn btn-primary" href="add_physical_books.php">
+          <a class="btn btn-primary" href="/add_physical_books.php">
             <i class="fa-solid fa-plus me-1"></i> Add Books
           </a>
         </li>
 
-        <!-- WordPro Button -->
-        <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/notes/">
-            <i class="fa-solid fa-pen-nib me-1"></i> WordPro
-          </a>
-        </li>
-
-        <!-- Research Button -->
-        <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/research/research-search.php">
+        <!-- Research Dropdown -->
+        <li class="nav-item dropdown me-2">
+          <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="fa-solid fa-flask me-1"></i> Research
           </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <a class="dropdown-item" href="/notes/">
+                <i class="fa-solid fa-pen-nib me-2"></i> WordPro
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="/research/research-search.php">
+                <i class="fa-solid fa-magnifying-glass me-2"></i> Search
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/research/research-ask.php">
+                <i class="fa-solid fa-comments me-2"></i> Ask
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/research/research-ai.php">
+                <i class="fa-solid fa-upload me-2"></i> Ingest
+              </a>
+            </li>
+          </ul>
         </li>
 
-        <!-- IRC Button -->
-        <li class="nav-item me-2">
-          <a class="btn btn-primary" href="/ircdashboard.php">
-            <i class="fa fa-terminal me-1"></i> IRC
+        <!-- IRC Dropdown -->
+        <li class="nav-item dropdown me-2">
+          <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fa-solid fa-terminal me-1"></i> IRC
           </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <a class="dropdown-item" href="/ircdashboard.php">
+                <i class="fa-solid fa-gauge me-2"></i> Dashboard
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/irc_search.php">
+                <i class="fa-solid fa-magnifying-glass me-2"></i> Search
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/similar_authors.php">
+                <i class="fa-solid fa-users me-2"></i> Similar Authors
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="/missing_by_author.php">
+                <i class="fa-solid fa-user-magnifying-glass me-2"></i> Missing by Author
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/missing_by_award.php">
+                <i class="fa-solid fa-trophy me-2"></i> Missing by Award
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="/semantic_search.php">
+                <i class="fa-solid fa-tags me-2"></i> Semantic Search
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/olsearch.php">
+                <i class="fa-solid fa-database me-2"></i> Local OL Search
+              </a>
+            </li>
+          </ul>
         </li>
 
         <!-- User Dropdown -->
@@ -149,33 +212,78 @@ $statusNameVal = isset($statusName) ? $statusName : '';
           </a>
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
             <li>
-              <a class="dropdown-item" href="reading_challenges.php">
+              <a class="dropdown-item" href="/reading_challenges.php">
                 <i class="fa-solid fa-flag-checkered me-1"></i> Reading Challenge
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="preferences.php">
+              <a class="dropdown-item" href="/preferences.php">
                 <i class="fa-solid fa-gear me-1"></i> Prefs
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="themes.php">
+              <a class="dropdown-item" href="/admin/ol_import.php">
+                <i class="fa-solid fa-cloud-arrow-down me-1"></i> OL Import
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/gr_import.php">
+                <i class="fa-brands fa-goodreads me-1"></i> GR Import
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/gr_similar_import.php">
+                <i class="fa-solid fa-list-ul me-1"></i> Similar Books Scraper
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/loc_import.php">
+                <i class="fa-solid fa-landmark me-1"></i> LOC Import
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/wikipedia_import.php">
+                <i class="fa-brands fa-wikipedia-w me-1"></i> Wikipedia Import
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/gr_spot_check.php">
+                <i class="fa-solid fa-magnifying-glass me-1"></i> GR Spot Check
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/themes.php">
                 <i class="fa-solid fa-palette me-1"></i> Themes
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="authors.php" target="_blank">
+              <a class="dropdown-item" href="/authors.php" target="_blank">
                 <i class="fa-solid fa-gear me-1"></i> Author List
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="series.php" target="_blank">
+              <a class="dropdown-item" href="/admin/dedup_authors.php">
+                <i class="fa-solid fa-users-between-lines me-1"></i> Dedup Authors
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/dedup_books.php">
+                <i class="fa-solid fa-clone me-1"></i> Dedup Books
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/series.php" target="_blank">
                 <i class="fa-solid fa-gear me-1"></i> Series List
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="subseries.php" target="_blank">
-                <i class="fa-solid fa-gear me-1"></i> Subseries List
+              <a class="dropdown-item" href="/awards.php" target="_blank">
+                <i class="fa-solid fa-trophy me-1"></i> Awards
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/awards_import.php" target="_blank">
+                <i class="fa-solid fa-file-import me-1"></i> Awards Import
               </a>
             </li>
             <li>
@@ -185,7 +293,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
             </li>
             <li><hr class="dropdown-divider"></li>
             <li>
-              <a class="dropdown-item" href="logout.php">
+              <a class="dropdown-item" href="/logout.php">
                 <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
               </a>
             </li>
@@ -193,7 +301,7 @@ $statusNameVal = isset($statusName) ? $statusName : '';
         </li>
         <?php else: ?>
         <li class="nav-item ms-3">
-          <a class="btn btn-sm btn-outline-light" href="login.php">
+          <a class="btn btn-sm btn-outline-light" href="/login.php">
             <i class="fa-solid fa-right-to-bracket me-1"></i> Login
           </a>
         </li>
@@ -204,4 +312,40 @@ $statusNameVal = isset($statusName) ? $statusName : '';
   </div>
 </nav>
 
-<script src="js/navbar.js"></script>
+<script src="/js/navbar.js"></script>
+<script>
+// PWA: service worker + install button
+(function () {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[SW] registered, scope:', reg.scope))
+            .catch(err => console.error('[SW] registration failed:', err));
+    }
+
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const btn = document.getElementById('pwa-install-btn');
+        if (btn) btn.style.removeProperty('display');
+        console.log('[PWA] beforeinstallprompt captured');
+    });
+
+    window.addEventListener('appinstalled', () => {
+        deferredPrompt = null;
+        const btn = document.getElementById('pwa-install-btn');
+        if (btn) btn.style.display = 'none';
+        console.log('[PWA] app installed');
+    });
+
+    window.installPWA = function () {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(choice => {
+            console.log('[PWA] user choice:', choice.outcome);
+            deferredPrompt = null;
+        });
+    };
+}());
+</script>

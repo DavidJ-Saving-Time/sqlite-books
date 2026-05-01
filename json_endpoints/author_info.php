@@ -33,11 +33,24 @@ $bookCount = $pdo->prepare('SELECT COUNT(*) FROM books_authors_link WHERE author
 $bookCount->execute([$authorId]);
 $bookCount = (int)$bookCount->fetchColumn();
 
-$bio   = $identifiers['bio']   ?? null;
-$photo = $identifiers['photo'] ?? null;
+$bio     = $identifiers['bio']      ?? null;
+$photo   = $identifiers['photo']    ?? null;
+$wikiBio = $identifiers['wiki_bio'] ?? null;
+$wikiUrl = $identifiers['wiki_url'] ?? null;
 
-// Remove bio/photo from identifiers so they don't appear in the IDs table
-unset($identifiers['bio'], $identifiers['photo']);
+$birthDate    = $identifiers['birth_date']   ?? null;
+$deathDate    = $identifiers['death_date']   ?? null;
+$altNames     = $identifiers['alt_names']    ?? null;
+$links        = $identifiers['links']        ?? null;
+$works        = $identifiers['works']        ?? null;
+
+// Remove display fields from identifiers so they don't appear in the IDs table
+unset(
+    $identifiers['bio'], $identifiers['photo'],
+    $identifiers['wiki_bio'], $identifiers['wiki_url'],
+    $identifiers['birth_date'], $identifiers['death_date'],
+    $identifiers['alt_names'], $identifiers['links'], $identifiers['works']
+);
 
 echo json_encode([
     'id'          => $author['id'],
@@ -46,4 +59,11 @@ echo json_encode([
     'identifiers' => $identifiers,
     'bio'         => $bio,
     'photo'       => $photo,
+    'wiki_bio'    => $wikiBio,
+    'wiki_url'    => $wikiUrl,
+    'birth_date'  => $birthDate,
+    'death_date'  => $deathDate,
+    'alt_names'   => $altNames  ? json_decode($altNames,  true) : null,
+    'links'       => $links     ? json_decode($links,     true) : null,
+    'works'       => $works     ? json_decode($works,     true) : null,
 ]);

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calibre-nilla — Offline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #212529;
+      color: #dee2e6;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      text-align: center;
+      padding: 2rem;
+    }
+    .card {
+      background: #2c3034;
+      border: 1px solid #373b3e;
+      border-radius: 12px;
+      padding: 3rem 2rem;
+      max-width: 420px;
+      width: 100%;
+    }
+    svg { margin-bottom: 1.5rem; }
+    h1 { font-size: 1.5rem; margin-bottom: .75rem; color: #f8f9fa; }
+    p  { font-size: .95rem; color: #adb5bd; line-height: 1.6; }
+    button {
+      margin-top: 2rem;
+      padding: .6rem 1.5rem;
+      background: #0d6efd;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover { background: #0b5ed7; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <svg width="72" height="72" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="512" height="512" rx="80" fill="#1a1d21"/>
+      <path d="M 75 155 L 248 138 L 248 392 L 75 372 Z" fill="#0d6efd"/>
+      <path d="M 437 155 L 264 138 L 264 392 L 437 372 Z" fill="#4d9bf8"/>
+      <rect x="245" y="133" width="22" height="264" rx="4" fill="#e0e0e0"/>
+    </svg>
+    <h1>You're offline</h1>
+    <p>calibre-nilla can't reach the server right now. Check your network connection and try again.</p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

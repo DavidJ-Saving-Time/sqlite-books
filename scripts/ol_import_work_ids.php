@@ -21,19 +21,22 @@ if (PHP_SAPI !== 'cli') {
 }
 
 // ── Args ──────────────────────────────────────────────────────────────────────
-$args        = array_slice($argv, 1);
-$user        = null;
-$dryRun      = false;
-$force       = false;
-$retryFailed = false;
-$delay       = 1;
+$args          = array_slice($argv, 1);
+$user          = null;
+$dryRun        = false;
+$force         = false;
+$retryFailed   = false;
+$delay         = 1;
+$preferEnglish = true;   // default: bias search towards works with English editions
 
 foreach ($args as $arg) {
-    if ($arg === '--dry-run')                    { $dryRun      = true; }
-    elseif ($arg === '--force')                  { $force       = true; }
-    elseif ($arg === '--retry-failed')           { $retryFailed = true; }
-    elseif (str_starts_with($arg, '--delay='))   { $delay = max(0, (int)substr($arg, 8)); }
-    elseif (!str_starts_with($arg, '-'))         { $user = $arg; }
+    if ($arg === '--dry-run')                      { $dryRun        = true; }
+    elseif ($arg === '--force')                    { $force         = true; }
+    elseif ($arg === '--retry-failed')             { $retryFailed   = true; }
+    elseif ($arg === '--prefer-english')           { $preferEnglish = true; }
+    elseif ($arg === '--no-prefer-english')        { $preferEnglish = false; }
+    elseif (str_starts_with($arg, '--delay='))     { $delay         = max(0, (int)substr($arg, 8)); }
+    elseif (!str_starts_with($arg, '-'))           { $user          = $arg; }
 }
 
 if ($user === null) {
@@ -95,7 +98,7 @@ $failed  = 0;
 
 echo "User: $user | DB: $dbPath\n";
 $modeLabel = $force ? ' [--force]' : ($retryFailed ? ' [--retry-failed]' : '');
-echo "Books to process: $total" . $modeLabel . ($dryRun ? " [DRY RUN]" : "") . "\n";
+echo "Books to process: $total" . $modeLabel . ($dryRun ? " [DRY RUN]" : "") . ($preferEnglish ? " [prefer English]" : "") . "\n";
 echo str_repeat('─', 70) . "\n";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,7 +108,7 @@ function ol_fetch(string $url): ?array {
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (library management; contact via github)',
+        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (personal library tool; principle3@gmail.com)',
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_FOLLOWLOCATION => true,
     ]);
@@ -170,7 +173,7 @@ function score_match(string $bookTitle, string $bookAuthors, array $candidate): 
 /**
  * Search OL by title+author and return best matching Work ID, or null.
  */
-function find_work_id(string $title, string $authors, string $isbn, int $delay): ?string {
+function find_work_id(string $title, string $authors, string $isbn, int $delay, bool $preferEnglish = true): ?string {
     // Try ISBN first if available
     if ($isbn !== '') {
         $data = ol_fetch('https://openlibrary.org/api/books?bibkeys=ISBN:' . urlencode($isbn) . '&format=json&jscmd=data');
@@ -185,9 +188,12 @@ function find_work_id(string $title, string $authors, string $isbn, int $delay):
         sleep($delay);
     }
 
-    // Search by title + author
-    $q   = $title . ($authors !== '' ? ' ' . $authors : '');
-    $url = 'https://openlibrary.org/search.json?q=' . urlencode($q) . '&limit=20&fields=key,title,author_name,editions';
+    // Search by title + author; add language=eng to bias results towards English editions
+    // Append -subject:audiobooks to exclude audiobook works from results
+    // Request 'language' field so we can boost works where English is the only language
+    $q   = $title . ($authors !== '' ? ' ' . $authors : '') . ' -subject:audiobooks';
+    $url = 'https://openlibrary.org/search.json?q=' . urlencode($q) . '&limit=20&fields=key,title,author_name,language'
+         . ($preferEnglish ? '&language=eng' : '');
     $data = ol_fetch($url);
     if ($data === null || empty($data['docs'])) {
         return null;
@@ -202,6 +208,17 @@ function find_work_id(string $title, string $authors, string $isbn, int $delay):
             'authors' => implode(', ', (array)($doc['author_name'] ?? [])),
         ];
         $s = score_match($title, $authors, $candidate);
+
+        // Boost works where English is the only language — prevents picking a foreign-
+        // language work that happens to have an English translation (passes &language=eng
+        // but is not an English-original work).
+        if ($preferEnglish) {
+            $langs = (array)($doc['language'] ?? []);
+            if (!empty($langs) && $langs === ['eng']) {
+                $s = min(100, $s + 15);
+            }
+        }
+
         if ($s > $bestScore) {
             $bestScore = $s;
             $best      = $doc;
@@ -231,7 +248,7 @@ foreach ($books as $i => $book) {
 
     echo sprintf("[%d/%d] %-50s %s\n", $num, $total, mb_substr($title, 0, 50), $authors ? "($authors)" : '');
 
-    $workId = find_work_id($title, $authors, $isbn, $delay);
+    $workId = find_work_id($title, $authors, $isbn, $delay, $preferEnglish);
 
     if ($workId === null) {
         echo "       ✗ No match — marking NOT_FOUND\n";

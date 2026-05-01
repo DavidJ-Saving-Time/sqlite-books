@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#212529">
+  <title>PWA Diagnostic</title>
+  <style>
+    body { background:#212529; color:#dee2e6; font-family:monospace; padding:2rem; }
+    h1   { color:#f8f9fa; margin-bottom:1.5rem; }
+    .row { display:flex; gap:.75rem; align-items:baseline; margin:.4rem 0; }
+    .ok  { color:#75b798; }
+    .err { color:#ea868f; }
+    .warn{ color:#ffda6a; }
+    pre  { background:#2c3034; padding:1rem; border-radius:6px; overflow:auto; font-size:.85rem; margin-top:1rem; }
+    hr   { border-color:#373b3e; margin:1.5rem 0; }
+  </style>
+</head>
+<body>
+<h1>PWA Diagnostic</h1>
+<div id="out">Running checks…</div>
+
+<script>
+const out = document.getElementById('out');
+let html = '';
+
+function row(label, ok, msg) {
+    const cls = ok === true ? 'ok' : ok === false ? 'err' : 'warn';
+    const sym = ok === true ? '✓' : ok === false ? '✗' : '?';
+    html += `<div class="row"><span class="${cls}">${sym}</span><strong>${label}:</strong> <span>${msg}</span></div>`;
+    out.innerHTML = html;
+}
+
+// 1. HTTPS
+const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
+row('HTTPS / localhost', isHttps, location.origin);
+
+// 2. SW support
+row('ServiceWorker API', 'serviceWorker' in navigator, 'serviceWorker' in navigator ? 'supported' : 'NOT supported in this browser');
+
+// 3. Manifest reachable
+fetch('/manifest.json')
+  .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(m => {
+    row('manifest.json', true, 'OK — name: "' + (m.name||'?') + '", start_url: "' + (m.start_url||'?') + '", display: "' + (m.display||'?') + '"');
+    row('Manifest icons', Array.isArray(m.icons) && m.icons.length > 0, (m.icons||[]).map(i => i.sizes).join(', ') || 'NONE');
+  })
+  .catch(e => row('manifest.json', false, 'fetch failed: ' + e.message));
+
+// 4. SW registration
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        const state = reg.installing ? 'installing' : reg.waiting ? 'waiting' : reg.active ? 'active' : 'unknown';
+        row('SW registered', true, '/sw.js — state: ' + state + ', scope: ' + reg.scope);
+      })
+      .catch(e => row('SW registered', false, e.message));
+
+    navigator.serviceWorker.getRegistrations().then(regs => {
+        row('SW controlling page', !!navigator.serviceWorker.controller,
+            navigator.serviceWorker.controller
+                ? 'yes — ' + navigator.serviceWorker.controller.scriptURL
+                : 'not yet (reload page once after first visit)');
+    });
+}
+
+// 5. beforeinstallprompt
+let bip = false;
+window.addEventListener('beforeinstallprompt', e => {
+    bip = true;
+    e.preventDefault();
+    row('beforeinstallprompt', true, 'event fired — app IS installable');
+    out.innerHTML += '<br><button onclick="e.prompt()" style="padding:.5rem 1rem;background:#0d6efd;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:1rem">Install now</button>';
+    // expose e so the onclick above works
+    window.bipEvent = e;
+    document.querySelector('button')?.setAttribute('onclick', 'window.bipEvent.prompt()');
+});
+
+window.addEventListener('appinstalled', () => row('appinstalled', true, 'event fired — installed successfully'));
+
+// Report if BIP never fires after 5s
+setTimeout(() => {
+    if (!bip) row('beforeinstallprompt', null, 'did NOT fire within 5 s — Chrome does not consider this page installable yet. Check DevTools → Application → Manifest for the specific failing criterion.');
+}, 5000);
+</script>
+</body>
+</html>

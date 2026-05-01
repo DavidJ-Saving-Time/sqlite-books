@@ -59,7 +59,7 @@ function ol_get(string $url): ?array {
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (library management; contact via github)',
+        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (personal library tool; principle3@gmail.com)',
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_FOLLOWLOCATION => true,
     ]);
@@ -213,8 +213,13 @@ foreach ($authors as $i => $author) {
     }
 
     $remoteIds = $authorData['remote_ids'] ?? [];
-    $goodreads = (string)($remoteIds['goodreads'] ?? '');
-    $wikidata  = (string)($remoteIds['wikidata']  ?? '');
+    $goodreads = (string)($remoteIds['goodreads']    ?? '');
+    $wikidata  = (string)($remoteIds['wikidata']     ?? '');
+    $isni      = (string)($remoteIds['isni']         ?? '');
+    $viaf      = (string)($remoteIds['viaf']         ?? '');
+    $librarything = (string)($remoteIds['librarything'] ?? '');
+    $storygraph   = (string)($remoteIds['storygraph']   ?? '');
+    $imdb         = (string)($remoteIds['imdb']         ?? '');
 
     // Bio
     $bioVal = $authorData['bio'] ?? '';
@@ -229,16 +234,66 @@ foreach ($authors as $i => $author) {
         }
     }
 
-    echo "       Goodreads  : " . ($goodreads ?: '—') . "\n";
-    echo "       Wikidata   : " . ($wikidata  ?: '—') . "\n";
-    echo "       Bio        : " . ($bio   ? mb_substr($bio, 0, 60) . '…' : '—') . "\n";
-    echo "       Photo      : " . ($photo ?: '—') . "\n";
+    // Birth / death dates
+    $birthDate = trim((string)($authorData['birth_date'] ?? ''));
+    $deathDate = trim((string)($authorData['death_date'] ?? ''));
 
-    store($upsert, $authorId, 'olaid',     $olaId,     $dryRun);
-    store($upsert, $authorId, 'goodreads', $goodreads, $dryRun);
-    store($upsert, $authorId, 'wikidata',  $wikidata,  $dryRun);
-    store($upsert, $authorId, 'bio',       $bio,       $dryRun);
-    store($upsert, $authorId, 'photo',     $photo,     $dryRun);
+    // Alternate names
+    $altNames = array_filter(array_map('trim', (array)($authorData['alternate_names'] ?? [])));
+    $altNamesJson = $altNames ? json_encode(array_values($altNames), JSON_UNESCAPED_UNICODE) : '';
+
+    // Links (official website, blog, etc.)
+    $links = [];
+    foreach ((array)($authorData['links'] ?? []) as $link) {
+        $lt = trim($link['title'] ?? '');
+        $lu = trim($link['url']   ?? '');
+        if ($lt && $lu) $links[] = ['title' => $lt, 'url' => $lu];
+    }
+    $linksJson = $links ? json_encode($links, JSON_UNESCAPED_UNICODE) : '';
+
+    // Works list from /authors/{olaId}/works.json
+    $worksJson = '';
+    $worksData = ol_get("https://openlibrary.org/authors/{$olaId}/works.json?limit=50");
+    sleep($delay);
+    if ($worksData) {
+        $works = [];
+        foreach ((array)($worksData['entries'] ?? []) as $w) {
+            $wt = trim($w['title'] ?? '');
+            if ($wt) $works[] = $wt;
+        }
+        if ($works) $worksJson = json_encode($works, JSON_UNESCAPED_UNICODE);
+    }
+
+    echo "       Goodreads  : " . ($goodreads    ?: '—') . "\n";
+    echo "       Wikidata   : " . ($wikidata     ?: '—') . "\n";
+    echo "       ISNI       : " . ($isni         ?: '—') . "\n";
+    echo "       VIAF       : " . ($viaf         ?: '—') . "\n";
+    echo "       IMDB       : " . ($imdb         ?: '—') . "\n";
+    echo "       LibThing   : " . ($librarything ?: '—') . "\n";
+    echo "       StoryGraph : " . ($storygraph   ?: '—') . "\n";
+    echo "       Born       : " . ($birthDate    ?: '—') . "\n";
+    echo "       Died       : " . ($deathDate    ?: '—') . "\n";
+    echo "       Alt names  : " . ($altNamesJson ? count($altNames) . " entries" : '—') . "\n";
+    echo "       Links      : " . ($linksJson    ? count($links)    . " entries" : '—') . "\n";
+    echo "       Works      : " . ($worksJson    ? count($works)    . " titles"  : '—') . "\n";
+    echo "       Bio        : " . ($bio          ? mb_substr($bio, 0, 60) . '…' : '—') . "\n";
+    echo "       Photo      : " . ($photo        ?: '—') . "\n";
+
+    store($upsert, $authorId, 'olaid',        $olaId,        $dryRun);
+    store($upsert, $authorId, 'goodreads',    $goodreads,    $dryRun);
+    store($upsert, $authorId, 'wikidata',     $wikidata,     $dryRun);
+    store($upsert, $authorId, 'isni',         $isni,         $dryRun);
+    store($upsert, $authorId, 'viaf',         $viaf,         $dryRun);
+    store($upsert, $authorId, 'librarything', $librarything, $dryRun);
+    store($upsert, $authorId, 'storygraph',   $storygraph,   $dryRun);
+    store($upsert, $authorId, 'imdb',         $imdb,         $dryRun);
+    store($upsert, $authorId, 'birth_date',   $birthDate,    $dryRun);
+    store($upsert, $authorId, 'death_date',   $deathDate,    $dryRun);
+    store($upsert, $authorId, 'alt_names',    $altNamesJson, $dryRun);
+    store($upsert, $authorId, 'links',        $linksJson,    $dryRun);
+    store($upsert, $authorId, 'works',        $worksJson,    $dryRun);
+    store($upsert, $authorId, 'bio',          $bio,          $dryRun);
+    store($upsert, $authorId, 'photo',        $photo,        $dryRun);
 
     echo "       ✓ Stored\n";
     $matched++;

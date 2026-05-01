@@ -149,6 +149,32 @@ if ($hasSubseries) {
 $commentStmt = $pdo->prepare('SELECT text FROM comments WHERE book = ?');
 $commentStmt->execute([$id]);
 $description = $commentStmt->fetchColumn() ?: '';
+
+// Fetch awards for this book (table may not exist yet on uninitialized DBs)
+$bookAwards = [];
+try {
+    $stmt = $pdo->prepare(
+        'SELECT ba.id, ba.award_id, a.name AS award_name, ba.year, ba.category, ba.result
+         FROM book_awards ba JOIN awards a ON ba.award_id = a.id
+         WHERE ba.book_id = ? ORDER BY ba.year DESC, a.name COLLATE NOCASE'
+    );
+    $stmt->execute([$id]);
+    $bookAwards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // awards tables not yet created — run init_schema.php
+}
+
+$bookReviews = [];
+try {
+    $stmt = $pdo->prepare(
+        'SELECT reviewer, reviewer_url, rating, review_date, text, like_count, spoiler
+         FROM book_reviews WHERE book = ? ORDER BY like_count DESC LIMIT 5'
+    );
+    $stmt->execute([$id]);
+    $bookReviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // table not yet created
+}
 $notes = '';
 
 $returnPage = isset($_GET['page']) ? max(1, (int)$_GET['page']) : null;
@@ -258,14 +284,12 @@ if ($hasSubseries) {
 
 // Fetch full book details for display
 $stmt = $pdo->prepare("SELECT b.*,
-        (SELECT GROUP_CONCAT(a.name, ', ')
-            FROM books_authors_link bal
-            JOIN authors a ON bal.author = a.id
-            WHERE bal.book = b.id) AS authors,
-        (SELECT GROUP_CONCAT(a.id || ':' || a.name, '|')
-            FROM books_authors_link bal
-            JOIN authors a ON bal.author = a.id
-            WHERE bal.book = b.id) AS author_data,
+        (SELECT GROUP_CONCAT(name, ', ') FROM (
+            SELECT a.name FROM books_authors_link bal JOIN authors a ON bal.author = a.id
+            WHERE bal.book = b.id ORDER BY bal.id)) AS authors,
+        (SELECT GROUP_CONCAT(aid || ':' || aname, '|') FROM (
+            SELECT a.id AS aid, a.name AS aname FROM books_authors_link bal JOIN authors a ON bal.author = a.id
+            WHERE bal.book = b.id ORDER BY bal.id)) AS author_data,
         s.id AS series_id,
         s.name AS series,
         (SELECT name FROM publishers WHERE publishers.id IN
@@ -315,6 +339,15 @@ if (!empty($book['pubdate'])) {
 
 $annasUrl = 'annas_results.php?search=' . urlencode($book['title'] ?? '') . '&author=' . urlencode($book['authors'] ?? '');
 
+// Similar books tab: check if cached data exists
+$grWorkId = $allIdentifiers['gr_work_id'] ?? '';
+$similarBooksCount = 0;
+if ($grWorkId) {
+    $sc = $pdo->prepare("SELECT COUNT(*) FROM gr_similar_books WHERE source_work_id = ?");
+    $sc->execute([$grWorkId]);
+    $similarBooksCount = (int)$sc->fetchColumn();
+}
+
 // Fetch author details for Author tab
 $authorTabData = [];
 if (!empty($book['author_data'])) {
@@ -333,13 +366,25 @@ if (!empty($book['author_data'])) {
             $idents = [];
         }
         $authorTabData[] = [
-            'id'        => $aid,
-            'name'      => $aname,
-            'bio'       => $idents['bio']       ?? '',
-            'photo'     => $idents['photo']     ?? '',
-            'olaid'     => $idents['olaid']      ?? '',
-            'goodreads' => $idents['goodreads'] ?? '',
-            'wikidata'  => $idents['wikidata']  ?? '',
+            'id'          => $aid,
+            'name'        => $aname,
+            'bio'         => $idents['bio']          ?? '',
+            'photo'       => $idents['photo']        ?? '',
+            'olaid'       => $idents['olaid']        ?? '',
+            'goodreads'   => $idents['goodreads']    ?? '',
+            'wikidata'    => $idents['wikidata']     ?? '',
+            'isni'        => $idents['isni']         ?? '',
+            'viaf'        => $idents['viaf']         ?? '',
+            'librarything'=> $idents['librarything'] ?? '',
+            'storygraph'  => $idents['storygraph']   ?? '',
+            'imdb'        => $idents['imdb']         ?? '',
+            'birth_date'  => $idents['birth_date']   ?? '',
+            'death_date'  => $idents['death_date']   ?? '',
+            'alt_names'   => isset($idents['alt_names'])  ? json_decode($idents['alt_names'],  true) : [],
+            'links'       => isset($idents['links'])       ? json_decode($idents['links'],       true) : [],
+            'works'       => isset($idents['works'])       ? json_decode($idents['works'],       true) : [],
+            'wiki_bio'    => $idents['wiki_bio']     ?? '',
+            'wiki_url'    => $idents['wiki_url']     ?? '',
         ];
     }
 }
@@ -432,6 +477,9 @@ if ($sendRequested) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#212529">
+  <link rel="apple-touch-icon" href="/app-icons/icon-192.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($book['title']) ?></title>
@@ -549,12 +597,31 @@ if ($sendRequested) {
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRecommendations">Recommendations<?php if (!empty($savedRecommendations)): ?> <i class="fa-solid fa-circle-check text-success ms-1"></i><?php endif; ?></button>
                         </li>
                         <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAwards">
+                                <i class="fa-solid fa-trophy me-1"></i>Awards<?php if (!empty($bookAwards)): ?> <span class="badge bg-warning text-dark ms-1"><?= count($bookAwards) ?></span><?php endif; ?>
+                            </button>
+                        </li>
+                        <li class="nav-item">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabInfo">Info</button>
                         </li>
                         <?php if (!empty($authorTabData)): ?>
                         <li class="nav-item">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAuthor">
                                 <i class="fa-solid fa-user me-1"></i>Author<?php if (count($authorTabData) > 1): ?>s<?php endif; ?>
+                            </button>
+                        </li>
+                        <?php endif; ?>
+                        <?php if (!empty($bookReviews)): ?>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabReviews">
+                                <i class="fa-brands fa-goodreads me-1"></i>Reviews <span class="badge bg-secondary ms-1"><?= count($bookReviews) ?></span>
+                            </button>
+                        </li>
+                        <?php endif; ?>
+                        <?php if ($grWorkId): ?>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSimilar" id="tabSimilarBtn">
+                                <i class="fa-solid fa-list-ul me-1"></i>Similar<?php if ($similarBooksCount > 0): ?> <span class="badge bg-secondary ms-1"><?= $similarBooksCount ?></span><?php endif; ?>
                             </button>
                         </li>
                         <?php endif; ?>
@@ -712,6 +779,10 @@ if ($sendRequested) {
                                             <button type="button" id="synopsisBtn" data-book-id="<?= htmlspecialchars($book['id']) ?>" data-authors="<?= htmlspecialchars($book['authors']) ?>" data-title="<?= htmlspecialchars($book['title']) ?>" class="btn btn-primary btn-sm">
                                                 <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Generate Synopsis
                                             </button>
+                                            <button type="button" id="goodreadsMetaBtn" class="btn btn-secondary btn-sm"
+                                                <?php if (empty($allIdentifiers['goodreads'])): ?>disabled title="No Goodreads ID stored in identifiers"<?php endif; ?>>
+                                                <i class="fa-brands fa-goodreads me-1"></i>Goodreads
+                                            </button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm" id="stripHtmlBtn" title="Remove all HTML tags from the description">
                                                 <i class="fa-solid fa-eraser me-1"></i> Strip HTML
                                             </button>
@@ -724,7 +795,6 @@ if ($sendRequested) {
                                         <i class="fa-solid fa-image me-1 text-primary"></i> Cover Image
                                     </label>
                                     <input type="file" id="cover" name="cover" class="form-control">
-                                    <div id="isbnCover" class="mt-2"></div>
                                 </div>
                             </div>
                             <!-- Recommendations -->
@@ -738,6 +808,66 @@ if ($sendRequested) {
                             </div>
 
                             <!-- Info -->
+                            <!-- Awards Tab -->
+                            <div class="tab-pane fade" id="tabAwards">
+                                <div id="bookAwardsList" class="mb-3">
+                                    <?php if (empty($bookAwards)): ?>
+                                        <p class="text-muted small" id="noAwardsMsg">No awards recorded yet.</p>
+                                    <?php else: ?>
+                                        <?php foreach ($bookAwards as $ba): ?>
+                                        <div class="d-flex align-items-center gap-2 mb-2 award-entry" data-award-id="<?= (int)$ba['id'] ?>">
+                                            <?php if ($ba['result'] === 'won'): ?>
+                                                <i class="fa-solid fa-trophy text-warning"></i>
+                                            <?php elseif ($ba['result'] === 'shortlisted'): ?>
+                                                <i class="fa-solid fa-medal text-secondary"></i>
+                                            <?php else: ?>
+                                                <i class="fa-regular fa-star text-muted"></i>
+                                            <?php endif; ?>
+                                            <span class="fw-semibold"><?= htmlspecialchars($ba['award_name']) ?></span>
+                                            <?php if ($ba['year']): ?><span class="text-muted"><?= (int)$ba['year'] ?></span><?php endif; ?>
+                                            <?php if ($ba['category']): ?><span class="text-muted small fst-italic"><?= htmlspecialchars($ba['category']) ?></span><?php endif; ?>
+                                            <span class="badge <?= $ba['result'] === 'won' ? 'bg-warning text-dark' : ($ba['result'] === 'shortlisted' ? 'bg-secondary' : 'bg-light text-dark border') ?>"><?= htmlspecialchars(ucfirst($ba['result'])) ?></span>
+                                            <button type="button" class="btn btn-link btn-sm text-danger p-0 ms-auto remove-award-btn" data-id="<?= (int)$ba['id'] ?>" title="Remove"><i class="fa-solid fa-times"></i></button>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-3">Add Award</h6>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-md-4 position-relative">
+                                                <label class="form-label small mb-1">Award name</label>
+                                                <input type="text" id="awardNameInput" class="form-control form-control-sm" placeholder="Hugo Award" autocomplete="off">
+                                                <ul id="awardSuggestions" class="list-group position-absolute w-100" style="z-index:1060;display:none;max-height:200px;overflow-y:auto;top:100%;left:0"></ul>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label small mb-1">Year</label>
+                                                <input type="number" id="awardYearInput" class="form-control form-control-sm" placeholder="<?= date('Y') ?>" min="1900" max="2100">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label small mb-1">Category</label>
+                                                <input type="text" id="awardCategoryInput" class="form-control form-control-sm" placeholder="Best Novel">
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label small mb-1">Result</label>
+                                                <select id="awardResultInput" class="form-select form-select-sm">
+                                                    <option value="won">Won</option>
+                                                    <option value="nominated" selected>Nominated</option>
+                                                    <option value="shortlisted">Shortlisted</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-1">
+                                                <button type="button" id="addAwardBtn" class="btn btn-primary btn-sm w-100">
+                                                    <i class="fa-solid fa-plus"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p id="awardMsg" class="text-danger small mt-2 mb-0" style="display:none"></p>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="tab-pane fade" id="tabInfo">
                                 <p><strong>Author(s):</strong>
                                     <?php if (!empty($book['author_data'])): ?>
@@ -816,6 +946,22 @@ if ($sendRequested) {
                                         Marked as NOT_FOUND — skip OL Work ID lookup
                                     </label>
                                 </div>
+                                <div class="mt-3 mb-2">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <button type="button" id="findGoodreadsBtn" class="btn btn-sm btn-secondary">
+                                            <i class="fa-brands fa-goodreads me-1"></i><?= empty($allIdentifiers['goodreads']) ? 'Find Goodreads ID' : 'Update Goodreads ID' ?>
+                                        </button>
+                                        <div class="input-group input-group-sm" style="width:200px">
+                                            <input type="text" id="manualGrIdInput" class="form-control form-control-sm"
+                                                   placeholder="Manual GR ID…"
+                                                   value="<?= htmlspecialchars($allIdentifiers['goodreads'] ?? '', ENT_QUOTES) ?>">
+                                            <button type="button" id="manualGrIdSaveBtn" class="btn btn-outline-secondary btn-sm">
+                                                <i class="fa-solid fa-floppy-disk"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="goodreadsSearchResults" class="mt-2" style="display:none"></div>
+                                </div>
                                 <?php if ($allIdentifiers): ?>
                                     <?php
                                     $idLinks = [
@@ -884,14 +1030,50 @@ if ($sendRequested) {
                                                             <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Goodreads
                                                         </a>
                                                     <?php endif; ?>
+                                                    <?php if (!empty($author['storygraph'])): ?>
+                                                        <a href="https://app.thestorygraph.com/authors/<?= urlencode($author['storygraph']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+                                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> StoryGraph
+                                                        </a>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($author['imdb'])): ?>
+                                                        <a href="https://www.imdb.com/name/<?= urlencode($author['imdb']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+                                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> IMDb
+                                                        </a>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($author['librarything'])): ?>
+                                                        <a href="https://www.librarything.com/author/<?= urlencode($author['librarything']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+                                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> LibraryThing
+                                                        </a>
+                                                    <?php endif; ?>
                                                     <?php if (!empty($author['wikidata'])): ?>
                                                         <a href="https://www.wikidata.org/wiki/<?= urlencode($author['wikidata']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
                                                             <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Wikidata
                                                         </a>
                                                     <?php endif; ?>
+                                                    <?php foreach ($author['links'] as $link): ?>
+                                                        <a href="<?= htmlspecialchars($link['url']) ?>" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">
+                                                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> <?= htmlspecialchars($link['title']) ?>
+                                                        </a>
+                                                    <?php endforeach; ?>
                                                 </div>
                                             </div>
                                         </div>
+                                        <?php if (!empty($author['birth_date']) || !empty($author['death_date']) || !empty($author['alt_names'])): ?>
+                                        <dl class="row small mb-3">
+                                            <?php if (!empty($author['birth_date'])): ?>
+                                                <dt class="col-sm-3 text-muted">Born</dt>
+                                                <dd class="col-sm-9"><?= htmlspecialchars($author['birth_date']) ?></dd>
+                                            <?php endif; ?>
+                                            <?php if (!empty($author['death_date'])): ?>
+                                                <dt class="col-sm-3 text-muted">Died</dt>
+                                                <dd class="col-sm-9"><?= htmlspecialchars($author['death_date']) ?></dd>
+                                            <?php endif; ?>
+                                            <?php if (!empty($author['alt_names'])): ?>
+                                                <dt class="col-sm-3 text-muted">Also known as</dt>
+                                                <dd class="col-sm-9"><?= htmlspecialchars(implode(', ', $author['alt_names'])) ?></dd>
+                                            <?php endif; ?>
+                                        </dl>
+                                        <?php endif; ?>
                                         <div class="mb-2">
                                             <label class="form-label fw-semibold">
                                                 <i class="fa-solid fa-align-left me-1 text-primary"></i> Biography
@@ -907,8 +1089,82 @@ if ($sendRequested) {
                                             <span class="author-bio-status text-muted small"
                                                   data-author-id="<?= (int)$author['id'] ?>"></span>
                                         </div>
+                                        <?php if (!empty($author['wiki_bio'])): ?>
+                                        <hr>
+                                        <div class="mb-1 fw-semibold">
+                                            <i class="fa-brands fa-wikipedia-w me-1 text-primary"></i> Wikipedia
+                                            <?php if (!empty($author['wiki_url'])): ?>
+                                                <a href="<?= htmlspecialchars($author['wiki_url']) ?>" target="_blank" rel="noopener" class="small ms-2">
+                                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Full article
+                                                </a>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="wiki-author-extract"><?= $author['wiki_bio'] ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($author['works'])): ?>
+                                        <hr>
+                                        <div class="mb-1 fw-semibold">
+                                            <i class="fa-solid fa-book me-1 text-primary"></i> Works on Open Library
+                                        </div>
+                                        <ul class="list-unstyled small mb-0" style="columns:2;gap:1rem">
+                                            <?php foreach ($author['works'] as $workTitle): ?>
+                                                <li class="text-muted"><?= htmlspecialchars($workTitle) ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                        <?php endif; ?>
                                     </div>
                                 <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
+
+                            <!-- Reviews Tab -->
+                            <?php if (!empty($bookReviews)): ?>
+                            <div class="tab-pane fade" id="tabReviews">
+                                <?php foreach ($bookReviews as $rev): ?>
+                                <div class="mb-4 pb-3 border-bottom">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <?php if (!empty($rev['reviewer_url'])): ?>
+                                            <a href="<?= htmlspecialchars($rev['reviewer_url']) ?>" target="_blank" rel="noopener" class="fw-semibold text-decoration-none small"><?= htmlspecialchars($rev['reviewer']) ?: 'Anonymous' ?></a>
+                                        <?php else: ?>
+                                            <span class="fw-semibold small"><?= htmlspecialchars($rev['reviewer']) ?: 'Anonymous' ?></span>
+                                        <?php endif; ?>
+                                        <?php if ($rev['rating']): ?>
+                                        <span class="text-warning" style="font-size:0.8rem">
+                                            <?= str_repeat('★', (int)$rev['rating']) ?><?= str_repeat('☆', 5 - (int)$rev['rating']) ?>
+                                        </span>
+                                        <?php endif; ?>
+                                        <?php if ($rev['review_date']): ?>
+                                        <span class="text-muted" style="font-size:0.75rem"><?= htmlspecialchars(substr($rev['review_date'], 0, 10)) ?></span>
+                                        <?php endif; ?>
+                                        <?php if ($rev['like_count']): ?>
+                                        <span class="text-muted ms-auto" style="font-size:0.75rem"><i class="fa-regular fa-thumbs-up me-1"></i><?= (int)$rev['like_count'] ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="small" style="line-height:1.6; max-height:12rem; overflow:hidden; position:relative" data-review-body>
+                                        <?= $rev['text'] ?>
+                                        <div style="position:absolute;bottom:0;left:0;right:0;height:3rem;background:linear-gradient(transparent,var(--bs-body-bg))" data-review-fade></div>
+                                    </div>
+                                    <button type="button" class="btn btn-link btn-sm p-0 mt-1 text-muted review-expand-btn" style="font-size:0.75rem">Show more</button>
+                                </div>
+                                <?php endforeach; ?>
+                                <p class="text-muted small mb-0">Top <?= count($bookReviews) ?> most-liked reviews from Goodreads.</p>
+                            </div>
+                            <?php endif; ?>
+
+                            <!-- Similar Books Tab -->
+                            <?php if ($grWorkId): ?>
+                            <div class="tab-pane fade" id="tabSimilar">
+                                <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+                                    <span class="text-muted small">Books Goodreads readers of this title also enjoyed.</span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="similarRefreshBtn">
+                                        <i class="fa-solid fa-rotate me-1"></i><?= $similarBooksCount > 0 ? 'Refresh' : 'Fetch similar books' ?>
+                                    </button>
+                                </div>
+                                <div id="similarBooksContainer">
+                                    <?php if ($similarBooksCount === 0): ?>
+                                    <p class="text-muted small">No similar books fetched yet. Click "Fetch similar books" above.</p>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -1019,9 +1275,14 @@ if ($sendRequested) {
             </a>
             <?php endif; ?>
         </div>
-        <a href="<?= htmlspecialchars($backToListUrl) ?>" class="text-decoration-none text-muted small">
-            <i class="fa-solid fa-list me-1"></i>Library
-        </a>
+        <div class="d-flex align-items-center gap-3">
+            <a href="<?= htmlspecialchars($backToListUrl) ?>" class="text-decoration-none text-muted small">
+                <i class="fa-solid fa-list me-1"></i>Library
+            </a>
+            <a href="book-view.php?id=<?= $id ?>" class="text-decoration-none text-muted small">
+                <i class="fa-solid fa-eye me-1"></i>View
+            </a>
+        </div>
         <div>
             <?php if ($nextBook): ?>
             <a href="<?= htmlspecialchars(navBookUrl((int)$nextBook['id'], $sort, $returnPage)) ?>"
@@ -1048,6 +1309,156 @@ tinymce.init({
 <script src="js/search.js"></script>
 <script src="js/recommendations.js"></script>
 <script src="js/book.js"></script>
+<script>
+(function () {
+    const BOOK_ID     = <?= (int)$id ?>;
+    const list        = document.getElementById('bookAwardsList');
+    const msg         = document.getElementById('awardMsg');
+    const nameInput   = document.getElementById('awardNameInput');
+    const suggestions = document.getElementById('awardSuggestions');
+
+    // ── Award name autocomplete ───────────────────────────────────────────────
+    let acTimer;
+    let acIndex = -1;
+
+    function acClear() {
+        suggestions.innerHTML = '';
+        suggestions.style.display = 'none';
+        acIndex = -1;
+    }
+
+    function acRender(names) {
+        acClear();
+        if (!names.length) return;
+        names.forEach(name => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item list-group-item-action py-1 px-2';
+            li.textContent = name;
+            li.addEventListener('mousedown', e => { e.preventDefault(); nameInput.value = name; acClear(); });
+            suggestions.appendChild(li);
+        });
+        suggestions.style.display = 'block';
+    }
+
+    nameInput.addEventListener('input', () => {
+        clearTimeout(acTimer);
+        const term = nameInput.value.trim();
+        if (term.length < 1) { acClear(); return; }
+        acTimer = setTimeout(async () => {
+            try {
+                const res = await fetch('json_endpoints/book_awards.php?term=' + encodeURIComponent(term));
+                acRender(await res.json());
+            } catch { acClear(); }
+        }, 250);
+    });
+
+    nameInput.addEventListener('keydown', e => {
+        const items = suggestions.querySelectorAll('li');
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            acIndex = (acIndex + 1) % items.length;
+            items.forEach((li, i) => li.classList.toggle('active', i === acIndex));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            acIndex = (acIndex - 1 + items.length) % items.length;
+            items.forEach((li, i) => li.classList.toggle('active', i === acIndex));
+        } else if (e.key === 'Enter' && acIndex >= 0) {
+            e.preventDefault();
+            nameInput.value = items[acIndex].textContent;
+            acClear();
+        } else if (e.key === 'Escape') {
+            acClear();
+        }
+    });
+
+    document.addEventListener('click', e => {
+        if (!suggestions.contains(e.target) && e.target !== nameInput) acClear();
+    });
+
+    function resultIcon(result) {
+        if (result === 'won')         return '<i class="fa-solid fa-trophy text-warning"></i>';
+        if (result === 'shortlisted') return '<i class="fa-solid fa-medal text-secondary"></i>';
+        return '<i class="fa-regular fa-star text-muted"></i>';
+    }
+    function resultBadge(result) {
+        const cls = result === 'won' ? 'bg-warning text-dark' : result === 'shortlisted' ? 'bg-secondary' : 'bg-light text-dark border';
+        return `<span class="badge ${cls}">${result.charAt(0).toUpperCase() + result.slice(1)}</span>`;
+    }
+
+    function addAwardRow(ba) {
+        const noMsg = document.getElementById('noAwardsMsg');
+        if (noMsg) noMsg.remove();
+
+        const div = document.createElement('div');
+        div.className = 'd-flex align-items-center gap-2 mb-2 award-entry';
+        div.dataset.awardId = ba.id;
+        div.innerHTML = `
+            ${resultIcon(ba.result)}
+            <span class="fw-semibold">${ba.award_name.replace(/</g,'&lt;')}</span>
+            ${ba.year ? `<span class="text-muted">${ba.year}</span>` : ''}
+            ${ba.category ? `<span class="text-muted small fst-italic">${ba.category.replace(/</g,'&lt;')}</span>` : ''}
+            ${resultBadge(ba.result)}
+            <button type="button" class="btn btn-link btn-sm text-danger p-0 ms-auto remove-award-btn" data-id="${ba.id}" title="Remove">
+                <i class="fa-solid fa-times"></i>
+            </button>`;
+        list.appendChild(div);
+    }
+
+    list.addEventListener('click', async e => {
+        const btn = e.target.closest('.remove-award-btn');
+        if (!btn) return;
+        const id  = parseInt(btn.dataset.id, 10);
+        btn.disabled = true;
+        const res  = await fetch('json_endpoints/book_awards.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'remove', id }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            btn.closest('.award-entry').remove();
+            if (!list.querySelector('.award-entry')) {
+                const p = document.createElement('p');
+                p.className = 'text-muted small';
+                p.id = 'noAwardsMsg';
+                p.textContent = 'No awards recorded yet.';
+                list.appendChild(p);
+            }
+        } else {
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('addAwardBtn')?.addEventListener('click', async () => {
+        const award    = nameInput.value.trim();
+        const year     = document.getElementById('awardYearInput').value.trim();
+        const category = document.getElementById('awardCategoryInput').value.trim();
+        const result   = document.getElementById('awardResultInput').value;
+        msg.style.display = 'none';
+
+        if (!award) { msg.textContent = 'Award name is required.'; msg.style.display = ''; return; }
+
+        const res  = await fetch('json_endpoints/book_awards.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add', book_id: BOOK_ID, award, year, category, result }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            addAwardRow({ id: data.id, award_name: award, year: year || null, category: category || null, result });
+            nameInput.value = '';
+            document.getElementById('awardYearInput').value    = '';
+            document.getElementById('awardCategoryInput').value = '';
+            document.getElementById('awardResultInput').value  = 'nominated';
+            acClear();
+        } else {
+            msg.textContent = data.error || 'Failed to add award.';
+            msg.style.display = '';
+        }
+    });
+})();
+</script>
 <div id="convertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:1rem">
     <div class="spinner-border" style="width:3rem;height:3rem" role="status"></div>
     <div id="convertOverlayMsg" style="font-size:1.1rem;font-weight:500">Converting…</div>
@@ -1062,6 +1473,176 @@ tinymce.init({
     });
 });
 
+async function saveGoodreadsId(grId) {
+    const saveRes  = await fetch('json_endpoints/save_identifier.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ book_id: <?= (int)$id ?>, type: 'goodreads', val: grId }),
+    });
+    const saveData = await saveRes.json();
+    if (!saveData.ok) {
+        alert('Failed to save: ' + (saveData.error || 'unknown error'));
+        return false;
+    }
+    // Unmark from metadata + shelves progress so it re-fetches on next import run
+    const fd = new FormData();
+    fd.append('book_id', <?= (int)$id ?>);
+    fetch('json_endpoints/gr_unmark_done.php', { method: 'POST', body: fd });
+    // Keep manual input in sync
+    const inp = document.getElementById('manualGrIdInput');
+    if (inp) inp.value = grId;
+    return true;
+}
+
+document.getElementById('manualGrIdSaveBtn')?.addEventListener('click', async function () {
+    const input = document.getElementById('manualGrIdInput');
+    const grId  = input.value.trim();
+    if (!grId) { input.focus(); return; }
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    const ok = await saveGoodreadsId(grId);
+    this.disabled = false;
+    this.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+    if (ok) {
+        document.getElementById('findGoodreadsBtn').innerHTML =
+            '<i class="fa-brands fa-goodreads me-1"></i>Update Goodreads ID';
+        document.getElementById('goodreadsMetaBtn')?.removeAttribute('disabled');
+        const resultsDiv = document.getElementById('goodreadsSearchResults');
+        resultsDiv.innerHTML = `<span class="text-success small"><i class="fa-solid fa-check me-1"></i>Saved Goodreads ID: ${grId} — will re-fetch metadata on next import run.</span>`;
+        resultsDiv.style.display = '';
+    }
+});
+
+// Allow pressing Enter in the manual input
+document.getElementById('manualGrIdInput')?.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('manualGrIdSaveBtn').click();
+});
+
+document.getElementById('findGoodreadsBtn')?.addEventListener('click', async function () {
+    const btn        = this;
+    const resultsDiv = document.getElementById('goodreadsSearchResults');
+    const origHtml   = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Searching…';
+    resultsDiv.style.display = 'none';
+    resultsDiv.innerHTML = '';
+
+    try {
+        const res  = await fetch('json_endpoints/goodreads_search.php?book_id=<?= (int)$id ?>');
+        const data = await res.json();
+
+        if (data.error) { alert('Goodreads search: ' + data.error); return; }
+
+        if (!data.results || data.results.length === 0) {
+            resultsDiv.innerHTML = '<p class="text-muted small mb-0">No results found.</p>';
+            resultsDiv.style.display = '';
+            return;
+        }
+
+        if (data.isbn_query) {
+            const isbnMatches = data.results.filter(r => r.isbn_match).length;
+            resultsDiv.dataset.isbnNote = isbnMatches
+                ? `ISBN ${data.isbn_query} matched ${isbnMatches} result(s) — shown first`
+                : `ISBN ${data.isbn_query} tried but no match found`;
+        }
+
+        let html = '';
+        if (data.isbn_query) {
+            const note = data.results.some(r => r.isbn_match)
+                ? `<span class="text-success"><i class="fa-solid fa-barcode me-1"></i>ISBN ${data.isbn_query.replace(/</g,'&lt;')} matched — shown first</span>`
+                : `<span class="text-muted"><i class="fa-solid fa-barcode me-1"></i>ISBN ${data.isbn_query.replace(/</g,'&lt;')} — no direct match, showing title search</span>`;
+            html += `<div class="small mb-1 px-1">${note}</div>`;
+        }
+        html += '<div class="list-group" style="max-width:560px">';
+        data.results.forEach(r => {
+            const title  = r.title.replace(/</g, '&lt;');
+            const author = r.author ? `<span class="text-muted"> — ${r.author.replace(/</g,'&lt;')}</span>` : '';
+            const year   = r.pub_year  ? `<span class="text-muted ms-1">${r.pub_year}</span>` : '';
+            const stars  = r.rating    ? `<span class="text-warning ms-1">★${r.rating}</span>` : '';
+            const count  = r.rating_count ? `<span class="text-muted ms-1" style="font-size:0.7rem">${Number(r.rating_count).toLocaleString()} ratings</span>` : '';
+            const isbnBadge = r.isbn_match ? `<span class="badge bg-success ms-1" style="font-size:0.65rem">ISBN</span>` : '';
+            html += `<button type="button" class="list-group-item list-group-item-action py-1 px-2 small gr-pick${r.isbn_match ? ' list-group-item-success' : ''}"
+                         data-gr-id="${r.id}">
+                        <div><strong>${title}</strong>${isbnBadge}${author}</div>
+                        <div style="font-size:0.7rem">${year}${stars}${count}<span class="text-muted ms-1">#${r.id}</span></div>
+                    </button>`;
+        });
+        html += '</div>';
+        resultsDiv.innerHTML = html;
+        resultsDiv.style.display = '';
+
+        resultsDiv.querySelectorAll('.gr-pick').forEach(pickBtn => {
+            pickBtn.addEventListener('click', async function () {
+                const grId = this.dataset.grId;
+                this.disabled = true;
+                const ok = await saveGoodreadsId(grId);
+                if (!ok) { this.disabled = false; return; }
+                btn.innerHTML = '<i class="fa-brands fa-goodreads me-1"></i>Update Goodreads ID';
+                document.getElementById('goodreadsMetaBtn')?.removeAttribute('disabled');
+                resultsDiv.innerHTML = `<span class="text-success small"><i class="fa-solid fa-check me-1"></i>Saved Goodreads ID: ${grId} — will re-fetch metadata on next import run.</span>`;
+            });
+        });
+
+    } catch (e) {
+        alert('Goodreads search failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
+
+document.querySelectorAll('.review-expand-btn').forEach(btn => {
+    const body = btn.previousElementSibling;
+    const fade = body.querySelector('[data-review-fade]');
+    if (body.scrollHeight <= body.offsetHeight + 10) {
+        btn.style.display = 'none'; return;
+    }
+    btn.addEventListener('click', () => {
+        body.style.maxHeight = 'none';
+        if (fade) fade.style.display = 'none';
+        btn.style.display = 'none';
+    });
+});
+
+document.getElementById('goodreadsMetaBtn')?.addEventListener('click', async function () {
+    const btn = this;
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Fetching…';
+
+    try {
+        const res  = await fetch('json_endpoints/goodreads_metadata.php?book_id=<?= (int)$id ?>');
+        const data = await res.json();
+
+        if (data.error) {
+            alert('Goodreads: ' + data.error);
+            return;
+        }
+
+        if (data.description) {
+            const ed = tinymce.get('description');
+            if (ed) {
+                ed.setContent(data.description);
+            } else {
+                document.getElementById('description').value = data.description;
+            }
+        }
+
+        if (data.series) {
+            document.getElementById('seriesInput').value = data.series;
+        }
+        if (data.series_index) {
+            document.getElementById('seriesIndex').value = data.series_index;
+        }
+    } catch (e) {
+        alert('Goodreads fetch failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
+
 document.getElementById('stripHtmlBtn')?.addEventListener('click', function () {
     const ta = document.getElementById('description');
     const tmp = document.createElement('div');
@@ -1073,5 +1654,107 @@ document.getElementById('stripHtmlBtn')?.addEventListener('click', function () {
     ta.value = (tmp.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
 });
 </script>
+
+<?php if ($grWorkId): ?>
+<script>
+(function () {
+    const bookId   = <?= (int)$id ?>;
+    const container = document.getElementById('similarBooksContainer');
+    const refreshBtn = document.getElementById('similarRefreshBtn');
+    let loaded = <?= $similarBooksCount > 0 ? 'false' : 'false' ?>;
+
+    function renderBooks(books) {
+        if (!books.length) {
+            container.innerHTML = '<p class="text-muted small">No similar books found for this title on Goodreads.</p>';
+            return;
+        }
+        const html = books.map(b => {
+            const series  = b.series ? `<div class="text-muted" style="font-size:0.78rem">${escHtml(b.series)}${b.series_position ? ' #' + escHtml(b.series_position) : ''}</div>` : '';
+            const rating  = b.gr_rating ? `<span class="text-warning me-2" style="font-size:0.8rem">★${b.gr_rating.toFixed(2)}</span>` : '';
+            const count   = b.gr_rating_count ? `<span class="text-muted" style="font-size:0.75rem">${b.gr_rating_count.toLocaleString()} ratings</span>` : '';
+            const inLib   = b.in_library
+                ? `<a href="book.php?id=${b.library_book_id}" class="badge bg-success text-decoration-none ms-1" title="In your library">In library</a>`
+                : '';
+            const grLink  = `<a href="https://www.goodreads.com/book/show/${escHtml(b.gr_book_id)}" target="_blank" rel="noopener" class="badge bg-secondary text-decoration-none">GR</a>`;
+            const cover   = b.cover_url
+                ? `<img src="${escHtml(b.cover_url)}" alt="" class="similar-cover" loading="lazy" onerror="this.style.display='none'">`
+                : `<div class="similar-cover-placeholder"><i class="fa-solid fa-book"></i></div>`;
+            const desc    = b.description
+                ? `<div class="similar-desc small text-muted mt-2" style="max-height:5rem;overflow:hidden;font-size:0.78rem;line-height:1.5">${b.description}</div>`
+                : '';
+            return `<div class="similar-card">
+                <div class="d-flex gap-3">
+                    <div class="similar-cover-wrap flex-shrink-0">${cover}</div>
+                    <div class="flex-grow-1 overflow-hidden">
+                        <div class="fw-semibold text-truncate">${escHtml(b.title || '')}</div>
+                        <div class="text-muted small text-truncate">${escHtml(b.author || '')}</div>
+                        ${series}
+                        <div class="mt-1">${rating}${count}</div>
+                        <div class="mt-1 d-flex gap-1 flex-wrap">${grLink}${inLib}</div>
+                        ${desc}
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+        container.innerHTML = `<div class="similar-grid">${html}</div>`;
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function loadSimilar(refresh) {
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…';
+        container.innerHTML = '<p class="text-muted small">Fetching similar books from Goodreads…</p>';
+        try {
+            const url = `json_endpoints/fetch_gr_similar.php?book_id=${bookId}${refresh ? '&refresh=1' : ''}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.error) {
+                container.innerHTML = `<div class="alert alert-warning small">${escHtml(data.error)}</div>`;
+            } else {
+                renderBooks(data.books || []);
+                const badge = document.querySelector('#tabSimilarBtn .badge');
+                const count = (data.books || []).length;
+                if (badge) badge.textContent = count;
+                else if (count > 0) {
+                    document.getElementById('tabSimilarBtn').insertAdjacentHTML('beforeend',
+                        ` <span class="badge bg-secondary ms-1">${count}</span>`);
+                }
+            }
+        } catch (e) {
+            container.innerHTML = `<div class="alert alert-danger small">Request failed: ${escHtml(e.message)}</div>`;
+        }
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fa-solid fa-rotate me-1"></i>Refresh';
+    }
+
+    // Auto-load cached data when tab is first opened
+    document.getElementById('tabSimilarBtn').addEventListener('shown.bs.tab', function () {
+        if (!loaded) {
+            loaded = true;
+            <?php if ($similarBooksCount > 0): ?>
+            loadSimilar(false);
+            <?php else: ?>
+            // Nothing cached — leave the "click Fetch" prompt visible
+            <?php endif; ?>
+        }
+    });
+
+    refreshBtn.addEventListener('click', () => {
+        loaded = true;
+        loadSimilar(true);
+    });
+})();
+</script>
+<style>
+.similar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+.similar-card { border: 1px solid var(--bs-border-color); border-radius: 6px; padding: 0.75rem; }
+.similar-cover-wrap { width: 56px; }
+.similar-cover { width: 56px; height: 80px; object-fit: cover; border-radius: 3px; display: block; }
+.similar-cover-placeholder { width: 56px; height: 80px; border-radius: 3px; background: var(--bs-secondary-bg); display: flex; align-items: center; justify-content: center; color: var(--bs-secondary-color); }
+</style>
+<?php endif; ?>
 </body>
 </html>

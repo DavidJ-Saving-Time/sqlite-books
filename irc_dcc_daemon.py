@@ -30,15 +30,19 @@ CONFIG = {
     "NICKNAME": "prinn",
     "CHANNEL": "#ebooks",
     "HTTP_PORT": 5001,
-    "DOWNLOAD_DIR": "/srv/http/calibre-nilla/downloads",     # Where to store received files
-    "LOG_FILE": "/srv/http/calibre-nilla/ircLog/dcc_log",  # Log file
-    "DEBUG_LOG_SIZE": 20             # Number of recent IRC messages to keep
+    "DOWNLOAD_DIR": "/srv/http/calibre-nilla/downloads",
+    "SIMILAR_DOWNLOAD_DIR": "/mnt/library/autobooks",
+    "LOG_FILE": "/srv/http/calibre-nilla/ircLog/dcc_log",
+    "DEBUG_LOG_SIZE": 20
 }
 # ======================
 
 IRC_SOCKET = None
 irc_connected = False
 irc_last_messages = deque(maxlen=CONFIG["DEBUG_LOG_SIZE"])
+
+_next_dest = "default"
+_dest_lock = threading.Lock()
 
 
 # --- LOGGING ---
@@ -102,12 +106,16 @@ def irc_listener():
 
 
 def handle_privmsg(line):
+    global _next_dest
     if "PRIVMSG" in line and "DCC SEND" in line:
         dcc_info = parse_dcc_send(line)
         if dcc_info:
             filename, ip, port, size = dcc_info
-            log_event(f"Received DCC SEND offer: {filename} ({size} bytes) from {ip}:{port}")
-            threading.Thread(target=receive_dcc_file, args=(ip, port, filename, size), daemon=True).start()
+            with _dest_lock:
+                dest = _next_dest
+                _next_dest = "default"
+            log_event(f"Received DCC SEND offer: {filename} ({size} bytes) from {ip}:{port} [dest={dest}]")
+            threading.Thread(target=receive_dcc_file, args=(ip, port, filename, size, dest), daemon=True).start()
 
 
 def parse_dcc_send(message):
@@ -132,10 +140,11 @@ def parse_dcc_send(message):
         return None
 
 
-def receive_dcc_file(ip, port, filename, filesize):
+def receive_dcc_file(ip, port, filename, filesize, dest="default"):
     """Accept DCC connection and download file with .incomplete flag."""
-    os.makedirs(CONFIG["DOWNLOAD_DIR"], exist_ok=True)
-    final_path = os.path.join(CONFIG["DOWNLOAD_DIR"], filename)
+    dest_dir = CONFIG["SIMILAR_DOWNLOAD_DIR"] if dest == "similar" else CONFIG["DOWNLOAD_DIR"]
+    os.makedirs(dest_dir, exist_ok=True)
+    final_path = os.path.join(dest_dir, filename)
     temp_path = final_path + ".incomplete"
 
     try:
@@ -179,10 +188,12 @@ def api_status():
 
 @app.route("/downloaded-files", methods=["GET"])
 def api_downloaded_files():
-    os.makedirs(CONFIG["DOWNLOAD_DIR"], exist_ok=True)
+    dir_key = request.args.get("dir", "default")
+    watch_dir = CONFIG["SIMILAR_DOWNLOAD_DIR"] if dir_key == "similar" else CONFIG["DOWNLOAD_DIR"]
+    os.makedirs(watch_dir, exist_ok=True)
     files = []
-    for fname in os.listdir(CONFIG["DOWNLOAD_DIR"]):
-        fpath = os.path.join(CONFIG["DOWNLOAD_DIR"], fname)
+    for fname in os.listdir(watch_dir):
+        fpath = os.path.join(watch_dir, fname)
         if os.path.isfile(fpath):
             stat = os.stat(fpath)
             files.append({
@@ -195,10 +206,14 @@ def api_downloaded_files():
 
 @app.route("/request-file", methods=["GET"])
 def api_request_file():
+    global _next_dest
     cmd = request.args.get("cmd")
+    dest = request.args.get("dest", "default")
     if cmd:
+        with _dest_lock:
+            _next_dest = dest
         IRC_SOCKET.sendall(f"PRIVMSG {CONFIG['CHANNEL']} :{cmd}\r\n".encode())
-        log_event(f"Sent request command: {cmd}")
+        log_event(f"Sent request command: {cmd} [dest={dest}]")
         return jsonify({"status": f"Request command '{cmd}' sent"}), 200
     return jsonify({"error": "No 'cmd' parameter provided"}), 400
 

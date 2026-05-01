@@ -65,7 +65,7 @@ $localGenres = $gStmt->fetchAll(PDO::FETCH_COLUMN);
 $ch = curl_init("https://openlibrary.org/works/{$olid}.json");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_USERAGENT      => 'calibre-nilla/1.0',
+    CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (personal library tool; principle3@gmail.com)',
     CURLOPT_TIMEOUT        => 10,
 ]);
 $olJson   = curl_exec($ch);
@@ -87,7 +87,7 @@ $olCoverUrl    = $olCoverId ? "https://covers.openlibrary.org/b/id/{$olCoverId}-
 $seriesDisplayName = $seriesKey;
 if ($seriesKey) {
     $ch = curl_init("https://openlibrary.org/series/{$seriesKey}.json");
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_USERAGENT => 'calibre-nilla/1.0', CURLOPT_TIMEOUT => 6]);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_USERAGENT => 'calibre-nilla/1.0 (personal library tool; principle3@gmail.com)', CURLOPT_TIMEOUT => 6]);
     $sBody = curl_exec($ch); $sStatus = curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
     if ($sStatus === 200 && $sBody) {
         $sData = json_decode($sBody, true);

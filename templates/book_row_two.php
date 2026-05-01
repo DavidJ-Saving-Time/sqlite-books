@@ -1,230 +1,282 @@
-
-
-
 <?php
-$desc = strip_tags(trim($book['description'] ?? ''));
-$goodreadsUrl = '';
-if (!empty($book['authors'])) {
-    $firstAuthor = explode('|', $book['authors'])[0];
-    $nameParts = preg_split('/\s+/', trim($firstAuthor));
-    $firstName = $nameParts[0] ?? '';
-    $surname   = $nameParts[count($nameParts) - 1] ?? '';
-    $goodreadsUrl = 'https://www.goodreads.com/search?q=' . urlencode(trim($firstName . ' ' . $surname . ' ' . $book['title']));
+// ── Parse identifiers ─────────────────────────────────────────────────────────
+$bIds = [];
+foreach (explode('|', $book['all_identifiers'] ?? '') as $pair) {
+    $colon = strpos($pair, ':');
+    if ($colon !== false) $bIds[substr($pair, 0, $colon)] = substr($pair, $colon + 1);
 }
+$bvWorkId    = $bIds['gr_work_id'] ?? '';
+$bvGrRating  = $bIds['gr_rating']  ?? '';
+$bvGrCount   = $bIds['gr_rating_count'] ?? '';
+$bvGrPages   = $bIds['gr_pages']   ?? '';
+$bvGoodreads = $bIds['goodreads']  ?? '';
+$bvAmazon    = $bIds['amazon'] ?? $bIds['asin'] ?? '';
+
+// ── Author links ──────────────────────────────────────────────────────────────
+$authorIds   = array_values(array_filter(explode('|', $book['author_ids'] ?? ''), 'strlen'));
+$authorNames = array_values(array_filter(explode('|', $book['authors']    ?? ''), 'strlen'));
+$authorLinks = [];
+foreach (array_slice(array_map(null, $authorIds, $authorNames), 0, 3) as [$aid, $aname]) {
+    if (!$aid || !$aname) continue;
+    $authorLinks[] = '<a href="list_books.php?author_id=' . urlencode($aid) . '" class="text-muted text-decoration-none">' . htmlspecialchars($aname) . '</a>';
+}
+
+// ── Cover URL ─────────────────────────────────────────────────────────────────
+$coverSrc = getLibraryWebPath() . '/' . $book['path'] . '/cover.jpg';
+
+// ── Read URL ──────────────────────────────────────────────────────────────────
+$readUrl = '';
+if ($firstFile) {
+    $ftype   = strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION));
+    $readUrl = $ftype === 'PDF'
+        ? getLibraryWebPath() . '/' . $firstFile
+        : 'reader.php?file=' . urlencode($firstFile);
+}
+
+// ── GR rating format ──────────────────────────────────────────────────────────
+$bvRatingFmt = '';
+if ($bvGrRating) {
+    $n = (int)$bvGrCount;
+    $cFmt = $n >= 1000000 ? round($n/1000000,1).'M' : ($n >= 1000 ? round($n/1000,1).'k' : ($n ?: ''));
+    $bvRatingFmt = '★ ' . htmlspecialchars($bvGrRating) . ($cFmt ? " <span class='text-muted' style='font-size:0.78rem'>($cFmt)</span>" : '');
+}
+
+// ── Genre ─────────────────────────────────────────────────────────────────────
+$firstGenreVal = '';
+if (!empty($book['genres'])) {
+    $g = explode('|', $book['genres'])[0];
+    if ($g !== '') $firstGenreVal = $g;
+}
+
+// ── Tags ──────────────────────────────────────────────────────────────────────
+$tagList = array_filter(explode('|', $book['tags'] ?? ''), 'strlen');
+
+// ── Accordion unique IDs ──────────────────────────────────────────────────────
+$bid    = (int)$book['id'];
+$accId  = 'acc-' . $bid;
+$simId  = 'sim-' . $bid;
+$revId  = 'rev-' . $bid;
+$hasSim = !empty($book['similar_count']);
 ?>
-<div id="item-<?= $index ?>" class="col-md-6 col-12 list-item"
-     data-book-block-id="<?= (int)$book['id'] ?>"
-     data-book-index="<?= $index ?>">
-<div class="card h-100 shadow-sm">
-<div class="card-body d-flex gap-3 p-2">
+<?php
+$_sibIds = [$bid];
+if (!empty($seriesSiblings)) { foreach ($seriesSiblings as $_s) { $_sibIds[] = (int)$_s['id']; } }
+?>
+<div id="item-<?= $index ?>" class="col-12 list-item" data-book-block-id="<?= $bid ?>" data-book-index="<?= $index ?>" data-series-books="<?= implode(',', $_sibIds) ?>">
+<div class="card shadow-sm">
+<div class="card-body p-3">
+<div class="container">
 
-    <!-- COVER -->
-    <div class="flex-shrink-0 text-center cover-wrapper" style="width:80px">
-    <?php if (!empty($book['has_cover'])): ?>
-        <a href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>">
-            <img id="coverImage<?= (int)$book['id'] ?>"
-                 src="<?= htmlspecialchars(getLibraryWebPath() . '/' . $book['path'] . '/cover.jpg') ?>"
-                 class="img-thumbnail book-cover w-100"
-                 loading="lazy">
-        </a>
-    <?php else: ?>
-        <div class="bg-secondary rounded d-flex align-items-center justify-content-center text-white" style="width:80px;height:110px">
-            <i class="fa-solid fa-book fa-lg"></i>
-        </div>
-    <?php endif; ?>
-    </div>
+    <!-- ── Top: cover + info ─────────────────────────────────────────────── -->
+    <div class="d-flex gap-4">
 
-    <!-- CONTENT -->
-    <div class="flex-grow-1 d-flex flex-column" style="min-width:0">
-
-        <!-- TITLE -->
-        <div class="mb-1">
-            <?php if ($missing): ?>
-            <i class="fa-solid fa-circle-exclamation text-danger me-1"></i>
-            <?php endif; ?>
-            <a href="book.php?id=<?= urlencode($book['id']) ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-' . $index) ?>"
-               class="fw-semibold text-decoration-none book-title d-block text-truncate">
-                <?= htmlspecialchars($book['title']) ?>
+        <!-- Cover -->
+        <div class="flex-shrink-0 cover-wrapper">
+            <?php if (!empty($book['has_cover'])): ?>
+            <a href="book-view.php?id=<?= $bid ?>">
+                <img id="coverImage<?= $bid ?>"
+                     src="<?= htmlspecialchars($coverSrc) ?>"
+                     class="book-cover rounded shadow-sm"
+                     style="width:340px;height:auto;display:block"
+                     loading="lazy">
             </a>
+            <?php else: ?>
+            <div class="rounded bg-secondary-subtle d-flex align-items-center justify-content-center"
+                 style="width:240px;height:330px">
+                <i class="fa-solid fa-book fa-2x text-secondary"></i>
+            </div>
+            <?php endif; ?>
         </div>
 
-        <!-- AUTHORS -->
-        <div class="small text-muted mb-1 text-truncate">
-        <?php
-        if (!empty($book['author_ids']) && !empty($book['authors'])) {
-            $ids   = array_filter(explode('|', $book['author_ids']), 'strlen');
-            $names = array_filter(explode('|', $book['authors']),    'strlen');
-            $links = [];
-            foreach (array_slice(array_map(null, $ids, $names), 0, 2) as [$aid, $aname]) {
-                $url     = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
-                $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>';
-            }
-            echo implode(', ', $links);
-            if (count($ids) > 2) echo '…';
-        } else {
-            echo '&mdash;';
-        }
-        ?>
-        </div>
+        <!-- Info -->
+        <div class="flex-grow-1" style="min-width:0">
 
-        <!-- SERIES + PROGRESS -->
-        <?php if (!empty($book['series']) || isset($deviceProgress[$book['id']])): ?>
-        <div class="d-flex align-items-center gap-2 small text-muted mb-1 flex-wrap">
-            <?php if (!empty($book['series'])): ?>
-            <div class="text-truncate" style="max-width:200px">
-            <i class="fa-duotone fa-solid fa-arrow-turn-down-right"></i>
-                <a class="text-muted text-decoration-none"
-                   href="list_books.php?sort=<?= urlencode($sort) ?>&series_id=<?= urlencode($book['series_id']) ?>">
-                    <?= htmlspecialchars($book['series']) ?>
+            <!-- Title -->
+            <h5 class="mb-1 fw-bold">
+                <?php if ($missing): ?><i class="fa-solid fa-circle-exclamation text-danger me-1"></i><?php endif; ?>
+                <a href="book-view.php?id=<?= $bid ?>" class="text-decoration-none">
+                    <?= htmlspecialchars($book['title']) ?>
                 </a>
-                <?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?>
-                (<?= htmlspecialchars($book['series_index']) ?>)
+            </h5>
+
+            <!-- Authors -->
+            <?php if ($authorLinks): ?>
+            <div class="mb-1" style="font-size:0.9rem"><?= implode(', ', $authorLinks) ?></div>
+            <?php endif; ?>
+
+            <!-- Series -->
+            <?php if (!empty($book['series'])): ?>
+            <div class="mb-2 text-muted" style="font-size:0.82rem">
+                <i class="fa-solid fa-books fa-xs me-1"></i>
+                <a href="list_books.php?series_id=<?= (int)$book['series_id'] ?>" class="text-muted text-decoration-none">
+                    <?= htmlspecialchars($book['series']) ?><?php if ($book['series_index'] !== null && $book['series_index'] !== ''): ?> #<?= htmlspecialchars($book['series_index']) ?><?php endif; ?>
+                </a>
+            </div>
+            <?php endif; ?>
+
+            <!-- Meta: rating, pages, reading progress -->
+            <div class="d-flex flex-wrap align-items-center gap-3 mb-2" style="font-size:0.82rem;color:var(--bs-secondary-color)">
+                <?php if ($bvRatingFmt): ?>
+                <span class="text-warning-emphasis"><?= $bvRatingFmt ?></span>
+                <?php endif; ?>
+                <?php if ($bvGrPages): ?>
+                <span><i class="fa-solid fa-file-lines fa-xs me-1"></i><?= (int)$bvGrPages ?> pages</span>
+                <?php endif; ?>
+                <?php if (isset($deviceProgress[$bid])): ?>
+                <?php $dp = $deviceProgress[$bid]; $fill = $dp['percent'] !== null ? round($dp['percent'] * 100) : 0; ?>
+                <div class="d-flex align-items-center gap-1">
+                    <div class="progress" style="width:60px;height:5px">
+                        <div class="progress-bar" style="width:<?= $fill ?>%"></div>
+                    </div>
+                    <span><?= $fill ?>%</span>
+                </div>
                 <?php endif; ?>
             </div>
-            <?php endif; ?>
-            <?php if (isset($deviceProgress[$book['id']])): ?>
-            <?php $dp = $deviceProgress[$book['id']]; $fill = $dp['percent'] !== null ? round($dp['percent'] * 100) : 0; ?>
-            <div class="d-flex align-items-center gap-1" style="min-width:80px">
-                <div class="progress flex-grow-1" style="height:5px">
-                    <div class="progress-bar" style="width:<?= $fill ?>%"></div>
-                </div>
-                <span><?= $fill ?>%</span>
+
+            <!-- Tags / genre -->
+            <?php if ($tagList): ?>
+            <div class="d-flex flex-wrap gap-1 mb-2">
+                <?php foreach (array_slice($tagList, 0, 6) as $tag): ?>
+                <a href="list_books.php?genre=<?= urlencode($tag) ?>"
+                   class="badge bg-secondary-subtle text-secondary-emphasis text-decoration-none fw-normal" style="font-size:0.7rem">
+                    <?= htmlspecialchars($tag) ?>
+                </a>
+                <?php endforeach; ?>
             </div>
             <?php endif; ?>
-        </div>
-        <?php endif; ?>
 
-        <!-- DESCRIPTION -->
-        <?php if ($desc !== ''): ?>
-        <div class="small text-secondary mb-2 book-description"
-             style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden"
-             data-full="<?= htmlspecialchars($desc, ENT_QUOTES) ?>">
-            <?= htmlspecialchars(mb_substr($desc, 0, 200)) ?>
-        </div>
-        <?php endif; ?>
+            <!-- Full description -->
+            <?php if (!empty($book['description'])): ?>
+            <div class="two-desc two-desc-clamped" style="font-size:0.88rem;line-height:1.7">
+                <?= $book['description'] ?>
+            </div>
+            <button type="button" class="two-desc-toggle btn btn-link btn-sm p-0 mt-1" style="font-size:0.8rem">View more</button>
+            <?php endif; ?>
 
-        <!-- ACTIONS -->
-        <div class="d-flex align-items-center gap-2 mt-auto flex-wrap">
-
-            <div class="star-rating" data-book-id="<?= (int)$book['id'] ?>">
-            <?php for ($i = 1; $i <= 5; $i++): ?>
-            <i class="rating-star <?= ((int)$book['rating'] >= $i) ? 'fa-solid fa-star text-warning' : 'fa-regular fa-star text-muted' ?>"
-               data-value="<?= $i ?>" style="font-size:.75rem"></i>
-            <?php endfor; ?>
+            <!-- Action buttons -->
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <?php if ($readUrl): ?>
+                <a class="btn btn-sm btn-primary" href="<?= htmlspecialchars($readUrl) ?>"
+                   target="<?= strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION)) === 'PDF' ? '_blank' : '_self' ?>">
+                    <i class="fa-regular fa-book-open me-1"></i>Read
+                </a>
+                <?php endif; ?>
+                <a class="btn btn-sm btn-secondary" href="book-view.php?id=<?= $bid ?>">
+                    <i class="fa-solid fa-eye me-1"></i>View
+                </a>
+                <a class="btn btn-sm btn-secondary" href="book.php?id=<?= $bid ?>&page=<?= urlencode($page) ?>&item=<?= urlencode('item-'.$index) ?>">
+                    <i class="fa-solid fa-pen-to-square me-1"></i>Edit
+                </a>
+                <?php if (!empty($onDevice[$bid])): ?>
+                <button class="btn btn-sm btn-warning remove-from-device-row"
+                        data-book-id="<?= $bid ?>"
+                        data-device-path="<?= htmlspecialchars($onDevice[$bid]) ?>">
+                    <i class="fa-solid fa-tablet-screen-button me-1"></i>Remove
+                </button>
+                <?php elseif ($firstFile): ?>
+                <button class="btn btn-sm btn-secondary send-to-device-row" data-book-id="<?= $bid ?>">
+                    <i class="fa-solid fa-paper-plane me-1"></i>Send
+                </button>
+                <?php endif; ?>
+                <button class="btn btn-sm btn-danger delete-book" data-book-id="<?= $bid ?>">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
             </div>
 
-            <?php if ($firstFile):
-                $ftype = strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION));
-                if ($ftype === 'PDF') { $readerUrl = getLibraryWebPath() . '/' . $firstFile; $readerTarget = '_blank'; }
-                else                  { $readerUrl = 'reader.php?file=' . urlencode($firstFile); $readerTarget = '_self'; }
-            ?>
-            <a class="btn btn-sm btn-primary" href="<?= htmlspecialchars($readerUrl) ?>" target="<?= $readerTarget ?>">
-                <i class="fa-light fa-book-open"></i>
-            </a>
-            <?php endif; ?>
+        </div><!-- /info -->
+    </div><!-- /top -->
 
-            <?php if (!empty($onDevice[$book['id']])): ?>
-            <button class="btn btn-sm btn-warning remove-from-device-row"
-                    data-book-id="<?= (int)$book['id'] ?>"
-                    data-device-path="<?= htmlspecialchars($onDevice[$book['id']]) ?>">
-                <i class="fa-solid fa-tablet-screen-button"></i>
-            </button>
-            <?php elseif ($firstFile): ?>
-            <button class="btn btn-sm btn-primary send-to-device-row"
-                    data-book-id="<?= (int)$book['id'] ?>">
-                <i class="fa-solid fa-paper-plane"></i>
-            </button>
-            <?php endif; ?>
+    <!-- ── Sections: Series siblings + Similar + AI Recs + Reviews ─────── -->
 
-            <a class="btn btn-sm btn-primary" href="notes.php?id=<?= urlencode($book['id']) ?>">
-                <i class="fa-solid fa-note-sticky"></i>
-            </a>
-
-            <?php if ($goodreadsUrl): ?>
-            <a href="<?= htmlspecialchars($goodreadsUrl) ?>" target="_blank" class="btn btn-sm btn-primary">
-                <i class="fa-brands fa-goodreads"></i>
-            </a>
-            <?php endif; ?>
-
-            <button class="btn btn-sm btn-primary"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#meta-<?= $index ?>">
-                <i class="fa-solid fa-gear"></i>
-            </button>
-
-            <button class="btn btn-sm btn-danger delete-book"
-                    data-book-id="<?= (int)$book['id'] ?>">
-                <i class="fa-solid fa-trash"></i>
-            </button>
+    <?php if (!empty($seriesSiblings)):
+        // Group siblings by subseries (empty string = no subseries)
+        $sibsBySubseries = [];
+        foreach ($seriesSiblings as $sib) {
+            $sibsBySubseries[$sib['subseries'] ?? ''][] = $sib;
+        }
+        // Put the rep book's own subseries first
+        $repSubseries = $book['subseries'] ?? '';
+        if ($repSubseries !== '' && isset($sibsBySubseries[$repSubseries])) {
+            $sibsBySubseries = [$repSubseries => $sibsBySubseries[$repSubseries]]
+                             + $sibsBySubseries;
+        }
+        $multiSub = count($sibsBySubseries) > 1 || !array_key_exists('', $sibsBySubseries);
+    ?>
+    <!-- Also in this series -->
+    <div class="mt-2 pt-2 border-top">
+    <div class="border border-3 border-primary p-2 rounded" style="background:var(--metabar-bg,#F5F5F5)">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fa-solid fa-books text-primary" style="font-size:0.8rem"></i>
+            <span class="fw-semibold" style="font-size:0.85rem">Also in this series</span>
+            <span class="badge bg-secondary fw-normal" style="font-size:0.7rem"><?= count($seriesSiblings) ?></span>
         </div>
+        <?php foreach ($sibsBySubseries as $subName => $sibs): ?>
+        <?php $rowHeading = trim(htmlspecialchars($book['series'] ?? '') . ($subName !== '' ? ' ' . '<i class="me-1 fa-duotone fa-solid fa-arrow-right-from-arc"></i> ' . htmlspecialchars($subName) : '')); ?>
+        <div class="text-muted mb-1 mt-2 p-3 rounded" style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;background:var(--bs-border-color)">
+        <i class="me-1 fa-duotone fa-solid fa-bars-staggered"></i> <?= $rowHeading ?> 
+        </div>
+        <div class="two-strip-wrap">
+            <button class="two-strip-arrow two-strip-arrow-left" style="display:none" aria-label="Scroll left"><i class="fa-solid fa-chevron-left"></i></button>
+            <div class="two-scroll-strip">
+                <?php foreach ($sibs as $sib): ?>
+                <?php $sibCover = getLibraryWebPath() . '/' . $sib['path'] . '/cover.jpg'; ?>
+                <a href="book-view.php?id=<?= (int)$sib['id'] ?>" class="similar-thumb-card text-decoration-none flex-shrink-0">
+                    <div class="similar-thumb-img">
+                        <?php if ($sib['has_cover']): ?>
+                        <img src="<?= htmlspecialchars($sibCover) ?>" alt="" class="similar-thumb img-thumbnail" loading="lazy">
+                        <?php else: ?>
+                        <div class="similar-thumb-placeholder"><i class="fa-solid fa-book"></i></div>
+                        <?php endif; ?>
+                    </div>
 
+                </a>
+                <?php endforeach; ?>
+            </div>
+            <button class="two-strip-arrow two-strip-arrow-right" style="display:none" aria-label="Scroll right"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+        <?php endforeach; ?>
+    </div><!-- /metabar bg -->
     </div>
-</div>
+    <?php endif; ?>
 
-<!-- COLLAPSIBLE METADATA -->
-<div id="meta-<?= $index ?>" class="collapse">
-<div class="card-footer bg-light border-top p-2">
-<div class="d-flex flex-wrap gap-2">
+    <?php if ($hasSim): ?>
+    <!-- Similar Books (always visible, auto-loaded) -->
+    <div class="mt-3 pt-2 border-top">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fa-solid fa-list-ul text-primary" style="font-size:0.8rem"></i>
+            <span class="fw-semibold" style="font-size:0.85rem">Similar Books</span>
+            <?php if ($hasSim): ?>
+            <span class="badge bg-secondary fw-normal" style="font-size:0.7rem"><?= (int)$book['similar_count'] ?></span>
+            <?php endif; ?>
+        </div>
+        <div class="two-sim-body" data-book-id="<?= $bid ?>"></div>
+    </div>
+    <?php endif; ?>
 
-    <div>
-        <label class="small text-muted d-block">Genre</label>
-        <select class="form-select form-select-sm genre-select" data-book-id="<?= (int)$book['id'] ?>">
-            <option value="">None</option>
-            <?php foreach ($genreList as $g): ?>
-            <option value="<?= htmlspecialchars($g['value']) ?>" <?= $g['value'] === $firstGenreVal ? 'selected' : '' ?>>
-                <?= htmlspecialchars($g['value']) ?>
-            </option>
-            <?php endforeach; ?>
-        </select>
+    <?php if (!empty($book['has_recs']) && !empty($book['rec_text'])): ?>
+    <!-- AI Recommendations (always visible) -->
+    <div class="mt-3 pt-2 border-top">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fa-solid fa-robot text-primary" style="font-size:0.8rem"></i>
+            <span class="fw-semibold" style="font-size:0.85rem">AI Recommendations</span>
+        </div>
+        <div class="two-rec-body"
+             data-rec-json="<?= htmlspecialchars($book['rec_text']) ?>"></div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Reviews (collapsed until clicked) -->
+    <div class="mt-2 pt-2 border-top">
+        <div class="two-section-hdr d-flex align-items-center gap-2" data-two-target="<?= $revId ?>">
+            <i class="fa-brands fa-goodreads text-primary" style="font-size:0.8rem"></i>
+            <span class="fw-semibold" style="font-size:0.85rem">Reviews</span>
+            <i class="fa-solid fa-chevron-down ms-auto two-section-chevron"></i>
+        </div>
+        <div id="<?= $revId ?>" class="two-rev-body"
+             data-book-id="<?= $bid ?>" style="display:none"></div>
     </div>
 
-    <div>
-        <label class="small text-muted d-block">Shelf</label>
-        <select class="form-select form-select-sm shelf-select" data-book-id="<?= (int)$book['id'] ?>">
-            <?php foreach ($shelfList as $s): ?>
-            <option value="<?= htmlspecialchars($s) ?>" <?= $book['shelf'] === $s ? 'selected' : '' ?>>
-                <?= htmlspecialchars($s) ?>
-            </option>
-            <?php endforeach; ?>
-        </select>
-    </div>
-
-    <div>
-        <label class="small text-muted d-block">Status</label>
-        <select class="form-select form-select-sm status-select" data-book-id="<?= (int)$book['id'] ?>">
-            <option value="Want to Read" <?= ($book['status'] === null || $book['status'] === '') ? 'selected' : '' ?>>Want to Read</option>
-            <?php foreach ($statusOptions as $s):
-                if ($s === 'Want to Read') continue; ?>
-            <option value="<?= htmlspecialchars($s) ?>" <?= $book['status'] === $s ? 'selected' : '' ?>><?= htmlspecialchars($s) ?></option>
-            <?php endforeach; ?>
-        </select>
-    </div>
-
-    <div class="position-relative">
-        <label class="small text-muted d-block">Series</label>
-        <input type="text" class="form-control form-control-sm series-name-input"
-               style="width:12rem"
-               data-book-id="<?= (int)$book['id'] ?>"
-               data-series-id="<?= htmlspecialchars($book['series_id'] ?? '') ?>"
-               value="<?= htmlspecialchars($book['series'] ?? '') ?>"
-               placeholder="None">
-        <ul class="series-suggestions list-group position-absolute w-100"
-            style="z-index:1050;display:none;max-height:180px;overflow-y:auto"></ul>
-    </div>
-
-    <div>
-        <label class="small text-muted d-block">Index</label>
-        <input type="number" step="0.1" min="0"
-               class="form-control form-control-sm series-index-input"
-               style="width:5rem"
-               data-book-id="<?= (int)$book['id'] ?>"
-               value="<?= htmlspecialchars($book['series_index'] ?? '') ?>">
-    </div>
-
-</div>
-</div>
-</div>
-
-</div><!-- /.card -->
-</div><!-- /.col -->
-
+</div><!-- /container -->
+</div><!-- /card-body -->
+</div><!-- /card -->
+</div><!-- /col -->

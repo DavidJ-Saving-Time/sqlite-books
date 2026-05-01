@@ -1,8 +1,8 @@
 <?php
 /**
  * For every book that already has a real OLID, fetch its editions from
- * OpenLibrary and import any identifiers (ISBN, Goodreads, LibraryThing,
- * Amazon, Google Books, etc.) that are not yet in the Calibre identifiers table.
+ * OpenLibrary and import any identifiers (ISBN, LibraryThing, Amazon,
+ * Google Books, OCLC, Goodreads, etc.) that are not yet in the Calibre identifiers table.
  *
  * Usage:
  *   php scripts/ol_import_identifiers.php <username> [--dry-run] [--force] [--delay=N]
@@ -18,17 +18,20 @@ if (PHP_SAPI !== 'cli') {
 }
 
 // ── Args ──────────────────────────────────────────────────────────────────────
-$args   = array_slice($argv, 1);
-$user   = null;
-$dryRun = false;
-$force  = false;
-$delay  = 1;
+$args          = array_slice($argv, 1);
+$user          = null;
+$dryRun        = false;
+$force         = false;
+$delay         = 1;
+$preferEnglish = true;   // default: prefer English-language editions
 
 foreach ($args as $arg) {
-    if ($arg === '--dry-run')                   { $dryRun = true; }
-    elseif ($arg === '--force')                 { $force  = true; }
-    elseif (str_starts_with($arg, '--delay='))  { $delay  = max(0, (int)substr($arg, 8)); }
-    elseif (!str_starts_with($arg, '-'))        { $user   = $arg; }
+    if ($arg === '--dry-run')                      { $dryRun        = true; }
+    elseif ($arg === '--force')                    { $force         = true; }
+    elseif ($arg === '--prefer-english')           { $preferEnglish = true; }
+    elseif ($arg === '--no-prefer-english')        { $preferEnglish = false; }
+    elseif (str_starts_with($arg, '--delay='))     { $delay         = max(0, (int)substr($arg, 8)); }
+    elseif (!str_starts_with($arg, '-'))           { $user          = $arg; }
 }
 
 if ($user === null) {
@@ -74,17 +77,17 @@ $books = $pdo->query("
 
 $total = count($books);
 echo "User: $user | DB: $dbPath\n";
-echo "Books with OLIDs: $total" . ($dryRun ? " [DRY RUN]" : "") . ($force ? " [--force, re-fetching all]" : " [skipping already-fetched]") . "\n";
+echo "Books with OLIDs: $total" . ($dryRun ? " [DRY RUN]" : "") . ($force ? " [--force, re-fetching all]" : " [skipping already-fetched]") . ($preferEnglish ? " [prefer English]" : "") . "\n";
 echo str_repeat('─', 70) . "\n";
 
 // ── Calibre type → OL identifier key mapping ──────────────────────────────────
 // OL stores these under edition['identifiers'][key] as arrays
 // isbn_10 and isbn_13 are top-level on the edition, not inside 'identifiers'
 const OL_ID_MAP = [
-    'goodreads'   => 'goodreads',
     'librarything' => 'librarything',
     'amazon'      => 'amazon',
     'google'      => 'google',
+    'goodreads'   => 'goodreads',
     'oclc'        => 'oclc_numbers', // top-level array on edition
 ];
 
@@ -94,7 +97,7 @@ function ol_fetch(string $url): ?array {
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (library management; contact via github)',
+        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (personal library tool; principle3@gmail.com)',
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_FOLLOWLOCATION => true,
     ]);
@@ -107,10 +110,24 @@ function ol_fetch(string $url): ?array {
 }
 
 /**
+ * Return true if an OL edition is English (or has no language listed).
+ * No-language editions are treated as English since most un-tagged OL records are English.
+ */
+function is_english_edition(array $ed): bool {
+    $langs = $ed['languages'] ?? [];
+    if (empty($langs)) return true;
+    foreach ($langs as $lang) {
+        if (($lang['key'] ?? '') === '/languages/eng') return true;
+    }
+    return false;
+}
+
+/**
  * Collect identifiers from all editions of a work.
  * Returns ['calibre_type' => 'value', ...] — one value per type, first found wins.
+ * When $preferEnglish is true, English-language editions are checked first.
  */
-function collect_identifiers(string $workOlid): array {
+function collect_identifiers(string $workOlid, bool $preferEnglish = true): array {
     $found = [];
 
     // If it's an edition OLID (OL...M), follow it to the work first
@@ -121,10 +138,18 @@ function collect_identifiers(string $workOlid): array {
         $workOlid = ltrim(str_replace('/works/', '', $workKey), '/');
     }
 
-    $data = ol_fetch("https://openlibrary.org/works/{$workOlid}/editions.json?limit=20");
+    // Fetch up to 50 editions so we have a good chance of finding English ones
+    $data = ol_fetch("https://openlibrary.org/works/{$workOlid}/editions.json?limit=50");
     if (!$data) return [];
 
-    foreach (($data['entries'] ?? []) as $ed) {
+    $editions = $data['entries'] ?? [];
+
+    // Sort English editions to the front so identifiers are taken from them first
+    if ($preferEnglish && count($editions) > 1) {
+        usort($editions, fn($a, $b) => (int)!is_english_edition($a) - (int)!is_english_edition($b));
+    }
+
+    foreach ($editions as $ed) {
         // ISBN-10 and ISBN-13 are top-level arrays
         if (!isset($found['isbn']) && !empty($ed['isbn_10'])) {
             $found['isbn'] = $ed['isbn_10'][0];
@@ -177,7 +202,7 @@ foreach ($books as $i => $book) {
 
     echo sprintf("[%d/%d] %s (%s)\n", $num, $total, mb_substr($title, 0, 55), $olid);
 
-    $found = collect_identifiers($olid);
+    $found = collect_identifiers($olid, $preferEnglish);
 
     if (empty($found)) {
         echo "       — No identifiers found on OL\n";

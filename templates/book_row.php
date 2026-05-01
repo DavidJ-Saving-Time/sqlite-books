@@ -28,6 +28,14 @@
                 Recommendations
             </a>
         </div>
+        <?php if (!empty($book['gr_work_id'])): ?>
+        <div class="mt-1">
+            <a href="#" class="similar-toggle small text-muted"
+               data-book-id="<?= (int)$book['id'] ?>">
+                <i class="fa-solid fa-list-ul me-1"></i>Similar
+            </a>
+        </div>
+        <?php endif; ?>
     </div>
 
     <!-- Right: Title, Dropdowns, Description -->
@@ -61,6 +69,9 @@
                         <i class="fa-solid fa-building-columns fa-xs"></i>
                     </a>
                 <?php endif; ?>
+                <?php if (!empty($book['has_won_award'])): ?>
+                    <i class="fa-solid fa-trophy text-warning ms-1" title="Award winner"></i>
+                <?php endif; ?>
                 <?php if (!empty($onDevice[$book['id']])): ?>
                     <i class="fa-solid fa-tablet-screen-button text-success ms-1" title="On device"></i>
                 <?php endif; ?>
@@ -89,12 +100,14 @@
                 <div class="text-muted small book-authors">
                     <?php if (!empty($book['author_ids']) && !empty($book['authors'])): ?>
                         <?php
-                        $ids = array_filter(explode('|', $book['author_ids']), 'strlen');
-                        $names = array_filter(explode('|', $book['authors']), 'strlen');
+                        $ids          = array_values(array_filter(explode('|', $book['author_ids']), 'strlen'));
+                        $names        = array_values(array_filter(explode('|', $book['authors']), 'strlen'));
+                        $count        = min(count($ids), count($names), 3);
+                        $authorStyle  = !empty($book['has_hugo_nebula']) ? ' style="color:var(--hugo-nebula-author,#e8a000);font-weight:600;" title="Hugo &amp; Nebula winner"' : '';
                         $links = [];
-                        foreach (array_slice(array_map(null, $ids, $names), 0, 3) as [$aid, $aname]) {
+                        foreach (array_map(null, array_slice($ids, 0, $count), array_slice($names, 0, $count)) as [$aid, $aname]) {
                             $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid);
-                            $links[] = '<a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($aname) . '</a>'
+                            $links[] = '<a href="' . htmlspecialchars($url) . '"' . $authorStyle . '>' . htmlspecialchars($aname) . '</a>'
                                 . '<a href="#" class="author-info-btn ms-1 text-muted" data-author-id="' . (int)$aid . '" data-author-name="' . htmlspecialchars($aname, ENT_QUOTES) . '" title="Author info"><i class="fa-solid fa-circle-info fa-xs"></i></a>';
                         }
                         echo implode(', ', $links);
@@ -113,6 +126,14 @@
                     <?php endfor; ?>
                     <i class="fa-solid fa-xmark rating-clear ms-1<?= ($book['rating'] > 0) ? '' : ' d-none' ?>" data-value="0" title="Clear rating"></i>
                 </div>
+                <?php if (!empty($book['gr_rating'])): ?>
+                <span class="text-muted small me-1" title="Goodreads community rating"><?= htmlspecialchars($book['gr_rating']) ?>
+                    <?php if (!empty($book['gr_rating_count'])):
+                        $n = (int)$book['gr_rating_count'];
+                        $fmt = $n >= 1000000 ? round($n/1000000,1).'M' : ($n >= 1000 ? round($n/1000,1).'k' : $n);
+                    ?><span class="text-muted" style="font-size:0.7em">(<?= $fmt ?>)</span><?php endif; ?>
+                </span>
+                <?php endif; ?>
                 <?php if ($firstFile):
                     $ftype = strtoupper(pathinfo($firstFile, PATHINFO_EXTENSION));
                     if ($ftype === 'PDF') {
@@ -176,37 +197,6 @@
 
         <div class="metadata-bar mb-2">
 
-            <style>
-                .metadata-bar {
-                    background: var(--metabar-bg, #F5F5F5);
-                    border: 1px solid var(--metabar-border, #CFCFCF);
-                    border-top: 5px solid var(--metabar-border, #CFCFCF);
-                    border-radius: .35rem;
-                    padding: .6rem .9rem;
-                }
-
-                .metadata-bar label {
-                    font-size: .72rem;
-                    color: var(--metabar-label, #7A7A7A);
-                }
-
-                .metadata-bar .form-select-sm,
-                .metadata-bar .form-control-sm {
-                    min-height: 30px;
-                    padding-top: 2px;
-                    padding-bottom: 2px;
-                }
-
-
-                .progress-bar {
-                    font-size: 1rem !important;
-                    line-height: 1rem !important;
-                }
-
-                .title-edit-btn { opacity: 0; transition: opacity .15s; }
-                .flex-grow-1:hover .title-edit-btn { opacity: 1; }
-            </style>
-
             <div class="d-flex flex-wrap gap-3 align-items-end">
 
                 <?php
@@ -226,16 +216,13 @@
                     </label>
 
                     <select class="form-select form-select-sm genre-select"
-                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                        data-book-id="<?= htmlspecialchars($book['id']) ?>"
+                        data-current="<?= htmlspecialchars($firstGenreVal) ?>">
 
-                        <option value="" <?= $firstGenreVal === '' ? ' selected' : '' ?>>None</option>
-
-                        <?php foreach ($genreList as $g): ?>
-                            <option value="<?= htmlspecialchars($g['value']) ?>"
-                                <?= $g['value'] === $firstGenreVal ? ' selected' : '' ?>>
-                                <?= htmlspecialchars($g['value']) ?>
-                            </option>
-                        <?php endforeach; ?>
+                        <option value=""<?= $firstGenreVal === '' ? ' selected' : '' ?>>None</option>
+                        <?php if ($firstGenreVal !== ''): ?>
+                            <option value="<?= htmlspecialchars($firstGenreVal) ?>" selected><?= htmlspecialchars($firstGenreVal) ?></option>
+                        <?php endif; ?>
 
                     </select>
                 </div>
@@ -248,14 +235,14 @@
                     </label>
 
                     <select class="form-select form-select-sm shelf-select"
-                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                        data-book-id="<?= htmlspecialchars($book['id']) ?>"
+                        data-current="<?= htmlspecialchars($book['shelf'] ?? '') ?>">
 
-                        <?php foreach ($shelfList as $s): ?>
-                            <option value="<?= htmlspecialchars($s) ?>"
-                                <?= $book['shelf'] === $s ? ' selected' : '' ?>>
-                                <?= htmlspecialchars($s) ?>
-                            </option>
-                        <?php endforeach; ?>
+                        <?php if (!empty($book['shelf'])): ?>
+                            <option value="<?= htmlspecialchars($book['shelf']) ?>" selected><?= htmlspecialchars($book['shelf']) ?></option>
+                        <?php else: ?>
+                            <option value="" selected>—</option>
+                        <?php endif; ?>
 
                     </select>
                 </div>
@@ -267,31 +254,14 @@
                         <i class="fa-solid fa-bookmark me-1"></i>Status
                     </label>
 
+                    <?php
+                        $currentStatus = ($book['status'] !== null && $book['status'] !== '') ? $book['status'] : 'Want to Read';
+                    ?>
                     <select class="form-select form-select-sm status-select"
-                        data-book-id="<?= htmlspecialchars($book['id']) ?>">
+                        data-book-id="<?= htmlspecialchars($book['id']) ?>"
+                        data-current="<?= htmlspecialchars($currentStatus) ?>">
 
-                        <option value="Want to Read"
-                            <?= ($book['status'] === null || $book['status'] === '') ? ' selected' : '' ?>>
-                            Want to Read
-                        </option>
-
-                        <?php foreach ($statusOptions as $s): ?>
-                            <?php if ($s === 'Want to Read') continue; ?>
-
-                            <option value="<?= htmlspecialchars($s) ?>"
-                                <?= $book['status'] === $s ? ' selected' : '' ?>>
-                                <?= htmlspecialchars($s) ?>
-                            </option>
-
-                        <?php endforeach; ?>
-
-                        <?php if ($book['status'] !== null && $book['status'] !== '' && !in_array($book['status'], $statusOptions, true)): ?>
-
-                            <option value="<?= htmlspecialchars($book['status']) ?>" selected>
-                                <?= htmlspecialchars($book['status']) ?>
-                            </option>
-
-                        <?php endif; ?>
+                        <option value="<?= htmlspecialchars($currentStatus) ?>" selected><?= htmlspecialchars($currentStatus) ?></option>
 
                     </select>
                 </div>
@@ -342,6 +312,13 @@
 
         </div>
 
+
+        <?php if (!empty($book['gr_work_id'])): ?>
+        <div class="similar-panel mt-2" id="similar-panel-<?= (int)$book['id'] ?>"
+             <?php if (empty($book['similar_count'])): ?>style="display:none"<?php endif; ?>
+             <?php if (!empty($book['similar_count'])): ?>data-autoload="1"<?php endif; ?>>
+        </div>
+        <?php endif; ?>
 
         <?php if (isset($deviceProgress[$book['id']])): ?>
             <?php $dp = $deviceProgress[$book['id']];

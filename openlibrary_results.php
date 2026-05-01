@@ -14,6 +14,9 @@ if ($search !== '') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#212529">
+  <link rel="apple-touch-icon" href="/app-icons/icon-192.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Open Library Results</title>

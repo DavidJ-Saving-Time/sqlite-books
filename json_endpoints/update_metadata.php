@@ -55,33 +55,47 @@ try {
     }
 
     if ($coverData !== '') {
-        if ($bookPath !== null) {
-            $libraryPath = getLibraryPath();
-            $data = base64_decode($coverData);
-            if ($data !== false) {
-                $coverFile = $libraryPath . '/' . $bookPath . '/cover.jpg';
-                $dir = dirname($coverFile);
-                if (!is_dir($dir)) {
-                    mkdir($dir, 0777, true);
-                }
-                file_put_contents($coverFile, $data);
-                $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = :id')->execute([':id' => $bookId]);
-            }
+        if ($bookPath === null || $bookPath === '') {
+            throw new RuntimeException('Cannot save cover: book has no library path.');
         }
+        $libraryPath = getLibraryPath();
+        $data = base64_decode($coverData, true);
+        if ($data === false || strlen($data) < 4) {
+            throw new RuntimeException('Invalid base64 cover data.');
+        }
+        $coverFile = rtrim($libraryPath, '/') . '/' . $bookPath . '/cover.jpg';
+        $dir = dirname($coverFile);
+        if (!is_dir($dir) && !mkdir($dir, 0775, true)) {
+            throw new RuntimeException('Cannot create cover directory: ' . $dir);
+        }
+        $written = file_put_contents($coverFile, $data);
+        if ($written === false) {
+            $err = error_get_last()['message'] ?? 'unknown error';
+            throw new RuntimeException('Failed to write cover file: ' . $err);
+        }
+        $pdo->prepare('UPDATE books SET has_cover = 1, last_modified = CURRENT_TIMESTAMP WHERE id = :id')
+            ->execute([':id' => $bookId]);
     } elseif ($imgUrl !== '') {
-        if ($bookPath !== null) {
-            $libraryPath = getLibraryPath();
-            $data = @file_get_contents($imgUrl);
-            if ($data !== false) {
-                $coverFile = $libraryPath . '/' . $bookPath . '/cover.jpg';
-                $dir = dirname($coverFile);
-                if (!is_dir($dir)) {
-                    mkdir($dir, 0777, true);
-                }
-                file_put_contents($coverFile, $data);
-                $pdo->prepare('UPDATE books SET has_cover = 1 WHERE id = :id')->execute([':id' => $bookId]);
-            }
+        if ($bookPath === null || $bookPath === '') {
+            throw new RuntimeException('Cannot save cover: book has no library path.');
         }
+        $libraryPath = getLibraryPath();
+        $data = @file_get_contents($imgUrl);
+        if ($data === false) {
+            throw new RuntimeException('Failed to fetch cover from URL.');
+        }
+        $coverFile = rtrim($libraryPath, '/') . '/' . $bookPath . '/cover.jpg';
+        $dir = dirname($coverFile);
+        if (!is_dir($dir) && !mkdir($dir, 0775, true)) {
+            throw new RuntimeException('Cannot create cover directory: ' . $dir);
+        }
+        $written = file_put_contents($coverFile, $data);
+        if ($written === false) {
+            $err = error_get_last()['message'] ?? 'unknown error';
+            throw new RuntimeException('Failed to write cover file: ' . $err);
+        }
+        $pdo->prepare('UPDATE books SET has_cover = 1, last_modified = CURRENT_TIMESTAMP WHERE id = :id')
+            ->execute([':id' => $bookId]);
     }
 
     if ($title !== '') {
@@ -193,8 +207,12 @@ try {
         'cover_url' => $coverUrl,
         'authors_html' => $authorsHtml,
     ]);
+} catch (RuntimeException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    http_response_code(400);
+    echo json_encode(['error' => $e->getMessage()]);
 } catch (PDOException $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) $pdo->rollBack();
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
 }

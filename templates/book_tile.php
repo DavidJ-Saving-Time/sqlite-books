@@ -35,6 +35,9 @@
            data-book-id="<?= htmlspecialchars($book['id']) ?>">
           <?= htmlspecialchars($book['title']) ?>
         </a>
+        <?php if (!empty($book['has_won_award'])): ?>
+            <i class="fa-solid fa-trophy text-warning" title="Award winner" style="font-size:0.75rem;"></i>
+        <?php endif; ?>
         <?php if (!empty($onDevice[$book['id']])): ?>
             <i class="fa-solid fa-tablet-screen-button text-success" title="On device" style="font-size:0.75rem;"></i>
         <?php endif; ?>
@@ -43,13 +46,18 @@
       <div class="text-muted small mb-2 book-authors" itemprop="author">
         <?php if (!empty($book['author_ids']) && !empty($book['authors'])): ?>
           <?php
-            $ids   = array_values(array_filter(explode('|', $book['author_ids']), 'strlen'));
-            $names = array_values(array_filter(explode('|', $book['authors']), 'strlen'));
-            $pairs = array_slice(array_map(null, $ids, $names), 0, 3);
-            $out   = [];
+            $ids         = array_values(array_filter(explode('|', $book['author_ids']), 'strlen'));
+            $names       = array_values(array_filter(explode('|', $book['authors']), 'strlen'));
+            $pairs       = array_slice(array_map(null, $ids, $names), 0, 3);
+            $hugoNebula  = !empty($book['has_hugo_nebula']);
+            $out         = [];
             foreach ($pairs as [$aid, $aname]) {
               $url = 'list_books.php?sort=' . urlencode($sort) . '&author_id=' . urlencode($aid) . '&view=' . urlencode($view);
-              $out[] = '<a href="' . htmlspecialchars($url) . '" class="text-muted text-decoration-none" itemprop="name">' . htmlspecialchars($aname) . '</a>';
+              if ($hugoNebula) {
+                $out[] = '<a href="' . htmlspecialchars($url) . '" class="text-decoration-none fw-semibold" style="color:var(--hugo-nebula-author,#e8a000);" title="Hugo &amp; Nebula winner" itemprop="name">' . htmlspecialchars($aname) . '</a>';
+              } else {
+                $out[] = '<a href="' . htmlspecialchars($url) . '" class="text-muted text-decoration-none" itemprop="name">' . htmlspecialchars($aname) . '</a>';
+              }
             }
             echo implode(', ', $out);
             if (count($ids) > 3) echo '…';
@@ -96,7 +104,54 @@
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
+        <?php if (!empty($book['gr_rating'])): ?>
+        <div class="text-muted" style="font-size:0.7rem; margin-top:2px;" title="Goodreads community rating">
+          <?= htmlspecialchars($book['gr_rating']) ?>
+          <?php if (!empty($book['gr_rating_count'])):
+              $n = (int)$book['gr_rating_count'];
+              $fmt = $n >= 1000000 ? round($n/1000000,1).'M' : ($n >= 1000 ? round($n/1000,1).'k' : $n);
+          ?>(<?= $fmt ?>)<?php endif; ?>
+        </div>
+        <?php endif; ?>
       </div>
+      <?php
+        $tileAwards = [];
+        if (!empty($book['won_awards_detail'])) {
+            foreach (explode('~~', $book['won_awards_detail']) as $e) {
+                [$an, $ay] = explode('|', $e . '|', 2);
+                if (trim($an)) $tileAwards[] = ['name' => trim($an), 'year' => trim($ay), 'type' => 'won'];
+            }
+        }
+        if (!empty($book['citation_awards_detail'])) {
+            foreach (explode('~~', $book['citation_awards_detail']) as $e) {
+                [$an, $ay] = explode('|', $e . '|', 2);
+                if (trim($an)) $tileAwards[] = ['name' => trim($an), 'year' => trim($ay), 'type' => 'citation'];
+            }
+        }
+        if (!empty($book['nominated_awards_detail'])) {
+            foreach (explode('~~', $book['nominated_awards_detail']) as $e) {
+                [$an, $ay] = explode('|', $e . '|', 2);
+                if (trim($an)) $tileAwards[] = ['name' => trim($an), 'year' => trim($ay), 'type' => 'nominated'];
+            }
+        }
+      ?>
+      <?php if ($tileAwards): ?>
+      <div class="mt-1" style="font-size:0.65rem; line-height:1.5;">
+        <?php foreach ($tileAwards as $aw): ?>
+        <div class="d-flex align-items-baseline gap-1">
+          <?php if ($aw['type'] === 'won'): ?>
+            <i class="fa-solid fa-trophy text-warning flex-shrink-0" style="font-size:0.6rem;"></i>
+          <?php elseif ($aw['type'] === 'citation'): ?>
+            <i class="fa-solid fa-certificate text-info flex-shrink-0" style="font-size:0.6rem;"></i>
+          <?php else: ?>
+            <i class="fa-regular fa-bookmark text-muted flex-shrink-0" style="font-size:0.6rem;"></i>
+          <?php endif; ?>
+          <span class="<?= $aw['type'] === 'nominated' ? 'text-muted' : '' ?>" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?= htmlspecialchars($aw['name']) ?>"><?= htmlspecialchars($aw['name']) ?></span>
+          <?php if ($aw['year']): ?><span class="text-muted flex-shrink-0"><?= htmlspecialchars($aw['year']) ?></span><?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?php endif; ?>
     </div>
   </div>
 </article>

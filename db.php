@@ -4,6 +4,10 @@ umask(0002);
 
 require_once __DIR__ . '/TitleSortClass.php';
 require_once __DIR__ . '/AuthorSortClass.php';
+
+// Bump this when new required tables/columns are added to init_schema.php.
+// Any DB whose schema_version.val is below this will be redirected to init_schema.php.
+define('APP_SCHEMA_VERSION', 1);
 // Simple cookie based login
 function currentUser(): ?string {
     return $_COOKIE['user'] ?? null;
@@ -167,6 +171,60 @@ function firstBookFile(string $relativePath): ?string {
     return reset($found);
 }
 
+/**
+ * Normalise an author name for comparison:
+ *  1. Transliterate accented/special characters to ASCII equivalents.
+ *  2. Insert a space after any period immediately followed by a letter ("R.F." → "R. F.").
+ *  3. Collapse multiple spaces and trim.
+ *
+ * Does NOT lowercase — callers should apply strtolower() themselves when needed.
+ */
+function normalizeAuthorName(string $name): string {
+    static $map = [
+        // Western European
+        'À'=>'A','Á'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','Å'=>'A','Æ'=>'AE',
+        'Ç'=>'C','È'=>'E','É'=>'E','Ê'=>'E','Ë'=>'E',
+        'Ì'=>'I','Í'=>'I','Î'=>'I','Ï'=>'I',
+        'Ð'=>'D','Ñ'=>'N',
+        'Ò'=>'O','Ó'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','Ø'=>'O',
+        'Ù'=>'U','Ú'=>'U','Û'=>'U','Ü'=>'U',
+        'Ý'=>'Y','Þ'=>'TH','ß'=>'ss',
+        'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a','æ'=>'ae',
+        'ç'=>'c','è'=>'e','é'=>'e','ê'=>'e','ë'=>'e',
+        'ì'=>'i','í'=>'i','î'=>'i','ï'=>'i',
+        'ð'=>'d','ñ'=>'n',
+        'ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o','ø'=>'o',
+        'ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u',
+        'ý'=>'y','þ'=>'th','ÿ'=>'y',
+        // Polish
+        'Ą'=>'A','ą'=>'a','Ć'=>'C','ć'=>'c','Ę'=>'E','ę'=>'e',
+        'Ł'=>'L','ł'=>'l','Ń'=>'N','ń'=>'n','Ś'=>'S','ś'=>'s',
+        'Ź'=>'Z','ź'=>'z','Ż'=>'Z','ż'=>'z',
+        // Czech / Slovak
+        'Č'=>'C','č'=>'c','Ď'=>'D','ď'=>'d','Ě'=>'E','ě'=>'e',
+        'Ň'=>'N','ň'=>'n','Ř'=>'R','ř'=>'r','Š'=>'S','š'=>'s',
+        'Ť'=>'T','ť'=>'t','Ž'=>'Z','ž'=>'z','Ů'=>'U','ů'=>'u',
+        'Ĺ'=>'L','ĺ'=>'l','Ŕ'=>'R','ŕ'=>'r',
+        // Hungarian
+        'Ő'=>'O','ő'=>'o','Ű'=>'U','ű'=>'u',
+        // Romanian
+        'Ă'=>'A','ă'=>'a','Ș'=>'S','ș'=>'s','Ț'=>'T','ț'=>'t',
+        // Croatian / Serbian
+        'Đ'=>'D','đ'=>'d',
+        // Turkish
+        'Ğ'=>'G','ğ'=>'g','İ'=>'I','ı'=>'i','Ş'=>'S','ş'=>'s',
+        // Latvian / Lithuanian
+        'Ā'=>'A','ā'=>'a','Ē'=>'E','ē'=>'e','Ģ'=>'G','ģ'=>'g',
+        'Ī'=>'I','ī'=>'i','Ķ'=>'K','ķ'=>'k','Ļ'=>'L','ļ'=>'l',
+        'Ņ'=>'N','ņ'=>'n','Ū'=>'U','ū'=>'u',
+        'Ė'=>'E','ė'=>'e','Į'=>'I','į'=>'i','Ų'=>'U','ų'=>'u',
+    ];
+    $name = strtr($name, $map);
+    $name = preg_replace('/(?<=[A-Za-z])\.(?=[A-Za-z])/', '. ', $name); // J.K. → J. K.
+    $name = preg_replace('/\b([A-Z])(?![\.\w])/', '$1.', $name);         // bare initial: A → A.
+    return preg_replace('/\s+/', ' ', trim($name));
+}
+
 function getCustomColumnId(PDO $pdo, string $label): int {
     static $cache = [];
     if (!isset($cache[$label])) {
@@ -175,6 +233,23 @@ function getCustomColumnId(PDO $pdo, string $label): int {
         $cache[$label] = (int)$stmt->fetchColumn();
     }
     return $cache[$label];
+}
+
+function checkSchemaVersion(PDO $pdo): void {
+    // CLI scripts and init_schema.php itself are exempt
+    if (php_sapi_name() === 'cli') return;
+    if (basename($_SERVER['SCRIPT_FILENAME'] ?? '') === 'init_schema.php') return;
+
+    try {
+        $ver = (int)$pdo->query("SELECT val FROM schema_version LIMIT 1")->fetchColumn();
+        if ($ver >= APP_SCHEMA_VERSION) return;
+    } catch (PDOException $e) {
+        // Table doesn't exist yet — needs setup
+    }
+
+    $here = urlencode($_SERVER['REQUEST_URI'] ?? '/list_books.php');
+    header('Location: /init_schema.php?redirect=' . $here);
+    exit;
 }
 
 function getDatabaseConnection(?string $path = null) {
@@ -215,6 +290,27 @@ function getDatabaseConnection(?string $path = null) {
 
         
         
+        // file_mtime(path) — returns the newest mtime (Unix timestamp) among ebook
+        // files in the given book directory (relative to the library root).
+        // Used for "Last Updated (File)" sort.
+        $pdo->sqliteCreateFunction('file_mtime', function (string $relPath) {
+            static $libraryPath = null;
+            if ($libraryPath === null) {
+                $libraryPath = getLibraryPath();
+            }
+            $dir = $libraryPath . '/' . $relPath;
+            if (!is_dir($dir)) return 0;
+            $exts = ['epub', 'mobi', 'azw3', 'pdf', 'txt', 'docx'];
+            $newest = 0;
+            foreach (glob($dir . '/*') as $f) {
+                if (!is_file($f)) continue;
+                if (!in_array(strtolower(pathinfo($f, PATHINFO_EXTENSION)), $exts, true)) continue;
+                $mt = filemtime($f);
+                if ($mt > $newest) $newest = $mt;
+            }
+            return $newest;
+        }, 1);
+
         // Provide a uuid4() function used by triggers in the Calibre schema.
         // Generates a version 4 UUID string in the standard 8-4-4-4-12 format.
         $pdo->sqliteCreateFunction('uuid4', function () {
@@ -238,6 +334,7 @@ function getDatabaseConnection(?string $path = null) {
         }
 
         initializeFts($pdo);
+        checkSchemaVersion($pdo);
 
         return $pdo;
     } catch (PDOException $e) {

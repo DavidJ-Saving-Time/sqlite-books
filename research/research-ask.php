@@ -393,7 +393,12 @@ $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
             // 5) Generate answer
             $maxOut = $maxTokens;
             $answerModel = $modelName ?: 'anthropic/claude-sonnet-4.6';
-            $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxOut);
+            if (str_starts_with($answerModel, 'ollama/')) {
+                $ollamaModel = substr($answerModel, strlen('ollama/'));
+                $answer = generate_with_ollama($ollamaModel, $sys, $user, 0.1, $maxOut);
+            } else {
+                $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxOut);
+            }
         }
     } catch (Exception $e) {
         $error = $e->getMessage();
@@ -512,6 +517,12 @@ if ($sources) {
             <optgroup label="── Free">
             <option value="meta-llama/llama-3.3-70b-instruct:free" <?= (($_REQUEST['model'] ?? '') === 'meta-llama/llama-3.3-70b-instruct:free') ? 'selected' : '' ?>>llama-3.3-70b (free)</option>
             <option value="qwen/qwen3-coder:free" <?= (($_REQUEST['model'] ?? '') === 'qwen/qwen3-coder:free') ? 'selected' : '' ?>>qwen3-coder (free)</option>
+            </optgroup>
+            <optgroup label="── Local (Ollama)">
+            <option value="ollama/llama3:instruct" <?= (($_REQUEST['model'] ?? '') === 'ollama/llama3:instruct') ? 'selected' : '' ?>>llama3:instruct (local 8B)</option>
+            <option value="ollama/llama3.2:latest" <?= (($_REQUEST['model'] ?? '') === 'ollama/llama3.2:latest') ? 'selected' : '' ?>>llama3.2 (local 3B)</option>
+            <option value="ollama/qwen2.5:3b-instruct" <?= (($_REQUEST['model'] ?? '') === 'ollama/qwen2.5:3b-instruct') ? 'selected' : '' ?>>qwen2.5:3b (local 3B)</option>
+            <option value="ollama/phi3:mini" <?= (($_REQUEST['model'] ?? '') === 'ollama/phi3:mini') ? 'selected' : '' ?>>phi3:mini (local 3.8B)</option>
             </optgroup>
           </select>
         </div>
@@ -774,6 +785,23 @@ function generate_with_openai(string $model, string $system, string $user, strin
   ]);
   if (isset($res['output'][0]['content'][0]['text'])) return $res['output'][0]['content'][0]['text'];
   if (isset($res['content'][0]['text'])) return $res['content'][0]['text'];
+  if (isset($res['choices'][0]['message']['content'])) return $res['choices'][0]['message']['content'];
+  return json_encode($res);
+}
+function generate_with_ollama(string $model, string $system, string $user, float $temp=0.1, int $maxTokens=2000): string {
+  $payload = [
+    'model' => $model,
+    'messages' => [
+      ['role' => 'system', 'content' => $system],
+      ['role' => 'user',   'content' => $user]
+    ],
+    'temperature' => $temp,
+    'max_tokens'  => $maxTokens,
+    'stream'      => false,
+  ];
+  $res = http_post_json('http://localhost:11434/v1/chat/completions', $payload, [
+    'Content-Type: application/json',
+  ]);
   if (isset($res['choices'][0]['message']['content'])) return $res['choices'][0]['message']['content'];
   return json_encode($res);
 }

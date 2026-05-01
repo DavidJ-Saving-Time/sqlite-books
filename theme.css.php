@@ -40,7 +40,7 @@ $vars = is_array($theme['vars'] ?? null) ? $theme['vars'] : [];
 echo "@import url(" . $bsw . ");\n";
 
 // Separate out component-level overrides from root vars
-$componentVars = ['--form-control-color', '--form-control-bg'];
+$componentVars = ['--form-control-color', '--form-control-bg', '--form-control-focus-border'];
 $rootVars      = [];
 $components    = [];
 
@@ -72,4 +72,12 @@ if ($components) {
         echo '    background-color: ' . $components['--form-control-bg'] . ";\n";
     }
     echo "}\n";
+
+    if (isset($components['--form-control-focus-border'])) {
+        $fc = $components['--form-control-focus-border'];
+        echo "\n.form-control:focus, .form-select:focus, .form-check-input:focus {\n";
+        echo '    border-color: ' . $fc . ";\n";
+        echo '    box-shadow: 0 0 0 0.25rem color-mix(in srgb, ' . $fc . ' 25%, transparent)' . ";\n";
+        echo "}\n";
+    }
 }

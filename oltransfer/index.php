@@ -70,7 +70,7 @@ function olFetch(string $url): ?array {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (personal library tool)',
+        CURLOPT_USERAGENT      => 'calibre-nilla/1.0 (personal library tool; principle3@gmail.com)',
         CURLOPT_TIMEOUT        => 8,
     ]);
     $body   = curl_exec($ch);

@@ -27,6 +27,7 @@ $presets = [
             '--accent'             => '#fd8c00',
             '--row-stripe-a'       => 'transparent',
             '--row-stripe-b'       => 'rgba(0,0,0,0.04)',
+            '--row-select'         => 'rgba(253,140,0,0.15)',
             '--metabar-bg'         => '#f5f5f5',
             '--metabar-border'     => '#cfcfcf',
             '--metabar-label'      => '#7a7a7a',
@@ -34,6 +35,10 @@ $presets = [
             '--bs-link-color-rgb'  => '13, 110, 253',
             '--form-control-color' => '#212529',
             '--form-control-bg'    => '#ffffff',
+            '--award-won'          => '#f0b400',
+            '--award-citation'     => '#cd7f32',
+            '--award-nominated'    => '#a0a0a0',
+            '--hugo-nebula-author' => '#e8a000',
         ],
     ],
     'dark' => [
@@ -43,6 +48,7 @@ $presets = [
             '--accent'             => '#fd8c00',
             '--row-stripe-a'       => 'transparent',
             '--row-stripe-b'       => 'rgba(255,255,255,0.05)',
+            '--row-select'         => 'rgba(253,140,0,0.2)',
             '--metabar-bg'         => '#2a2a2e',
             '--metabar-border'     => '#444444',
             '--metabar-label'      => '#999999',
@@ -50,6 +56,10 @@ $presets = [
             '--bs-link-color-rgb'  => '110, 168, 254',
             '--form-control-color' => '#dee2e6',
             '--form-control-bg'    => '#303030',
+            '--award-won'          => '#f0b400',
+            '--award-citation'     => '#cd7f32',
+            '--award-nominated'    => '#a0a0a0',
+            '--hugo-nebula-author' => '#e8a000',
         ],
     ],
     'sepia' => [
@@ -59,6 +69,7 @@ $presets = [
             '--accent'             => '#8b6914',
             '--row-stripe-a'       => 'transparent',
             '--row-stripe-b'       => 'rgba(0,0,0,0.03)',
+            '--row-select'         => 'rgba(139,105,20,0.15)',
             '--metabar-bg'         => '#f4ecd8',
             '--metabar-border'     => '#c8a97a',
             '--metabar-label'      => '#8b6914',
@@ -66,6 +77,10 @@ $presets = [
             '--bs-link-color-rgb'  => '139, 105, 20',
             '--form-control-color' => '#3b2f1e',
             '--form-control-bg'    => '#fdf6e3',
+            '--award-won'          => '#c8960c',
+            '--award-citation'     => '#a0622a',
+            '--award-nominated'    => '#8a8a7a',
+            '--hugo-nebula-author' => '#c8960c',
         ],
     ],
     'slate' => [
@@ -75,6 +90,7 @@ $presets = [
             '--accent'             => '#ea7844',
             '--row-stripe-a'       => 'transparent',
             '--row-stripe-b'       => 'rgba(255,255,255,0.04)',
+            '--row-select'         => 'rgba(234,120,68,0.15)',
             '--metabar-bg'         => '#3a3f44',
             '--metabar-border'     => '#555',
             '--metabar-label'      => '#aaa',
@@ -82,6 +98,10 @@ $presets = [
             '--bs-link-color-rgb'  => '234, 120, 68',
             '--form-control-color' => '#c8c8c8',
             '--form-control-bg'    => '#3a3f44',
+            '--award-won'          => '#f0b400',
+            '--award-citation'     => '#cd7f32',
+            '--award-nominated'    => '#a0a0a0',
+            '--hugo-nebula-author' => '#e8a000',
         ],
     ],
 ];
@@ -115,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $vars['--accent'] = $accent;
         }
 
-        foreach (['stripe_a' => '--row-stripe-a', 'stripe_b' => '--row-stripe-b'] as $field => $prop) {
+        foreach (['stripe_a' => '--row-stripe-a', 'stripe_b' => '--row-stripe-b', 'row_select' => '--row-select', 'row_hover' => '--row-hover'] as $field => $prop) {
             $stripe = trim($_POST[$field] ?? '');
             if ($stripe !== '' && preg_match('/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|transparent)$/', $stripe)) {
                 $vars[$prop] = $stripe;
@@ -123,12 +143,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         foreach ([
-            'metabar_bg'         => '--metabar-bg',
-            'metabar_border'     => '--metabar-border',
-            'metabar_label'      => '--metabar-label',
-            'border_color'       => '--bs-border-color',
-            'form_control_color' => '--form-control-color',
-            'form_control_bg'    => '--form-control-bg',
+            'metabar_bg'               => '--metabar-bg',
+            'metabar_border'           => '--metabar-border',
+            'metabar_label'            => '--metabar-label',
+            'border_color'             => '--bs-border-color',
+            'form_control_color'       => '--form-control-color',
+            'form_control_bg'          => '--form-control-bg',
+            'form_control_focus_border'=> '--form-control-focus-border',
+            'award_won'                => '--award-won',
+            'award_citation'           => '--award-citation',
+            'award_nominated'          => '--award-nominated',
+            'hugo_nebula_author'       => '--hugo-nebula-author',
         ] as $field => $prop) {
             $val = trim($_POST[$field] ?? '');
             if (preg_match('/^#[0-9a-fA-F]{6}$/', $val)) {
@@ -158,6 +183,8 @@ $vars          = $current['vars'] ?? [];
 $fAccent        = $vars['--accent']            ?? '#fd8c00';
 $fStripeA       = $vars['--row-stripe-a']       ?? 'transparent';
 $fStripeB       = $vars['--row-stripe-b']       ?? 'rgba(0,0,0,0.04)';
+$fRowSelect     = $vars['--row-select']         ?? 'rgba(253,140,0,0.15)';
+$fRowHover      = $vars['--row-hover']          ?? 'rgba(253,140,0,0.08)';
 $fMetabarBg     = $vars['--metabar-bg']         ?? '#f5f5f5';
 $fMetabarBorder = $vars['--metabar-border']     ?? '#cfcfcf';
 $fMetabarLabel  = $vars['--metabar-label']      ?? '#7a7a7a';
@@ -166,12 +193,21 @@ $fLinkRgb          = $vars['--bs-link-color-rgb']   ?? '13, 110, 253';
 $fLinkHex          = rgbToHex($fLinkRgb);
 $fStripeAHex       = preg_match('/^#[0-9a-fA-F]{6}$/', $fStripeA) ? $fStripeA : '#ffffff';
 $fStripeBHex       = preg_match('/^#[0-9a-fA-F]{6}$/', $fStripeB) ? $fStripeB : '#f0f0f0';
-$fFormControlColor = $vars['--form-control-color']  ?? '#212529';
-$fFormControlBg    = $vars['--form-control-bg']     ?? '#ffffff';
+$fRowSelectHex     = preg_match('/^#[0-9a-fA-F]{6}$/', $fRowSelect) ? $fRowSelect : '#fd8c00';
+$fFormControlColor       = $vars['--form-control-color']        ?? '#212529';
+$fFormControlBg          = $vars['--form-control-bg']           ?? '#ffffff';
+$fFormControlFocusBorder = $vars['--form-control-focus-border'] ?? '#86b7fe';
+$fAwardWon               = $vars['--award-won']                 ?? '#f0b400';
+$fAwardCitation          = $vars['--award-citation']            ?? '#cd7f32';
+$fAwardNominated         = $vars['--award-nominated']           ?? '#a0a0a0';
+$fHugoNebulaAuthor       = $vars['--hugo-nebula-author']        ?? '#e8a000';
 ?>
 <!doctype html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#212529">
+  <link rel="apple-touch-icon" href="/app-icons/icon-192.png">
   <meta charset="utf-8">
   <title>Theme Settings</title>
   <link rel="stylesheet" href="/theme.css.php">
@@ -255,6 +291,12 @@ $fFormControlBg    = $vars['--form-control-bg']     ?? '#ffffff';
                    data-var-component="form-control-bg">
             <label for="f_form_control_bg" class="form-text mb-0">Background</label>
           </div>
+          <div class="d-flex align-items-center gap-1">
+            <input type="color" id="f_form_control_focus_border" name="form_control_focus_border" class="form-control form-control-color"
+                   value="<?= htmlspecialchars($fFormControlFocusBorder) ?>"
+                   data-var="--form-control-focus-border">
+            <label for="f_form_control_focus_border" class="form-text mb-0">Focus border</label>
+          </div>
         </div>
         <div class="form-text">Applies to <code>.form-control</code>, <code>.form-select</code>, and checkboxes</div>
       </div>
@@ -303,6 +345,38 @@ $fFormControlBg    = $vars['--form-control-bg']     ?? '#ffffff';
       </div>
     </div>
 
+    <!-- Row hover highlight -->
+    <div class="mb-3 row align-items-start">
+      <label class="col-sm-4 col-form-label">Row hover highlight</label>
+      <div class="col-sm-8">
+        <div class="d-flex align-items-center gap-2">
+          <input type="color" id="f_row_hover_picker" class="form-control form-control-color"
+                 value="<?= htmlspecialchars(preg_match('/^#[0-9a-fA-F]{6}$/', $fRowHover) ? $fRowHover : '#fd8c00') ?>">
+          <input type="text" id="f_row_hover" name="row_hover" class="form-control"
+                 value="<?= htmlspecialchars($fRowHover) ?>"
+                 placeholder="rgba(253,140,0,0.08)"
+                 data-var="--row-hover">
+        </div>
+        <div class="form-text mt-1">Background colour when hovering a row in the simple list view</div>
+      </div>
+    </div>
+
+    <!-- Row select highlight -->
+    <div class="mb-3 row align-items-start">
+      <label class="col-sm-4 col-form-label">Row selection highlight</label>
+      <div class="col-sm-8">
+        <div class="d-flex align-items-center gap-2">
+          <input type="color" id="f_row_select_picker" class="form-control form-control-color"
+                 value="<?= htmlspecialchars($fRowSelectHex) ?>">
+          <input type="text" id="f_row_select" name="row_select" class="form-control"
+                 value="<?= htmlspecialchars($fRowSelect) ?>"
+                 placeholder="rgba(253,140,0,0.15)"
+                 data-var="--row-select">
+        </div>
+        <div class="form-text mt-1">Background colour for selected rows in the simple list view</div>
+      </div>
+    </div>
+
     <!-- Metadata bar -->
     <div class="mb-4 row">
       <label class="col-sm-4 col-form-label">Metadata bar</label>
@@ -328,6 +402,40 @@ $fFormControlBg    = $vars['--form-control-bg']     ?? '#ffffff';
           </div>
         </div>
         <div class="form-text">Genre / shelf / status bar on each book row</div>
+      </div>
+    </div>
+
+    <!-- Award colours -->
+    <div class="mb-4 row">
+      <label class="col-sm-4 col-form-label">Award colours</label>
+      <div class="col-sm-8">
+        <div class="d-flex flex-wrap gap-3 mb-1">
+          <div class="d-flex align-items-center gap-1">
+            <input type="color" id="f_award_won" name="award_won" class="form-control form-control-color"
+                   value="<?= htmlspecialchars($fAwardWon) ?>"
+                   data-var="--award-won">
+            <label for="f_award_won" class="form-text mb-0">Won</label>
+          </div>
+          <div class="d-flex align-items-center gap-1">
+            <input type="color" id="f_award_citation" name="award_citation" class="form-control form-control-color"
+                   value="<?= htmlspecialchars($fAwardCitation) ?>"
+                   data-var="--award-citation">
+            <label for="f_award_citation" class="form-text mb-0">Special citation</label>
+          </div>
+          <div class="d-flex align-items-center gap-1">
+            <input type="color" id="f_award_nominated" name="award_nominated" class="form-control form-control-color"
+                   value="<?= htmlspecialchars($fAwardNominated) ?>"
+                   data-var="--award-nominated">
+            <label for="f_award_nominated" class="form-text mb-0">Nominated</label>
+          </div>
+          <div class="d-flex align-items-center gap-1">
+            <input type="color" id="f_hugo_nebula_author" name="hugo_nebula_author" class="form-control form-control-color"
+                   value="<?= htmlspecialchars($fHugoNebulaAuthor) ?>"
+                   data-var="--hugo-nebula-author">
+            <label for="f_hugo_nebula_author" class="form-text mb-0">Hugo &amp; Nebula author</label>
+          </div>
+        </div>
+        <div class="form-text">Colour of award lines and book title in the simple list view; Hugo &amp; Nebula author colour applies to all views</div>
       </div>
     </div>
 
@@ -362,21 +470,31 @@ $fFormControlBg    = $vars['--form-control-bg']     ?? '#ffffff';
     formControlStyle.id = 'formControlPreview';
     document.head.appendChild(formControlStyle);
     function updateFormControlPreview() {
-        const color = document.getElementById('f_form_control_color')?.value || '';
-        const bg    = document.getElementById('f_form_control_bg')?.value || '';
-        formControlStyle.textContent =
-            '.form-control, .form-select, .form-check-input {' +
+        const color  = document.getElementById('f_form_control_color')?.value || '';
+        const bg     = document.getElementById('f_form_control_bg')?.value || '';
+        const focus  = document.getElementById('f_form_control_focus_border')?.value || '';
+        let css = '.form-control, .form-select, .form-check-input {' +
             (color ? ' color: ' + color + ';' : '') +
             (bg    ? ' background-color: ' + bg + ';' : '') +
             ' }';
+        if (focus) {
+            css += ' .form-control:focus, .form-select:focus, .form-check-input:focus {' +
+                ' border-color: ' + focus + ';' +
+                ' box-shadow: 0 0 0 0.25rem ' + focus + '40;' +
+                ' }';
+        }
+        formControlStyle.textContent = css;
     }
     document.getElementById('f_form_control_color')?.addEventListener('input', updateFormControlPreview);
     document.getElementById('f_form_control_bg')?.addEventListener('input', updateFormControlPreview);
+    document.getElementById('f_form_control_focus_border')?.addEventListener('input', updateFormControlPreview);
     updateFormControlPreview();
 
-    // Stripe A & B: picker ↔ text field sync
+    // Stripe A, B & row-select: picker ↔ text field sync
     [['f_stripe_a_picker', 'f_stripe_a', '--row-stripe-a'],
-     ['f_stripe_b_picker', 'f_stripe_b', '--row-stripe-b']].forEach(([pickerId, textId, prop]) => {
+     ['f_stripe_b_picker', 'f_stripe_b', '--row-stripe-b'],
+     ['f_row_hover_picker', 'f_row_hover', '--row-hover'],
+     ['f_row_select_picker', 'f_row_select', '--row-select']].forEach(([pickerId, textId, prop]) => {
         const picker = document.getElementById(pickerId);
         const text   = document.getElementById(textId);
         if (!picker || !text) return;
@@ -393,5 +511,6 @@ $fFormControlBg    = $vars['--form-control-bg']     ?? '#ffffff';
     });
 })();
 </script>
+<script src="js/search.js"></script>
 </body>
 </html>

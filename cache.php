@@ -178,6 +178,26 @@ function getCachedSubseriesInfo(PDO $pdo, int $ttl = CACHE_TTL): array {
     }, $ttl);
 }
 
+/** Fetch awards with book counts and win counts, cached. */
+function getCachedAwards(PDO $pdo, int $ttl = CACHE_TTL): array {
+    return getCachedData('awards', function () use ($pdo) {
+        try {
+            $stmt = $pdo->query(
+                "SELECT a.id, a.name,
+                        COUNT(DISTINCT ba.book_id) AS book_count,
+                        SUM(CASE WHEN ba.result = 'won' THEN 1 ELSE 0 END) AS won_count
+                 FROM awards a
+                 LEFT JOIN book_awards ba ON ba.award_id = a.id
+                 GROUP BY a.id
+                 ORDER BY a.name COLLATE NOCASE"
+            );
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
+        }
+    }, $ttl);
+}
+
 /** Total number of books in the library, cached. */
 function getTotalLibraryBooks(PDO $pdo, int $ttl = CACHE_TTL): int {
     return (int)getCachedData('total_books', function () use ($pdo) {

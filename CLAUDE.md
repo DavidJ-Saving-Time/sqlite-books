@@ -150,3 +150,35 @@ A self-contained personal note-taking application accessible at `/notes/` (label
 - **Search**: FTS5 MATCH with `<mark>`-highlighted snippets returned by `snippet()` function
 - TinyMCE stores content as HTML. View mode renders it directly — no Markdown conversion
 - The `notepad` table is also used by `json_endpoints/save_note.php` to let `research-ask.php` save answers directly into notes
+
+## PWA
+
+The app ships as a Progressive Web App (Option A — manifest + service worker):
+
+| File | Purpose |
+|---|---|
+| `manifest.json` | Web App Manifest: name, icons, `start_url=/list_books.php`, `display=standalone`, dark theme color |
+| `sw.js` | Service worker: cache-first for static assets (JS/CSS/images/fonts + `theme.css.php`), network-first for PHP pages with offline fallback, SSE streams and `/json_endpoints/` are never cached |
+| `offline.html` | Shown when a PHP page is requested offline and no cached copy exists |
+| `app-icons/icon.svg` | Source SVG icon (open book, dark background) |
+| `app-icons/icon-192.png` | Rasterised at 192×192 (generated via `rsvg-convert`) |
+| `app-icons/icon-512.png` | Rasterised at 512×512 (generated via `rsvg-convert`) |
+
+`navbar.php` emits the `<link rel="manifest">`, `<meta name="theme-color">`, and service worker registration `<script>` so every page that includes it gets PWA support automatically.
+
+To bump the SW cache (e.g. after a major static asset change), increment the `CACHE` version string in `sw.js` (e.g. `nilla-v1` → `nilla-v2`).
+
+## Future: Tauri Desktop Wrapper
+
+**Plan:** wrap calibre-nilla in [Tauri](https://tauri.app/) to ship it as a native desktop app (Windows/macOS/Linux) for users who want a proper app icon, offline-first experience, and OS-level file access without running a web server manually.
+
+**Key decisions to make when starting this work:**
+
+- **Backend**: Tauri's sidecar feature can bundle a local PHP-FPM + Nginx/Caddy process; the Tauri shell just opens `http://localhost:<port>`. No PHP-to-Rust rewrite needed.
+- **File access**: Calibre `metadata.db` and library path are currently configured per-user in `users.json`. For single-user desktop mode, a Tauri plugin (`tauri-plugin-dialog`) can let the user pick the library folder on first launch and store it in Tauri's app config directory.
+- **Auth**: Cookie-based multi-user auth can be removed or simplified to a single auto-logged-in user for desktop builds.
+- **SSE streams** (`auto_ingest_stream.php`, `similar_send_stream.php`): Tauri's webview supports `EventSource` natively — no changes needed.
+- **IRC daemon** (`irc_dcc_daemon.py`): can run as a Tauri sidecar process; `DOWNLOAD_DIR` paths would need to resolve relative to the app data directory.
+- **PWA → Tauri migration**: the existing `manifest.json` and `sw.js` can be kept for browser users; Tauri ignores them. Shared codebase, two distribution channels.
+
+**Rough effort estimate:** medium (1–2 weeks) — mostly Tauri project scaffolding, sidecar bundling, and packaging; zero PHP changes required.

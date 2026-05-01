@@ -36,3 +36,14 @@ oltransfer/config.php
 oltransfer/venv/
 logs/
 backups/
+
+# Runtime data and reference docs — not needed in the repo
+data/
+docs/
+
+# Temp files
+tmp.epub
+junk.html
+*.sqlite.bac
+__pycache__/
+gr_covers/

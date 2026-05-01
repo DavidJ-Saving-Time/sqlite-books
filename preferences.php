@@ -112,6 +112,11 @@ function deleteDirectories(array $submitted): array {
 }
 
 /**
+ * Returns groups of books that share the same title+author (case-insensitive).
+ * Each entry: ['title' => string, 'author' => string, 'books' => [['id','title','author','added'],...]]
+ */
+
+/**
  * Set the reading status for all books to "Not Read".
  */
 function resetAllStatusesToNotRead(): void {
@@ -224,6 +229,9 @@ $currentDevice    = getUserPreference(currentUser(), 'DEVICE',     getPreference
 <!doctype html>
 <html lang="en">
 <head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#212529">
+  <link rel="apple-touch-icon" href="/app-icons/icon-192.png">
   <meta charset="utf-8">
   <title>Preferences</title>
   <link rel="stylesheet" href="/theme.css.php">
@@ -233,7 +241,11 @@ $currentDevice    = getUserPreference(currentUser(), 'DEVICE',     getPreference
 <?php include 'navbar.php'; ?>
 <div class="container py-4" style="max-width: 640px;">
   <h1 class="mb-1">Preferences</h1>
-  <p class="text-muted mb-4"><a href="themes.php"><i class="fa-solid fa-palette me-1"></i>Theme settings</a></p>
+  <p class="text-muted mb-4">
+    <a href="themes.php"><i class="fa-solid fa-palette me-1"></i>Theme settings</a>
+    <span class="mx-2 text-muted">·</span>
+    <a href="wikipedia_import.php"><i class="fa-brands fa-wikipedia-w me-1"></i>Wikipedia import</a>
+  </p>
 
   <?php if ($message): ?>
     <div class="alert alert-<?php echo $alertClass; ?>"><?php echo htmlspecialchars($message); ?></div>
@@ -267,6 +279,15 @@ $currentDevice    = getUserPreference(currentUser(), 'DEVICE',     getPreference
   <form method="post" class="mt-3" onsubmit="return confirm('Are you sure you want to mark all books as Not Read?');">
     <button type="submit" name="reset_statuses" value="1" class="btn btn-danger">Mark All Books as Not Read</button>
   </form>
+  <hr class="my-4">
+  <h2 class="mb-3">Duplicate Books</h2>
+  <p class="text-muted small mb-3">
+    Find books that share the same title and author — shows file formats, disk size, and identifiers so you can decide which copy to keep.
+  </p>
+  <a href="dedup_books.php" class="btn btn-secondary">
+    <i class="fa-solid fa-clone me-1"></i>Open Duplicate Checker
+  </a>
+
   <hr class="my-4">
   <h2 class="mb-3">Library Cleanup</h2>
   <p class="text-muted small mb-3">
