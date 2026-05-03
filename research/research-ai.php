@@ -2,22 +2,21 @@
 /**
  * research-ai.php — Web front-end for PDF/EPUB ingestion.
  *
- * This script provides a simple HTML interface for uploading a book file
- * (PDF or EPUB) and supplying the same options that the CLI version accepts.
- * The ingest logic remains the same: the uploaded book is split into chunks,
- * embedded via the OpenAI Embeddings API, and stored in library.sqlite.
+ * Splits books into chunks, embeds via OpenAI, and stores in PostgreSQL
+ * (pgvector) instead of SQLite.  All other logic (PDF/EPUB extraction,
+ * chunking, page-label detection) is unchanged.
  *
  * Requirements:
  *   - poppler-utils (pdftotext, pdfinfo)
  *   - ebook-convert (from Calibre) for EPUB extraction
- *   - PHP PDO SQLite
+ *   - PHP PDO pgsql + pgvector extension installed in the DB
  *   - OPENAI_API_KEY set in environment
+ *   - PGHOST / PGPORT / PGDATABASE_RESEARCH / PGUSER / PGPASSWORD
  *   - Optional: OPENAI_EMBED_MODEL (default text-embedding-3-small)
- *
- * The SQLite schema is created automatically.
  */
 
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../db.php';   // Calibre DB (for getLibraryPath etc.)
+require_once __DIR__ . '/db.php';      // Research PG connection
 
 ini_set('memory_limit', '1G');
 
@@ -27,366 +26,183 @@ function out($msg) {
 
 function ensure_extension(string $path, string $extension): string {
     $extension = ltrim($extension, '.');
-    if ($extension === '') {
-        return $path;
-    }
-
+    if ($extension === '') return $path;
     $lowerPath = strtolower($path);
     $targetSuffix = '.' . strtolower($extension);
-    if (substr($lowerPath, -strlen($targetSuffix)) === $targetSuffix) {
-        return $path;
-    }
-
+    if (substr($lowerPath, -strlen($targetSuffix)) === $targetSuffix) return $path;
     $newPath = $path . $targetSuffix;
-    if (@rename($path, $newPath)) {
-        return $newPath;
-    }
-
+    if (@rename($path, $newPath)) return $newPath;
     return $path;
 }
 
 $statusMessage = null;
-$errorMessage = null;
+$errorMessage  = null;
 
-$prefillTitle = isset($_GET['title']) ? trim((string)$_GET['title']) : '';
-$prefillAuthor = isset($_GET['author']) ? trim((string)$_GET['author']) : '';
-$prefillYear = '';
+$prefillTitle    = isset($_GET['title'])           ? trim((string)$_GET['title'])  : '';
+$prefillAuthor   = isset($_GET['author'])          ? trim((string)$_GET['author']) : '';
+$prefillYear     = '';
 if (isset($_GET['year'])) {
-    $yearCandidate = trim((string)$_GET['year']);
-    if ($yearCandidate !== '' && preg_match('/^-?\d{1,4}$/', $yearCandidate)) {
-        $prefillYear = $yearCandidate;
-    }
+    $yc = trim((string)$_GET['year']);
+    if ($yc !== '' && preg_match('/^-?\d{1,4}$/', $yc)) $prefillYear = $yc;
 }
 $prefillLibraryId = '';
 if (isset($_GET['library_book_id'])) {
-    $libraryCandidate = trim((string)$_GET['library_book_id']);
-    if ($libraryCandidate !== '' && ctype_digit($libraryCandidate)) {
-        $prefillLibraryId = $libraryCandidate;
-    }
+    $lc = trim((string)$_GET['library_book_id']);
+    if ($lc !== '' && ctype_digit($lc)) $prefillLibraryId = $lc;
 }
 $prefillFilePath = '';
 if (isset($_GET['pdf_path'])) {
-    $prefillFilePath = trim((string)$_GET['pdf_path']);
-    $prefillFilePath = str_replace(["\r", "\n"], '', $prefillFilePath);
+    $prefillFilePath = str_replace(["\r", "\n"], '', trim((string)$_GET['pdf_path']));
 }
 $prefillFileUrl = '';
 if (isset($_GET['pdf_url'])) {
-    $prefillFileUrl = trim((string)$_GET['pdf_url']);
-    $prefillFileUrl = str_replace(["\r", "\n"], '', $prefillFileUrl);
+    $prefillFileUrl = str_replace(["\r", "\n"], '', trim((string)$_GET['pdf_url']));
 }
 if ($prefillFileUrl === '' && $prefillFilePath !== '') {
     $prefillFileUrl = rtrim(getLibraryWebPath(), '/') . '/' . ltrim($prefillFilePath, '/');
 }
 $prefillPageOffset = '0';
 if (isset($_GET['page_offset'])) {
-    $offsetCandidate = trim((string)$_GET['page_offset']);
-    if ($offsetCandidate === '' || preg_match('/^-?\d+$/', $offsetCandidate)) {
-        $prefillPageOffset = $offsetCandidate === '' ? '0' : $offsetCandidate;
-    }
+    $oc = trim((string)$_GET['page_offset']);
+    if ($oc === '' || preg_match('/^-?\d+$/', $oc)) $prefillPageOffset = $oc === '' ? '0' : $oc;
 }
-$hasPrefill = ($prefillTitle !== '' || $prefillAuthor !== '' || $prefillYear !== '' || $prefillLibraryId !== '' || $prefillFilePath !== '' || $prefillPageOffset !== '0');
+$hasPrefill = ($prefillTitle !== '' || $prefillAuthor !== '' || $prefillYear !== ''
+    || $prefillLibraryId !== '' || $prefillFilePath !== '' || $prefillPageOffset !== '0');
 
+// ── Delete ────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && $_POST['delete_id'] !== '') {
     $deleteId = (int)$_POST['delete_id'];
-    $dbPath = __DIR__ . '/../library.sqlite';
-    if (!is_file($dbPath)) {
-        $errorMessage = 'Database not found. Cannot delete book.';
-    } else {
-        try {
-            $db = new PDO('sqlite:' . $dbPath);
-            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-            $deleteAttempts = 0;
-            $lastException = null;
-
-            while ($deleteAttempts < 2) {
-                $deleteAttempts++;
-                $lastException = null;
-
-                try {
-                    $db->beginTransaction();
-
-                    if (!table_exists($db, 'items')) {
-                        throw new RuntimeException('Required table "items" is missing.');
-                    }
-
-                    $sel = $db->prepare('SELECT title FROM items WHERE id = :id');
-                    $sel->execute([':id' => $deleteId]);
-                    $book = $sel->fetch(PDO::FETCH_ASSOC);
-
-                    if (!$book) {
-                        $db->rollBack();
-                        $errorMessage = 'Book not found; nothing deleted.';
-                        break;
-                    }
-
-                    $debugDeletes = [];
-                    $params = [':id' => $deleteId];
-
-                    $hasChunks = table_exists($db, 'chunks');
-                    $hasChunkFts = table_exists($db, 'chunks_fts');
-
-                    if ($hasChunks && $hasChunkFts) {
-                        // Make sure the triggers exist before deleting from chunks so the FTS rows
-                        // are removed with the supported "delete" marker instead of a direct delete,
-                        // which can raise "SQL logic error" when the virtual table schema differs
-                        // across SQLite builds.
-                        $ftsRebuilt = ensure_chunks_fts($db);
-                        if ($ftsRebuilt) {
-                            backfill_chunks_fts($db);
-                            $debugDeletes[] = 'Rebuilt chunks_fts to match the current chunk schema.';
-                        }
-                    } elseif (!$hasChunks) {
-                        $debugDeletes[] = 'Skipped deleting from missing table "chunks".';
-                    } elseif (!$hasChunkFts) {
-                        $debugDeletes[] = 'Skipped deleting from missing table "chunks_fts".';
-                    }
-
-                    if ($hasChunks) {
-                        // Triggers on the chunks table will remove rows from chunks_fts when
-                        // rows are deleted here. Keeping to the trigger order avoids FTS5
-                        // "SQL logic error" failures caused by direct deletes against the
-                        // virtual table.
-                        $db->prepare('DELETE FROM chunks WHERE item_id = :id')->execute($params);
-                    }
-
-                    if (table_exists($db, 'page_map')) {
-                        $db->prepare('DELETE FROM page_map WHERE item_id = :id')->execute($params);
-                    } else {
-                        $debugDeletes[] = 'Skipped deleting from missing table "page_map".';
-                    }
-
-                    $db->prepare('DELETE FROM items WHERE id = :id')->execute($params);
-                    $db->commit();
-
-                    $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
-                    if ($debugDeletes) {
-                        $statusMessage .= ' ' . implode(' ', $debugDeletes);
-                    }
-                    break; // success
-                } catch (Exception $deleteError) {
-                    $lastException = $deleteError;
-                    if ($db->inTransaction()) {
-                        $db->rollBack();
-                    }
-
-                    // Logic errors from FTS can stem from corrupted or mismatched virtual tables.
-                    // Attempt a full rebuild and retry once so users are not stuck with the opaque
-                    // "SQL logic error" message.
-                    if ($deleteAttempts < 2 && looks_like_fts_logic_error($deleteError->getMessage())) {
-                        rebuild_chunks_fts_from_scratch($db);
-                        continue; // retry delete once after rebuild
-                    }
-                    throw $deleteError;
-                }
-            }
-
-            if ($lastException) {
-                throw $lastException;
-            }
-        } catch (Exception $e) {
-            if (isset($db) && $db->inTransaction()) {
-                $db->rollBack();
-            }
-            $errorMessage = 'Failed to delete book: ' . $e->getMessage();
+    try {
+        $db  = getResearchDb();
+        $sel = $db->prepare('SELECT title FROM items WHERE id = ?');
+        $sel->execute([$deleteId]);
+        $book = $sel->fetch(PDO::FETCH_ASSOC);
+        if (!$book) {
+            $errorMessage = 'Book not found; nothing deleted.';
+        } else {
+            // ON DELETE CASCADE removes chunks + page_map automatically
+            $db->prepare('DELETE FROM items WHERE id = ?')->execute([$deleteId]);
+            $statusMessage = sprintf('Deleted "%s" (ID %d) and related embeddings.', $book['title'], $deleteId);
         }
+    } catch (Exception $e) {
+        $errorMessage = 'Failed to delete book: ' . $e->getMessage();
     }
 }
 
+// ── Edit metadata ─────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id']) && $_POST['edit_id'] !== '') {
-    $editId = (int)$_POST['edit_id'];
-    $newTitle = trim($_POST['edit_title'] ?? '');
+    $editId    = (int)$_POST['edit_id'];
+    $newTitle  = trim($_POST['edit_title'] ?? '');
     $newAuthor = trim($_POST['edit_author'] ?? '');
-    $newYearRaw = trim($_POST['edit_year'] ?? '');
+    $newYearRaw      = trim($_POST['edit_year'] ?? '');
     $newLibraryIdRaw = trim($_POST['edit_library_book_id'] ?? '');
 
     if ($newTitle === '') {
         $errorMessage = 'Title is required when editing a book.';
     } else {
-        $newYear = $newYearRaw === '' ? null : (int)$newYearRaw;
+        $newYear      = $newYearRaw      === '' ? null : (int)$newYearRaw;
         $newLibraryId = $newLibraryIdRaw === '' ? null : (int)$newLibraryIdRaw;
-
-        $dbPath = __DIR__ . '/../library.sqlite';
-        if (!is_file($dbPath)) {
-            $errorMessage = 'Database not found. Cannot edit book.';
-        } else {
-            try {
-                $db = new PDO('sqlite:' . $dbPath);
-                $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-                if (!table_exists($db, 'items')) {
-                    throw new RuntimeException('Required table "items" is missing.');
-                }
-
-                $selectStmt = $db->prepare('SELECT id FROM items WHERE id = :id');
-                $selectStmt->execute([':id' => $editId]);
-                $existing = $selectStmt->fetch(PDO::FETCH_ASSOC);
-
-                if (!$existing) {
-                    $errorMessage = 'Book not found; nothing updated.';
-                } else {
-                    $update = $db->prepare('UPDATE items SET title = :t, author = :a, year = :y, library_book_id = :l WHERE id = :id');
-                    $update->bindValue(':t', $newTitle, PDO::PARAM_STR);
-                    $update->bindValue(':a', $newAuthor, PDO::PARAM_STR);
-                    $update->bindValue(':y', $newYear, $newYear === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
-                    $update->bindValue(':l', $newLibraryId, $newLibraryId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
-                    $update->bindValue(':id', $editId, PDO::PARAM_INT);
-                    $update->execute();
-
-                    $statusMessage = 'Book details updated successfully.';
-                }
-            } catch (Exception $e) {
-                $errorMessage = 'Failed to edit book: ' . $e->getMessage();
+        try {
+            $db = getResearchDb();
+            $sel = $db->prepare('SELECT id FROM items WHERE id = ?');
+            $sel->execute([$editId]);
+            if (!$sel->fetch()) {
+                $errorMessage = 'Book not found; nothing updated.';
+            } else {
+                $db->prepare('UPDATE items SET title = ?, author = ?, year = ?, library_book_id = ? WHERE id = ?')
+                   ->execute([$newTitle, $newAuthor, $newYear, $newLibraryId, $editId]);
+                $statusMessage = 'Book details updated successfully.';
             }
+        } catch (Exception $e) {
+            $errorMessage = 'Failed to edit book: ' . $e->getMessage();
         }
     }
 }
 
+// ── Ingest ────────────────────────────────────────────────────────────────────
 if (
     $_SERVER['REQUEST_METHOD'] === 'POST'
     && !(isset($_POST['delete_id']) && $_POST['delete_id'] !== '')
-    && !(isset($_POST['edit_id']) && $_POST['edit_id'] !== '')
+    && !(isset($_POST['edit_id'])   && $_POST['edit_id']   !== '')
 ) {
-    echo "<pre>"; // easier to show streaming output
+    echo "<pre>";
 
-    // ---- Collect form data ----
-    $bookTitle  = trim($_POST['title'] ?? '');
-    $bookAuthor = trim($_POST['author'] ?? '');
-    $bookYear   = (int)($_POST['year'] ?? 0);
+    $bookTitle     = trim($_POST['title']  ?? '');
+    $bookAuthor    = trim($_POST['author'] ?? '');
+    $bookYear      = (int)($_POST['year']  ?? 0);
     $displayOffset = (int)($_POST['page_offset'] ?? 0);
     $libraryBookId = isset($_POST['library_book_id']) && $_POST['library_book_id'] !== ''
         ? (int)$_POST['library_book_id'] : null;
-    $libraryFilePath = trim($_POST['library_file_path'] ?? '');
-    $libraryFilePath = str_replace(["\r", "\n"], '', $libraryFilePath);
-    $originalName = $hasUpload ? ($_FILES['book_file']['name'] ?? '') : basename($libraryFilePath);
+    $libraryFilePath = str_replace(["\r", "\n"], '', trim($_POST['library_file_path'] ?? ''));
+
+    $hasUpload = isset($_FILES['book_file']) && is_array($_FILES['book_file'])
+        && ($_FILES['book_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+
+    $originalName    = $hasUpload ? ($_FILES['book_file']['name'] ?? '') : basename($libraryFilePath);
     $sourceExtension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
-    if ($bookTitle === '') {
-        out('Title is required.');
-        exit;
+    if ($bookTitle === '') { out('Title is required.'); exit; }
+    if ($hasUpload && ($_FILES['book_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        out('Upload failed: ' . $_FILES['book_file']['error']); exit;
     }
+    if (!$hasUpload && $libraryFilePath === '') { out('Title and file are required.'); exit; }
 
     $tmpBookPath = null;
-    $hasUpload = isset($_FILES['book_file']) && is_array($_FILES['book_file']) && ($_FILES['book_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
-
-    if ($hasUpload && ($_FILES['book_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        out('Upload failed: ' . $_FILES['book_file']['error']);
-        exit;
-    }
-    if (!$hasUpload && $libraryFilePath === '') {
-        out('Title and file are required.');
-        exit;
-    }
-
     if ($hasUpload) {
         $tmpBookPath = tempnam(sys_get_temp_dir(), 'upload_book_');
-        if ($tmpBookPath === false) {
-            out('Failed to create temporary file.');
-            exit;
-        }
+        if ($tmpBookPath === false) { out('Failed to create temporary file.'); exit; }
         $tmpBookPath = ensure_extension($tmpBookPath, $sourceExtension);
         if (!move_uploaded_file($_FILES['book_file']['tmp_name'], $tmpBookPath)) {
-            out('Failed to move uploaded file.');
-            exit;
+            out('Failed to move uploaded file.'); exit;
         }
         out('File uploaded.');
     } else {
-        $libraryBase = rtrim(getLibraryPath(), '/');
+        $libraryBase   = rtrim(getLibraryPath(), '/');
         $candidatePath = $libraryBase . '/' . ltrim($libraryFilePath, '/');
-        $resolvedPath = realpath($candidatePath);
+        $resolvedPath  = realpath($candidatePath);
         if ($resolvedPath === false || strpos($resolvedPath, $libraryBase) !== 0) {
-            out('Library file path is invalid.');
-            exit;
+            out('Library file path is invalid.'); exit;
         }
-        if (!is_file($resolvedPath)) {
-            out('Library file not found.');
-            exit;
-        }
+        if (!is_file($resolvedPath)) { out('Library file not found.'); exit; }
         $tmpBookPath = tempnam(sys_get_temp_dir(), 'library_book_');
-        if ($tmpBookPath === false) {
-            out('Failed to create temporary file.');
-            exit;
-        }
+        if ($tmpBookPath === false) { out('Failed to create temporary file.'); exit; }
         $tmpBookPath = ensure_extension($tmpBookPath, $sourceExtension);
-        if (!copy($resolvedPath, $tmpBookPath)) {
-            out('Failed to access library file.');
-            exit;
-        }
+        if (!copy($resolvedPath, $tmpBookPath)) { out('Failed to access library file.'); exit; }
         out('Using library file from library.');
     }
 
     $detectedType = detect_file_type($tmpBookPath, $hasUpload ? ($_FILES['book_file']['name'] ?? '') : ($libraryFilePath ?? ''));
     if ($detectedType === null) {
         out('Unsupported file type. Only PDF and EPUB are allowed.');
-        if ($tmpBookPath !== null && file_exists($tmpBookPath)) {
-            @unlink($tmpBookPath);
-        }
+        if ($tmpBookPath !== null && file_exists($tmpBookPath)) @unlink($tmpBookPath);
         exit;
     }
+    if ($detectedType === 'epub') $tmpBookPath = ensure_extension($tmpBookPath, 'epub');
+    elseif ($detectedType === 'pdf') $tmpBookPath = ensure_extension($tmpBookPath, 'pdf');
 
-    if ($detectedType === 'epub') {
-        $tmpBookPath = ensure_extension($tmpBookPath, 'epub');
-    } elseif ($detectedType === 'pdf') {
-        $tmpBookPath = ensure_extension($tmpBookPath, 'pdf');
-    }
-
-    // ---- API key and model ----
-    $apiKey = getenv('OPENAI_API_KEY');
+    $apiKey     = getenv('OPENAI_API_KEY');
     if (!$apiKey) { out('ERROR: Set OPENAI_API_KEY.'); exit; }
     $embedModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-small';
 
-    // ---- Open DB and ensure schema ----
-    $dbPath = __DIR__ . '/../library.sqlite';
-    $db = new PDO('sqlite:' . $dbPath);
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $db->exec("
-CREATE TABLE IF NOT EXISTS items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL,
-  author TEXT,
-  year INTEGER,
-  display_offset INTEGER DEFAULT 0,
-  library_book_id INTEGER,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS chunks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  item_id INTEGER NOT NULL,
-  section TEXT,
-  page_start INTEGER,
-  page_end INTEGER,
-  text TEXT NOT NULL,
-  embedding BLOB,
-  token_count INTEGER,
-  display_start INTEGER,
-  display_end INTEGER,
-  display_start_label TEXT,
-  display_end_label TEXT,
-  FOREIGN KEY(item_id) REFERENCES items(id)
-);
-CREATE INDEX IF NOT EXISTS idx_chunks_item ON chunks(item_id);
-CREATE TABLE IF NOT EXISTS page_map (
-  item_id INTEGER NOT NULL,
-  pdf_page INTEGER NOT NULL,
-  display_label TEXT,
-  display_number INTEGER,
-  method TEXT,
-  confidence REAL,
-  PRIMARY KEY (item_id, pdf_page)
-);
-");
-    ensure_chunk_label_cols($db);
-    ensure_library_book_id_col($db);
-    ensure_chunks_fts($db);
-    backfill_chunks_fts($db);
+    // ── Open DB and ensure schema ─────────────────────────────────────────────
+    try {
+        $db = getResearchDb();
+        ensureResearchSchema($db);
+    } catch (Exception $e) {
+        out('ERROR: Could not connect to research database: ' . $e->getMessage());
+        out('Check PGHOST, PGPORT, PGDATABASE_RESEARCH, PGUSER, PGPASSWORD env vars and that the pgvector extension is installed.');
+        if ($tmpBookPath !== null && file_exists($tmpBookPath)) @unlink($tmpBookPath);
+        exit;
+    }
     out('Database ready.');
 
     $pages = [];
-    $pagesCount = 0;
+    $pagesCount  = 0;
     $tmpTextPath = null;
 
+    try {
+
     if ($detectedType === 'pdf') {
-        // ---- Page count via pdfinfo ----
         $info = [];
         exec(sprintf('pdfinfo %s 2>/dev/null', escapeshellarg($tmpBookPath)), $info, $rc);
         $pagesCount = 0;
@@ -394,11 +210,9 @@ CREATE TABLE IF NOT EXISTS page_map (
         if ($pagesCount < 1) { out('ERROR: Could not read page count.'); exit; }
         out("Pages: $pagesCount");
 
-        // ---- Extract text per page ----
         for ($p = 1; $p <= $pagesCount; $p++) {
             $tmp = tempnam(sys_get_temp_dir(), 'pg_');
-            $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s',
-                           $p, $p, escapeshellarg($tmpBookPath), escapeshellarg($tmp));
+            $cmd = sprintf('pdftotext -layout -enc UTF-8 -f %d -l %d %s %s', $p, $p, escapeshellarg($tmpBookPath), escapeshellarg($tmp));
             exec($cmd, $_, $rc);
             $txt = file_exists($tmp) ? file_get_contents($tmp) : '';
             @unlink($tmp);
@@ -406,11 +220,10 @@ CREATE TABLE IF NOT EXISTS page_map (
         }
         out('Text extracted.');
     } else {
-        // ---- EPUB extraction ----
         $tmpTextBase = tempnam(sys_get_temp_dir(), 'epub_txt_');
         if ($tmpTextBase === false) { out('Failed to create temporary EPUB text file.'); exit; }
         $tmpTextPath = $tmpTextBase . '.txt';
-        @unlink($tmpTextBase); // remove extension-less placeholder so Calibre sees .txt output
+        @unlink($tmpTextBase);
 
         $cmd = sprintf('ebook-convert %s %s 2>&1', escapeshellarg($tmpBookPath), escapeshellarg($tmpTextPath));
         $convertOutput = [];
@@ -422,14 +235,9 @@ CREATE TABLE IF NOT EXISTS page_map (
         } else {
             $errorDetail = $convertOutput ? (' Details: ' . substr(implode('\n', $convertOutput), 0, 500)) : '';
             out('ebook-convert failed to extract text.' . $errorDetail);
-            if ($tmpTextPath !== null && file_exists($tmpTextPath)) {
-                @unlink($tmpTextPath);
-            }
+            if ($tmpTextPath !== null && file_exists($tmpTextPath)) @unlink($tmpTextPath);
             $fallbackPages = extract_epub_sections($tmpBookPath);
-            if ($fallbackPages === null) {
-                out('ERROR: EPUB text extraction failed.');
-                exit;
-            }
+            if ($fallbackPages === null) { out('ERROR: EPUB text extraction failed.'); exit; }
             $pages = $fallbackPages;
         }
         $pagesCount = count($pages);
@@ -437,13 +245,19 @@ CREATE TABLE IF NOT EXISTS page_map (
         out("Sections: $pagesCount");
     }
 
-    // ---- Insert item ----
-    $insItem = $db->prepare("INSERT INTO items (title, author, year, display_offset, library_book_id) VALUES (:t,:a,:y,:o,:l)");
-    $insItem->execute([':t'=>$bookTitle, ':a'=>$bookAuthor, ':y'=>$bookYear, ':o'=>$displayOffset, ':l'=>$libraryBookId]);
-    $itemId = (int)$db->lastInsertId();
+    // ── Insert item ───────────────────────────────────────────────────────────
+    $insItem = $db->prepare(
+        "INSERT INTO items (title, author, year, display_offset, library_book_id)
+         VALUES (?, ?, ?, ?, ?) RETURNING id"
+    );
+    $insItem->execute([$bookTitle, $bookAuthor ?: null, $bookYear ?: null, $displayOffset, $libraryBookId]);
+    $itemId = (int)$insItem->fetchColumn();
 
-    // ---- Populate page_map with PDF labels or synthetic EPUB sections ----
-    $insMap = $db->prepare("INSERT INTO page_map (item_id,pdf_page,display_label,display_number,method,confidence) VALUES (:i,:p,:l,:n,:m,:c)");
+    // ── Populate page_map ─────────────────────────────────────────────────────
+    $insMap = $db->prepare(
+        "INSERT INTO page_map (item_id, pdf_page, display_label, display_number, method, confidence)
+         VALUES (?, ?, ?, ?, ?, ?)"
+    );
     if ($detectedType === 'pdf') {
         $labels = [];
         $script = __DIR__ . '/extract_page_labels.py';
@@ -451,95 +265,91 @@ CREATE TABLE IF NOT EXISTS page_map (
             $outLabels = trim(shell_exec('python3 ' . escapeshellarg($script) . ' ' . escapeshellarg($tmpBookPath)));
             $labels = json_decode($outLabels, true) ?: [];
         }
-        for ($p=1; $p <= $pagesCount; $p++) {
-            $label = $labels[$p] ?? detect_header_footer_label($pages[$p]);
+        for ($p = 1; $p <= $pagesCount; $p++) {
+            $label  = $labels[$p] ?? detect_header_footer_label($pages[$p]);
             $method = isset($labels[$p]) ? 'pdf_label' : ($label ? 'header' : 'offset');
-            $conf = isset($labels[$p]) ? 1.0 : ($label ? 0.6 : 0.4);
-            $num = null;
+            $conf   = isset($labels[$p]) ? 1.0 : ($label ? 0.6 : 0.4);
+            $num    = null;
             if ($label !== null) {
-                if (preg_match('/^\d+$/', $label)) {
-                    $num = (int)$label;
-                } elseif (preg_match('/^[ivxlcdm]+$/i', $label)) {
-                    $num = roman_to_int($label);
-                } else {
-                    $label = null;
-                }
+                if (preg_match('/^\d+$/', $label)) $num = (int)$label;
+                elseif (preg_match('/^[ivxlcdm]+$/i', $label)) $num = roman_to_int($label);
+                else $label = null;
             }
             if ($label === null) {
-                $num = $p + $displayOffset;
-                $label = (string)$num;
-                $method = 'offset';
-                $conf = 0.4;
+                $num = $p + $displayOffset; $label = (string)$num;
+                $method = 'offset'; $conf = 0.4;
             }
-            $insMap->execute([':i'=>$itemId, ':p'=>$p, ':l'=>$label, ':n'=>$num, ':m'=>$method, ':c'=>$conf]);
+            $insMap->execute([$itemId, $p, $label, $num, $method, $conf]);
         }
     } else {
-        for ($p=1; $p <= $pagesCount; $p++) {
-            $label = 'Section ' . $p;
-            $insMap->execute([':i'=>$itemId, ':p'=>$p, ':l'=>$label, ':n'=>$p, ':m'=>'section', ':c'=>0.8]);
+        for ($p = 1; $p <= $pagesCount; $p++) {
+            $insMap->execute([$itemId, $p, 'Section ' . $p, $p, 'section', 0.8]);
         }
     }
 
-    // ---- Build chunks ----
+    // ── Build + embed chunks ──────────────────────────────────────────────────
     $targetTokens = 1000;
     $chunks = build_chunks_from_pages($pages, $targetTokens);
     out('Chunks built: ' . count($chunks));
 
-    // ---- Embed chunks in batches ----
+    $insChunk = $db->prepare(
+        "INSERT INTO chunks
+             (item_id, section, page_start, page_end, text, embedding, token_count,
+              display_start, display_end, display_start_label, display_end_label)
+         VALUES (?, ?, ?, ?, ?, ?::vector, ?, NULL, NULL, NULL, NULL)"
+    );
+
     $batchSize = 64;
     for ($i = 0; $i < count($chunks); $i += $batchSize) {
-        $batch = array_slice($chunks, $i, $batchSize);
+        $batch   = array_slice($chunks, $i, $batchSize);
         $vectors = create_embeddings_batch(array_column($batch, 'text'), $embedModel, $apiKey);
         foreach ($batch as $j => $chunk) {
-            $embedding = $vectors[$j] ?? null; if (!$embedding) continue;
-            $bin = pack_floats($embedding);
-            $stmt = $db->prepare("INSERT INTO chunks (item_id, section, page_start, page_end, text, embedding, token_count, display_start, display_end, display_start_label, display_end_label)
-                                  VALUES (:item,:section,:ps,:pe,:text,:emb,:tok,NULL,NULL,NULL,NULL)");
-            $stmt->bindValue(':item', $itemId, PDO::PARAM_INT);
-            $stmt->bindValue(':section', $chunk['section']);
-            $stmt->bindValue(':ps', $chunk['page_start'], PDO::PARAM_INT);
-            $stmt->bindValue(':pe', $chunk['page_end'], PDO::PARAM_INT);
-            $stmt->bindValue(':text', $chunk['text']);
-            $stmt->bindValue(':emb', $bin, PDO::PARAM_LOB);
-            $stmt->bindValue(':tok', $chunk['approx_tokens'], PDO::PARAM_INT);
-            $stmt->execute();
+            $embedding = $vectors[$j] ?? null;
+            if (!$embedding) continue;
+            $insChunk->execute([
+                $itemId,
+                $chunk['section'],
+                $chunk['page_start'],
+                $chunk['page_end'],
+                $chunk['text'],
+                floatsToVector($embedding),
+                $chunk['approx_tokens'],
+            ]);
         }
-        out('Embedded batch ' . (($i/$batchSize)+1));
-        usleep(200000); // throttle a bit
+        out('Embedded batch ' . (($i / $batchSize) + 1));
+        usleep(200000);
     }
 
     recompute_chunk_display_ranges($db, $itemId);
     out("Ingest complete. Book ID: $itemId");
     out("Pages: $pagesCount | Chunks: " . count($chunks));
+
+    } catch (Exception $e) {
+        out('ERROR: ' . $e->getMessage());
+    }
+
     echo "</pre>";
-    if ($tmpBookPath !== null && file_exists($tmpBookPath)) {
-        @unlink($tmpBookPath);
-    }
-    if ($tmpTextPath !== null && file_exists($tmpTextPath)) {
-        @unlink($tmpTextPath);
-    }
+    if ($tmpBookPath !== null && file_exists($tmpBookPath)) @unlink($tmpBookPath);
+    if ($tmpTextPath !== null && file_exists($tmpTextPath)) @unlink($tmpTextPath);
     exit;
 }
 
-// $libraryBooks no longer needed — autocomplete uses /json_endpoints/library_book_search.php
-
+// ── Ingested books list ───────────────────────────────────────────────────────
 $ingestedBooks = [];
-$dbListPath = __DIR__ . '/../library.sqlite';
-if (is_file($dbListPath)) {
-    try {
-        $dbList = new PDO('sqlite:' . $dbListPath);
-        $dbList->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $rows = $dbList->query('SELECT id, title, author, year, library_book_id, created_at FROM items ORDER BY created_at DESC')->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($rows as $r) {
-            $id = (int)$r['id'];
-            $r['pages'] = (int)$dbList->query('SELECT MAX(page_end) FROM chunks WHERE item_id = ' . $id)->fetchColumn();
-            $r['chunks'] = (int)$dbList->query('SELECT COUNT(*) FROM chunks WHERE item_id = ' . $id)->fetchColumn();
-            $r['endpoint'] = 'openai/v1/embeddings';
-            $ingestedBooks[] = $r;
-        }
-    } catch (Exception $e) {
-        $ingestedBooks = [];
+try {
+    $dbList = getResearchDb();
+    $rows   = $dbList->query(
+        'SELECT id, title, author, year, library_book_id, created_at FROM items ORDER BY created_at DESC'
+    )->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $r) {
+        $id        = (int)$r['id'];
+        $r['pages']    = (int)$dbList->query("SELECT MAX(page_end)  FROM chunks WHERE item_id = $id")->fetchColumn();
+        $r['chunks']   = (int)$dbList->query("SELECT COUNT(*)       FROM chunks WHERE item_id = $id")->fetchColumn();
+        $r['endpoint'] = 'openai/v1/embeddings';
+        $ingestedBooks[] = $r;
     }
+} catch (Exception $e) {
+    $ingestedBooks = [];
 }
 
 ?>
@@ -596,10 +406,8 @@ if (is_file($dbListPath)) {
           <i class="fa-solid fa-file-arrow-up me-1"></i>Book File
           <span class="ra-label-hint">PDF or EPUB</span>
         </label>
-        <!-- Hidden path used when file comes from the library (set by autocomplete or prefill) -->
         <input type="hidden" name="library_file_path" id="library_file_path"
                value="<?= htmlspecialchars($prefillFilePath) ?>">
-        <!-- Resolved file banner — shown when a library file is selected -->
         <div id="resolved_file_banner" class="ra-file-banner<?= $prefillFilePath === '' ? ' d-none' : '' ?>">
           <i class="fa-solid fa-file-pdf ra-icon-accent"></i>
           <span id="resolved_file_label" class="ra-file-path">
@@ -682,8 +490,8 @@ if (is_file($dbListPath)) {
           <tr>
             <td class="ra-td-id"><?= htmlspecialchars($b['id']) ?></td>
             <td><?= htmlspecialchars($b['title']) ?></td>
-            <td class="ra-td-author"><?= htmlspecialchars($b['author']) ?></td>
-            <td class="ra-td-mono"><?= htmlspecialchars($b['year']) ?></td>
+            <td class="ra-td-author"><?= htmlspecialchars($b['author'] ?? '') ?></td>
+            <td class="ra-td-mono"><?= htmlspecialchars($b['year'] ?? '') ?></td>
             <td class="ra-td-mono-dim"><?= htmlspecialchars($b['library_book_id'] ?? '') ?></td>
             <td class="ra-td-mono"><?= htmlspecialchars($b['pages'] ?: '—') ?></td>
             <td class="ra-td-mono"><?= htmlspecialchars($b['chunks']) ?></td>
@@ -696,8 +504,8 @@ if (is_file($dbListPath)) {
                       data-bs-target="#editBookModal"
                       data-id="<?= (int)$b['id'] ?>"
                       data-title="<?= htmlspecialchars($b['title']) ?>"
-                      data-author="<?= htmlspecialchars($b['author']) ?>"
-                      data-year="<?= htmlspecialchars($b['year']) ?>"
+                      data-author="<?= htmlspecialchars($b['author'] ?? '') ?>"
+                      data-year="<?= htmlspecialchars($b['year'] ?? '') ?>"
                       data-library="<?= htmlspecialchars($b['library_book_id'] ?? '') ?>">
                 <i class="fa-solid fa-pen-to-square me-1"></i>Edit
               </button>
@@ -762,7 +570,6 @@ if (is_file($dbListPath)) {
 
 <script src="/js/book-autocomplete.js"></script>
 <script>
-// ── Library book autocomplete ──────────────────────────────────────────────
 function clearResolvedFile() {
   document.getElementById('library_file_path').value = '';
   const banner    = document.getElementById('resolved_file_banner');
@@ -778,13 +585,11 @@ const lbAc = new BookAutocomplete({
   hidden:  '#library_book_id',
   params:  { with_files: 1 },
   onSelect(book) {
-    // Pre-fill metadata fields if empty
     const titleEl  = document.getElementById('title');
     const authorEl = document.getElementById('author');
     if (titleEl  && !titleEl.value)  titleEl.value  = book.title;
     if (authorEl && !authorEl.value) authorEl.value = book.author || '';
 
-    // Resolve library file
     const fileInput   = document.getElementById('book_file');
     const filePath    = document.getElementById('library_file_path');
     const banner      = document.getElementById('resolved_file_banner');
@@ -803,29 +608,24 @@ const lbAc = new BookAutocomplete({
   onClear: clearResolvedFile,
 });
 
-// When typing a new search, also clear the resolved file
 document.getElementById('library_book_search').addEventListener('input', () => {
   if (document.getElementById('library_file_path').value) clearResolvedFile();
 });
-
-document.getElementById('clear_resolved_file').addEventListener('click', () => {
-  lbAc.clear();
-});
+document.getElementById('clear_resolved_file').addEventListener('click', () => { lbAc.clear(); });
 
 <?php if ($prefillLibraryId !== ''): ?>
 lbAc.selectById(<?= (int)$prefillLibraryId ?>, { with_files: 1 });
 <?php endif; ?>
 
-// ── Edit modal ─────────────────────────────────────────────────────────────
 const editModal = document.getElementById('editBookModal');
 if (editModal) {
     editModal.addEventListener('show.bs.modal', event => {
         const button = event.relatedTarget;
         if (!button) return;
-        editModal.querySelector('#edit_id').value = button.getAttribute('data-id') || '';
-        editModal.querySelector('#edit_title').value = button.getAttribute('data-title') || '';
-        editModal.querySelector('#edit_author').value = button.getAttribute('data-author') || '';
-        editModal.querySelector('#edit_year').value = button.getAttribute('data-year') || '';
+        editModal.querySelector('#edit_id').value            = button.getAttribute('data-id')      || '';
+        editModal.querySelector('#edit_title').value         = button.getAttribute('data-title')   || '';
+        editModal.querySelector('#edit_author').value        = button.getAttribute('data-author')  || '';
+        editModal.querySelector('#edit_year').value          = button.getAttribute('data-year')    || '';
         editModal.querySelector('#edit_library_book_id').value = button.getAttribute('data-library') || '';
     });
 }
@@ -833,441 +633,214 @@ if (editModal) {
 </body>
 </html>
 <?php
-function detect_file_type(string $path, string $originalName = ''): ?string {
-  $mime = mime_content_type($path) ?: '';
-  $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+// ── Pure-PHP helpers (no DB dependency) ──────────────────────────────────────
 
-  if ($mime === 'application/pdf' || $ext === 'pdf') return 'pdf';
-  if ($mime === 'application/epub+zip' || $ext === 'epub') return 'epub';
-  return null;
+function detect_file_type(string $path, string $originalName = ''): ?string {
+    $mime = mime_content_type($path) ?: '';
+    $ext  = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    if ($mime === 'application/pdf'      || $ext === 'pdf')  return 'pdf';
+    if ($mime === 'application/epub+zip' || $ext === 'epub') return 'epub';
+    return null;
 }
 
 function extract_epub_sections(string $epubPath): ?array {
-  $zip = new ZipArchive();
-  if ($zip->open($epubPath) !== true) return null;
-
-  $opfPath = read_epub_opf_path($zip);
-  if ($opfPath === null) { $zip->close(); return null; }
-
-  $opfXml = $zip->getFromName($opfPath);
-  if ($opfXml === false) { $zip->close(); return null; }
-
-  $opf = @simplexml_load_string($opfXml);
-  if ($opf === false) { $zip->close(); return null; }
-
-  $manifest = [];
-  foreach ($opf->manifest->item as $item) {
-    $id = (string)$item['id'];
-    $href = (string)$item['href'];
-    $media = (string)$item['media-type'];
-    if ($id !== '' && $href !== '') {
-      $manifest[$id] = ['href' => $href, 'media' => $media];
+    $zip = new ZipArchive();
+    if ($zip->open($epubPath) !== true) return null;
+    $opfPath = read_epub_opf_path($zip);
+    if ($opfPath === null) { $zip->close(); return null; }
+    $opfXml = $zip->getFromName($opfPath);
+    if ($opfXml === false) { $zip->close(); return null; }
+    $opf = @simplexml_load_string($opfXml);
+    if ($opf === false) { $zip->close(); return null; }
+    $manifest = [];
+    foreach ($opf->manifest->item as $item) {
+        $id = (string)$item['id']; $href = (string)$item['href']; $media = (string)$item['media-type'];
+        if ($id !== '' && $href !== '') $manifest[$id] = ['href' => $href, 'media' => $media];
     }
-  }
-
-  $pages = [];
-  $baseDir = rtrim(dirname($opfPath), '/\\');
-  foreach ($opf->spine->itemref as $itemref) {
-    $idref = (string)$itemref['idref'];
-    if ($idref === '' || !isset($manifest[$idref])) continue;
-
-    $href = $manifest[$idref]['href'];
-    $media = $manifest[$idref]['media'];
-    $isHtml = preg_match('/html/i', $media) || preg_match('/\.(x?html)$/i', $href);
-    if (!$isHtml) continue;
-
-    $zipPath = ($baseDir === '' || $baseDir === '.') ? $href : $baseDir . '/' . $href;
-    $zipPath = ltrim($zipPath, '/');
-    $content = $zip->getFromName($zipPath);
-    if ($content === false) continue;
-
-    $text = extract_text_from_html($content);
-    $norm = normalize_whitespace($text);
-    if ($norm !== '') {
-      $pages[] = $norm;
+    $pages   = [];
+    $baseDir = rtrim(dirname($opfPath), '/\\');
+    foreach ($opf->spine->itemref as $itemref) {
+        $idref = (string)$itemref['idref'];
+        if ($idref === '' || !isset($manifest[$idref])) continue;
+        $href  = $manifest[$idref]['href'];
+        $media = $manifest[$idref]['media'];
+        $isHtml = preg_match('/html/i', $media) || preg_match('/\.(x?html)$/i', $href);
+        if (!$isHtml) continue;
+        $zipPath = ($baseDir === '' || $baseDir === '.') ? $href : $baseDir . '/' . $href;
+        $zipPath = ltrim($zipPath, '/');
+        $content = $zip->getFromName($zipPath);
+        if ($content === false) continue;
+        $norm = normalize_whitespace(extract_text_from_html($content));
+        if ($norm !== '') $pages[] = $norm;
     }
-  }
-
-  $zip->close();
-
-  if (!$pages) return null;
-  return array_combine(range(1, count($pages)), $pages);
+    $zip->close();
+    if (!$pages) return null;
+    return array_combine(range(1, count($pages)), $pages);
 }
 
 function read_epub_opf_path(ZipArchive $zip): ?string {
-  $containerXml = $zip->getFromName('META-INF/container.xml');
-  if ($containerXml === false) return null;
-  $container = @simplexml_load_string($containerXml);
-  if ($container === false) return null;
-  foreach ($container->rootfiles->rootfile as $rootfile) {
-    $path = (string)$rootfile['full-path'];
-    if ($path !== '') return $path;
-  }
-  return null;
+    $containerXml = $zip->getFromName('META-INF/container.xml');
+    if ($containerXml === false) return null;
+    $container = @simplexml_load_string($containerXml);
+    if ($container === false) return null;
+    foreach ($container->rootfiles->rootfile as $rootfile) {
+        $path = (string)$rootfile['full-path'];
+        if ($path !== '') return $path;
+    }
+    return null;
 }
 
 function extract_text_from_html(string $html): string {
-  $html = preg_replace('/<(br|hr)\s*\\?\/?>/i', "\n", $html);
-  $html = preg_replace('/<\/(p|div|h[1-6]|li|blockquote|section|article|tr)>/i', "</$1>\n", $html);
-  $html = preg_replace('/<(p|div|h[1-6]|li|blockquote|section|article|tr)[^>]*>/i', "\n<$1>", $html);
-
-  $text = strip_tags($html);
-  $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-  return trim($text);
+    $html = preg_replace('/<(br|hr)\s*\\?\/?>/i', "\n", $html);
+    $html = preg_replace('/<\/(p|div|h[1-6]|li|blockquote|section|article|tr)>/i', "</$1>\n", $html);
+    $html = preg_replace('/<(p|div|h[1-6]|li|blockquote|section|article|tr)[^>]*>/i', "\n<$1>", $html);
+    $text = strip_tags($html);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return trim($text);
 }
 
 function split_epub_text(string $text): array {
-  $text = str_replace(["\r\n", "\r"], "\n", $text);
-  $parts = preg_split('/\n{2,}/u', $text);
-  $pages = [];
-  $i = 1;
-  foreach ($parts as $part) {
-    $norm = normalize_whitespace($part);
-    if ($norm === '') continue;
-    $pages[$i++] = $norm;
-  }
-  if (!$pages && trim($text) !== '') {
-    $pages[1] = normalize_whitespace($text);
-  }
-  return $pages;
+    $text  = str_replace(["\r\n", "\r"], "\n", $text);
+    $parts = preg_split('/\n{2,}/u', $text);
+    $pages = []; $i = 1;
+    foreach ($parts as $part) {
+        $norm = normalize_whitespace($part);
+        if ($norm === '') continue;
+        $pages[$i++] = $norm;
+    }
+    if (!$pages && trim($text) !== '') $pages[1] = normalize_whitespace($text);
+    return $pages;
 }
 
 function normalize_whitespace(string $s): string {
-  if ($s === '') return '';
-  $s = preg_replace("/[ \t]+/u", " ", $s);
-  $s = preg_replace("/[ \t]*\n/u", "\n", $s);
-  $s = preg_replace("/\n{4,}/u", "\n\n", $s);
-  return trim($s);
+    if ($s === '') return '';
+    $s = preg_replace("/[ \t]+/u",   " ",    $s);
+    $s = preg_replace("/[ \t]*\n/u", "\n",   $s);
+    $s = preg_replace("/\n{4,}/u",   "\n\n", $s);
+    return trim($s);
 }
 
 function approx_token_count(string $s): int {
-  $words = preg_split("/\s+/u", trim($s));
-  $w = max(1, count(array_filter($words)));
-  return (int)round($w * 1.3);
+    $words = preg_split("/\s+/u", trim($s));
+    $w = max(1, count(array_filter($words)));
+    return (int)round($w * 1.3);
 }
 
 function infer_section_title(string $chunk): ?string {
-  foreach (preg_split("/\n/u", $chunk) as $line) {
-    $line = trim($line);
-    if ($line !== '' && mb_strlen($line,'UTF-8') > 3) return mb_substr($line, 0, 80, 'UTF-8');
-  }
-  return null;
+    foreach (preg_split("/\n/u", $chunk) as $line) {
+        $line = trim($line);
+        if ($line !== '' && mb_strlen($line, 'UTF-8') > 3) return mb_substr($line, 0, 80, 'UTF-8');
+    }
+    return null;
 }
 
 function build_chunks_from_pages(array $pagesByNum, int $targetTokens): array {
-  $chunks = []; $cur = ""; $startPage = null; $lastPage = null;
-  foreach ($pagesByNum as $pageNum => $pageText) {
-    $p = trim($pageText);
-    if ($p === '') continue;
-    $try = $cur ? ($cur."\n\n".$p) : $p;
-    if (approx_token_count($try) > $targetTokens && $cur) {
-      $chunks[] = [
-        'text' => $cur,
-        'page_start' => $startPage,
-        'page_end' => $lastPage,
-        'approx_tokens' => approx_token_count($cur),
-        'section' => infer_section_title($cur)
-      ];
-      $cur = $p; $startPage = $pageNum; $lastPage = $pageNum;
-    } else {
-      if ($cur === "") $startPage = $pageNum;
-      $cur = $try; $lastPage = $pageNum;
+    $chunks = []; $cur = ""; $startPage = null; $lastPage = null;
+    foreach ($pagesByNum as $pageNum => $pageText) {
+        $p = trim($pageText);
+        if ($p === '') continue;
+        $try = $cur ? ($cur . "\n\n" . $p) : $p;
+        if (approx_token_count($try) > $targetTokens && $cur) {
+            $chunks[] = ['text'=>$cur,'page_start'=>$startPage,'page_end'=>$lastPage,'approx_tokens'=>approx_token_count($cur),'section'=>infer_section_title($cur)];
+            $cur = $p; $startPage = $pageNum; $lastPage = $pageNum;
+        } else {
+            if ($cur === "") $startPage = $pageNum;
+            $cur = $try; $lastPage = $pageNum;
+        }
     }
-  }
-  if ($cur) {
-    $chunks[] = [
-      'text' => $cur,
-      'page_start' => $startPage,
-      'page_end' => $lastPage,
-      'approx_tokens' => approx_token_count($cur),
-      'section' => infer_section_title($cur)
-    ];
-  }
-  $refined = [];
-  foreach ($chunks as $c) {
-    if ($c['approx_tokens'] <= 1600) { $refined[] = $c; continue; }
-    $paras = preg_split("/\n{2,}/u", $c['text']);
-    $acc = "";
-    foreach ($paras as $para) {
-      $t = $acc ? ($acc."\n\n".$para) : $para;
-      if (approx_token_count($t) > 1000 && $acc) {
-        $refined[] = [
-          'text'=>$acc, 'page_start'=>$c['page_start'], 'page_end'=>$c['page_end'],
-          'approx_tokens'=>approx_token_count($acc), 'section'=>infer_section_title($acc)
-        ];
-        $acc = $para;
-      } else {
-        $acc = $t;
-      }
+    if ($cur) $chunks[] = ['text'=>$cur,'page_start'=>$startPage,'page_end'=>$lastPage,'approx_tokens'=>approx_token_count($cur),'section'=>infer_section_title($cur)];
+
+    $refined = [];
+    foreach ($chunks as $c) {
+        if ($c['approx_tokens'] <= 1600) { $refined[] = $c; continue; }
+        $paras = preg_split("/\n{2,}/u", $c['text']);
+        $acc = "";
+        foreach ($paras as $para) {
+            $t = $acc ? ($acc . "\n\n" . $para) : $para;
+            if (approx_token_count($t) > 1000 && $acc) {
+                $refined[] = ['text'=>$acc,'page_start'=>$c['page_start'],'page_end'=>$c['page_end'],'approx_tokens'=>approx_token_count($acc),'section'=>infer_section_title($acc)];
+                $acc = $para;
+            } else { $acc = $t; }
+        }
+        if ($acc) $refined[] = ['text'=>$acc,'page_start'=>$c['page_start'],'page_end'=>$c['page_end'],'approx_tokens'=>approx_token_count($acc),'section'=>infer_section_title($acc)];
     }
-    if ($acc) {
-      $refined[] = [
-        'text'=>$acc, 'page_start'=>$c['page_start'], 'page_end'=>$c['page_end'],
-        'approx_tokens'=>approx_token_count($acc), 'section'=>infer_section_title($acc)
-      ];
-    }
-  }
-  return $refined;
+    return $refined;
 }
 
 function create_embeddings_batch(array $texts, string $model, string $apiKey): array {
-  $payload = ['model' => $model, 'input' => array_values($texts)];
-  $ch = curl_init("https://api.openai.com/v1/embeddings");
-  curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => [
-      "Content-Type: application/json",
-      "Authorization: Bearer $apiKey"
-    ],
-    CURLOPT_POST => true,
-    CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-    CURLOPT_TIMEOUT => 120
-  ]);
-  $res = curl_exec($ch);
-  if ($res === false) throw new Exception("cURL error: ".curl_error($ch));
-  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-  if ($code < 200 || $code >= 300) throw new Exception("Embeddings API error ($code): $res");
-  $json = json_decode($res, true);
-  $out = [];
-  foreach ($json['data'] ?? [] as $row) $out[] = $row['embedding'] ?? null;
-  return $out;
-}
-
-function pack_floats(array $floats): string {
-  $bin = '';
-  foreach ($floats as $f) $bin .= pack('g', (float)$f); // little-endian float32
-  return $bin;
-}
-
-function table_exists(PDO $db, string $table): bool {
-  $stmt = $db->prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = :name");
-  $stmt->execute([':name' => $table]);
-  return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
-}
-
-function ensure_chunk_label_cols(PDO $db): void {
-  $cols = $db->query("PRAGMA table_info(chunks)")->fetchAll(PDO::FETCH_ASSOC);
-  $names = array_column($cols, 'name');
-  if (!in_array('display_start', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_start INTEGER");
-  if (!in_array('display_end', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end INTEGER");
-  if (!in_array('display_start_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_start_label TEXT");
-  if (!in_array('display_end_label', $names, true)) $db->exec("ALTER TABLE chunks ADD COLUMN display_end_label TEXT");
-}
-
-function ensure_library_book_id_col(PDO $db): void {
-  $cols = $db->query("PRAGMA table_info(items)")->fetchAll(PDO::FETCH_ASSOC);
-  $names = array_column($cols, 'name');
-  if (!in_array('library_book_id', $names, true)) {
-    $db->exec("ALTER TABLE items ADD COLUMN library_book_id INTEGER");
-  }
-}
-
-function chunk_pages_case_sql(string $alias): string {
-  $alias = trim($alias);
-  if ($alias !== '') {
-    $alias = rtrim($alias, '.') . '.';
-  }
-  return "CASE\n"
-       . "      WHEN {$alias}display_start_label IS NOT NULL AND {$alias}display_end_label IS NOT NULL\n"
-       . "           AND {$alias}display_start_label <> {$alias}display_end_label\n"
-       . "        THEN {$alias}display_start_label || '–' || {$alias}display_end_label\n"
-       . "      WHEN {$alias}page_start IS NOT NULL AND {$alias}page_end IS NOT NULL AND {$alias}page_start <> {$alias}page_end\n"
-       . "        THEN printf('%d–%d', {$alias}page_start, {$alias}page_end)\n"
-       . "      WHEN {$alias}page_start IS NOT NULL\n"
-       . "        THEN CAST({$alias}page_start AS TEXT)\n"
-       . "      ELSE ''\n"
-       . "    END";
-}
-
-function ensure_chunks_fts(PDO $db): bool {
-  $expectedCols = ['id', 'item_id', 'pages', 'text'];
-  $hasFts = table_exists($db, 'chunks_fts');
-  $needsRecreate = !$hasFts;
-
-  if ($hasFts) {
-    $cols = [];
-    $stmt = $db->query("PRAGMA table_info(chunks_fts)");
-    if ($stmt) {
-      while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        if (isset($row['name'])) {
-          $cols[] = $row['name'];
-        }
-      }
-    }
-
-    $sortedCols = $cols;
-    sort($sortedCols);
-    $sortedExpected = $expectedCols;
-    sort($sortedExpected);
-
-    if ($sortedCols !== $sortedExpected) {
-      $needsRecreate = true;
-    }
-  }
-
-  if ($needsRecreate) {
-    // Clean up any previous triggers and FTS support tables before recreating
-    $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
-    $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
-    $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
-    $db->exec("DROP TABLE IF EXISTS chunks_fts;");
-    $db->exec("DROP TABLE IF EXISTS chunks_fts_data;");
-    $db->exec("DROP TABLE IF EXISTS chunks_fts_idx;");
-    $db->exec("DROP TABLE IF EXISTS chunks_fts_content;");
-    $db->exec("DROP TABLE IF EXISTS chunks_fts_docsize;");
-    $db->exec("DROP TABLE IF EXISTS chunks_fts_config;");
-  }
-
-  $db->exec("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(\n"
-    . "  id UNINDEXED,\n"
-    . "  item_id UNINDEXED,\n"
-    . "  pages UNINDEXED,\n"
-    . "  text,\n"
-    . "  tokenize='porter'\n"
-    . ");");
-
-  $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
-  $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
-  $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
-
-  $caseNew = chunk_pages_case_sql('new');
-  $db->exec("CREATE TRIGGER chunks_ai AFTER INSERT ON chunks BEGIN\n"
-    . "  INSERT INTO chunks_fts(rowid, id, text, item_id, pages)\n"
-    . "  VALUES (\n"
-    . "    new.id,\n"
-    . "    new.id,\n"
-    . "    new.text,\n"
-    . "    new.item_id,\n"
-    . "    {$caseNew}\n"
-    . "  );\n"
-    . "END;");
-
-  // Use plain DELETE/INSERT operations instead of the FTS5 "delete" command.
-  // The special command is intended for contentless/external tables and can
-  // raise a generic "SQL logic error" on some SQLite builds when used against
-  // a content table. Removing it keeps deletes simple and reliable.
-  $db->exec("CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN\n"
-    . "  DELETE FROM chunks_fts WHERE rowid = old.id;\n"
-    . "END;");
-
-  $db->exec("CREATE TRIGGER chunks_au AFTER UPDATE ON chunks BEGIN\n"
-    . "  DELETE FROM chunks_fts WHERE rowid = old.id;\n"
-    . "  INSERT INTO chunks_fts(rowid, id, text, item_id, pages)\n"
-    . "  VALUES (\n"
-    . "    new.id,\n"
-    . "    new.id,\n"
-    . "    new.text,\n"
-    . "    new.item_id,\n"
-    . "    {$caseNew}\n"
-    . "  );\n"
-    . "END;");
-
-  return $needsRecreate;
-}
-
-function rebuild_chunks_fts_from_scratch(PDO $db): void {
-  if (!table_exists($db, 'chunks')) {
-    return;
-  }
-
-  // Drop everything related to the virtual table to avoid hidden corruption
-  // (e.g., leftover shadow tables or triggers from older SQLite builds).
-  $db->exec("DROP TRIGGER IF EXISTS chunks_ai;");
-  $db->exec("DROP TRIGGER IF EXISTS chunks_ad;");
-  $db->exec("DROP TRIGGER IF EXISTS chunks_au;");
-  $db->exec("DROP TABLE IF EXISTS chunks_fts;");
-  $db->exec("DROP TABLE IF EXISTS chunks_fts_data;");
-  $db->exec("DROP TABLE IF EXISTS chunks_fts_idx;");
-  $db->exec("DROP TABLE IF EXISTS chunks_fts_content;");
-  $db->exec("DROP TABLE IF EXISTS chunks_fts_docsize;");
-  $db->exec("DROP TABLE IF EXISTS chunks_fts_config;");
-
-  ensure_chunks_fts($db);
-  backfill_chunks_fts($db);
-}
-
-function backfill_chunks_fts(PDO $db): void {
-  if (!table_exists($db, 'chunks') || !table_exists($db, 'chunks_fts')) {
-    return;
-  }
-
-  $caseExisting = chunk_pages_case_sql('c');
-  $db->exec("INSERT INTO chunks_fts(rowid, id, text, item_id, pages)\n"
-    . "SELECT c.id,\n"
-    . "       c.id,\n"
-    . "       c.text,\n"
-    . "       c.item_id,\n"
-    . "       {$caseExisting}\n"
-    . "FROM chunks c\n"
-    . "WHERE NOT EXISTS (\n"
-    . "    SELECT 1 FROM chunks_fts f WHERE f.rowid = c.id\n"
-    . ");");
+    $payload = ['model' => $model, 'input' => array_values($texts)];
+    $ch = curl_init("https://api.openai.com/v1/embeddings");
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ["Content-Type: application/json", "Authorization: Bearer $apiKey"],
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+        CURLOPT_TIMEOUT => 120
+    ]);
+    $res = curl_exec($ch);
+    if ($res === false) throw new Exception("cURL error: " . curl_error($ch));
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code < 200 || $code >= 300) throw new Exception("Embeddings API error ($code): $res");
+    $json = json_decode($res, true);
+    $out  = [];
+    foreach ($json['data'] ?? [] as $row) $out[] = $row['embedding'] ?? null;
+    return $out;
 }
 
 function roman_to_int(string $roman): int {
-  $map = ['I'=>1,'V'=>5,'X'=>10,'L'=>50,'C'=>100,'D'=>500,'M'=>1000];
-  $roman = strtoupper($roman);
-  $total = 0; $prev = 0;
-  for ($i = strlen($roman)-1; $i >= 0; $i--) {
-    $curr = $map[$roman[$i]] ?? 0;
-    if ($curr < $prev) $total -= $curr; else $total += $curr;
-    $prev = $curr;
-  }
-  return $total;
-}
-
-function looks_like_fts_logic_error(string $message): bool {
-  $msg = strtolower($message);
-  if (strpos($msg, 'logic error') === false) {
-    return false;
-  }
-
-  return strpos($msg, 'fts') !== false
-      || strpos($msg, 'virtual table') !== false
-      || strpos($msg, 'malformed') !== false
-      || strpos($msg, 'shadow') !== false
-      || strpos($msg, 'contentless') !== false
-      || strpos($msg, 'vtab') !== false;
+    $map   = ['I'=>1,'V'=>5,'X'=>10,'L'=>50,'C'=>100,'D'=>500,'M'=>1000];
+    $roman = strtoupper($roman);
+    $total = 0; $prev = 0;
+    for ($i = strlen($roman) - 1; $i >= 0; $i--) {
+        $curr = $map[$roman[$i]] ?? 0;
+        if ($curr < $prev) $total -= $curr; else $total += $curr;
+        $prev = $curr;
+    }
+    return $total;
 }
 
 function detect_header_footer_label(string $txt): ?string {
-  $lines = preg_split('/\n/u', trim($txt));
-  if (!$lines) return null;
-  $candidates = array_merge(array_slice($lines, 0, 2), array_slice($lines, -2));
-  foreach ($candidates as $l) {
-    $l = trim($l);
-    if ($l === '') continue;
-    if (preg_match('/^\d{1,4}$/', $l)) return $l;
-    if (preg_match('/^[ivxlcdm]+$/i', $l)) return $l;
-  }
-  return null;
+    $lines = preg_split('/\n/u', trim($txt));
+    if (!$lines) return null;
+    $candidates = array_merge(array_slice($lines, 0, 2), array_slice($lines, -2));
+    foreach ($candidates as $l) {
+        $l = trim($l);
+        if ($l === '') continue;
+        if (preg_match('/^\d{1,4}$/', $l))      return $l;
+        if (preg_match('/^[ivxlcdm]+$/i', $l))   return $l;
+    }
+    return null;
 }
 
 function recompute_chunk_display_ranges(PDO $db, int $itemId): void {
-  // Skip recomputation if prerequisite tables are missing (e.g., older databases)
-  if (!table_exists($db, 'chunks') || !table_exists($db, 'page_map') || !table_exists($db, 'items')) {
-    return;
-  }
+    $stmt = $db->prepare("SELECT display_offset FROM items WHERE id = ?");
+    $stmt->execute([$itemId]);
+    $dispOffset = (int)$stmt->fetchColumn();
 
-  $dispOffset = (int)$db->query("SELECT display_offset FROM items WHERE id=".$itemId)->fetchColumn();
-  $q = $db->prepare("SELECT id, page_start, page_end FROM chunks WHERE item_id=:i");
-  $q->execute([':i'=>$itemId]);
-  $sel = $db->prepare("SELECT display_label, display_number FROM page_map WHERE item_id=:i AND pdf_page=:p");
-  $upd = $db->prepare("UPDATE chunks SET display_start=:ds, display_end=:de, display_start_label=:dsl, display_end_label=:del WHERE id=:cid");
-  while ($row = $q->fetch(PDO::FETCH_ASSOC)) {
-    $s = (int)$row['page_start']; $e = (int)$row['page_end'];
-    $sel->execute([':i'=>$itemId, ':p'=>$s]); $start = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
-    $sel->execute([':i'=>$itemId, ':p'=>$e]); $end = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
-    $startLabel = $start['display_label'] ?? null;
-    $startNum = $start['display_number'] ?? null;
-    if ($startLabel === null) { $startNum = $s + $dispOffset; $startLabel = (string)$startNum; }
-    if ($startNum === null && preg_match('/^[ivxlcdm]+$/i', $startLabel)) $startNum = roman_to_int($startLabel);
-    $endLabel = $end['display_label'] ?? null;
-    $endNum = $end['display_number'] ?? null;
-    if ($endLabel === null) { $endNum = $e + $dispOffset; $endLabel = (string)$endNum; }
-    if ($endNum === null && preg_match('/^[ivxlcdm]+$/i', $endLabel)) $endNum = roman_to_int($endLabel);
-    $upd->execute([':ds'=>$startNum, ':de'=>$endNum, ':dsl'=>$startLabel, ':del'=>$endLabel, ':cid'=>$row['id']]);
-  }
+    $q = $db->prepare("SELECT id, page_start, page_end FROM chunks WHERE item_id = ?");
+    $q->execute([$itemId]);
+
+    $sel = $db->prepare("SELECT display_label, display_number FROM page_map WHERE item_id = ? AND pdf_page = ?");
+    $upd = $db->prepare("UPDATE chunks SET display_start = ?, display_end = ?, display_start_label = ?, display_end_label = ? WHERE id = ?");
+
+    while ($row = $q->fetch(PDO::FETCH_ASSOC)) {
+        $s = (int)$row['page_start']; $e = (int)$row['page_end'];
+
+        $sel->execute([$itemId, $s]); $start = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
+        $sel->execute([$itemId, $e]); $end   = $sel->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $startLabel = $start['display_label'] ?? null;
+        $startNum   = $start['display_number'] ?? null;
+        if ($startLabel === null) { $startNum = $s + $dispOffset; $startLabel = (string)$startNum; }
+        if ($startNum === null && preg_match('/^[ivxlcdm]+$/i', $startLabel)) $startNum = roman_to_int($startLabel);
+
+        $endLabel = $end['display_label'] ?? null;
+        $endNum   = $end['display_number'] ?? null;
+        if ($endLabel === null) { $endNum = $e + $dispOffset; $endLabel = (string)$endNum; }
+        if ($endNum === null && preg_match('/^[ivxlcdm]+$/i', $endLabel)) $endNum = roman_to_int($endLabel);
+
+        $upd->execute([$startNum, $endNum, $startLabel, $endLabel, (int)$row['id']]);
+    }
 }
 ?>

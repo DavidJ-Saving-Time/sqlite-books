@@ -2,22 +2,20 @@
 /**
  * research-ask.php — Web interface for retrieval-augmented QA over the ingested books.
  *
- * This is a browser-friendly version of the CLI script located at the project root.
- * It embeds the user's question, finds relevant chunks from library.sqlite, and
- * generates an answer using either OpenRouter (Claude) or OpenAI.
- * Optional parameter min_distinct (default 3) controls
- * the minimum number of distinct books when selecting context.
- * Pass show_pdf_pages=1 to include raw PDF page numbers alongside adjusted ones.
+ * Uses PostgreSQL + pgvector for hybrid retrieval (BM25 via tsvector + ANN via <=> operator).
+ * Optional parameter min_distinct (default 3) controls the minimum number of distinct books
+ * when selecting context. Pass show_pdf_pages=1 to include raw PDF page numbers alongside
+ * adjusted ones.
  *
  * Requirements:
- *   - PHP PDO SQLite
- *   - OPENAI_API_KEY (for embeddings, and OpenAI answering)
- *   - Optional: OPENROUTER_API_KEY when using Claude via OpenRouter
+ *   - PHP PDO pgsql + pgvector extension installed in PostgreSQL
+ *   - OPENAI_API_KEY (for embeddings)
+ *   - OPENROUTER_API_KEY (for Claude-based generation)
  *   - Optional: OPENAI_EMBED_MODEL (defaults to text-embedding-3-large)
  */
 
-ini_set('memory_limit', '1G');
 require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/db.php';
 
 $answer  = '';
 $sources = [];
@@ -35,23 +33,21 @@ if (isset($req['book_id']) || isset($req['book-id'])) {
     } else {
         $bookIds = array_filter(array_map('intval', preg_split('/\s*,\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY)));
     }
-} elseif (isset($req['book_ids'])) { // backward compatibility
+} elseif (isset($req['book_ids'])) {
     $bookIds = array_filter(array_map('intval', preg_split('/\s*,\s*/', $req['book_ids'], -1, PREG_SPLIT_NO_EMPTY)));
 }
-$maxChunks  = max(1, (int)($req['max_chunks'] ?? $req['max-chunks'] ?? 8));
-$maxTokens  = max(1, (int)($req['max_tokens'] ?? $req['max-tokens'] ?? 2000));
-$useWhich   = strtolower(trim($req['use'] ?? 'claude'));
-$modelName  = trim($req['model'] ?? '');
+$maxChunks   = max(1, (int)($req['max_chunks'] ?? $req['max-chunks'] ?? 8));
+$maxTokens   = max(1, (int)($req['max_tokens'] ?? $req['max-tokens'] ?? 2000));
+$useWhich    = strtolower(trim($req['use'] ?? 'claude'));
+$modelName   = trim($req['model'] ?? '');
 $minDistinct = max(1, (int)($req['min_distinct'] ?? $req['min-distinct'] ?? 3));
 $showPdfPages = !empty($req['show_pdf_pages'] ?? $req['show-pdf-pages']);
-$simpleTerms = !empty($req['simple_terms'] ?? $req['simple-terms']);
+$simpleTerms  = !empty($req['simple_terms'] ?? $req['simple-terms']);
 
 
 function ftsTermsFromQuestion(string $q, int $maxTerms = 12): array {
-    // keep letters/digits (incl. accents), drop punctuation/operators
     preg_match_all('/[[:alnum:]]+/u', mb_strtolower($q, 'UTF-8'), $m);
     $terms = $m[0] ?? [];
-    // de-dup, keep order, drop 1-char noise
     $out = []; $seen = [];
     foreach ($terms as $t) {
         if (strlen($t) < 2) continue;
@@ -62,80 +58,68 @@ function ftsTermsFromQuestion(string $q, int $maxTerms = 12): array {
     }
     return $out;
 }
-function makeFtsQueryAND(array $terms): string {
-    if (!$terms) return '""'; // safe no-op
-    $quoted = array_map(fn($t) => '"' . str_replace('"','""',$t) . '"', $terms);
-    return implode(' AND ', $quoted);
-}
-function makeFtsQueryOR(array $terms): string {
-    if (!$terms) return '""';
-    $quoted = array_map(fn($t) => '"' . str_replace('"','""',$t) . '"', $terms);
-    return implode(' OR ', $quoted);
-}
-function ftsSparseQuery(PDO $db, string $ftsExpr, array $bookIds = []): array {
-    $sql = "
-        SELECT id
-        FROM chunks_fts
-        WHERE chunks_fts MATCH :q
-    ";
-    $params = [':q' => $ftsExpr];
-    if (!empty($bookIds)) {
-        $placeholders = [];
-        foreach ($bookIds as $idx => $bid) {
-            $param = ':bid' . $idx;
-            $placeholders[] = $param;
-            $params[$param] = $bid;
-        }
-        $sql .= ' AND item_id IN (' . implode(',', $placeholders) . ')';
-    }
-    $sql .= "\n        ORDER BY rank\n        LIMIT 100\n    ";
 
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
-}
-
+/**
+ * Postgres FTS: try AND (plainto_tsquery) first, fall back to OR (to_tsquery with |).
+ * Returns up to 100 chunk IDs ranked by ts_rank.
+ */
 function ftsSparseTop100(PDO $db, string $question, array $bookIds = []): array {
-    $terms = ftsTermsFromQuestion($question);
-    // Try precise AND first
-    $qAND = makeFtsQueryAND($terms);
-    $ids = ftsSparseQuery($db, $qAND, $bookIds);
+    $bookFilter  = '';
+    $extraParams = [];
+    if (!empty($bookIds)) {
+        $in = implode(',', array_fill(0, count($bookIds), '?'));
+        $bookFilter  = " AND item_id IN ($in)";
+        $extraParams = array_values($bookIds);
+    }
+
+    // AND search — plainto_tsquery treats multiple words as AND
+    $sql = "SELECT id FROM chunks
+            WHERE text_search @@ plainto_tsquery('english', ?)
+            $bookFilter
+            ORDER BY ts_rank(text_search, plainto_tsquery('english', ?)) DESC
+            LIMIT 100";
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_merge([$question], $extraParams, [$question]));
+    $ids = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
     if ($ids) return $ids;
 
-    // Fallback to broader OR
-    $qOR = makeFtsQueryOR($terms);
-    return ftsSparseQuery($db, $qOR, $bookIds);
+    // OR fallback — terms are [[:alnum:]] only, safe to build literal tsquery
+    $terms = ftsTermsFromQuestion($question);
+    if (!$terms) return [];
+    $tsExpr = implode(' | ', $terms);
+    $sql = "SELECT id FROM chunks
+            WHERE text_search @@ to_tsquery('english', ?)
+            $bookFilter
+            ORDER BY ts_rank(text_search, to_tsquery('english', ?)) DESC
+            LIMIT 100";
+    $stmt = $db->prepare($sql);
+    $stmt->execute(array_merge([$tsExpr], $extraParams, [$tsExpr]));
+    return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
 }
 
 function rrfFuse(array $bm25Ids, array $denseIds, int $k=60): array {
     $ranks = [];
-    foreach ($bm25Ids as $i => $id) { $ranks[$id][0] = $i + 1; }
+    foreach ($bm25Ids  as $i => $id) { $ranks[$id][0] = $i + 1; }
     foreach ($denseIds as $i => $id) { $ranks[$id][1] = $i + 1; }
 
     $scores = [];
     foreach ($ranks as $id => $r) {
         $rs = $r[0] ?? null; $rd = $r[1] ?? null;
-        $s = 0.0;
+        $s  = 0.0;
         if ($rs) $s += 1.0 / ($k + $rs);
         if ($rd) $s += 1.0 / ($k + $rd);
         $scores[$id] = $s;
     }
     arsort($scores, SORT_NUMERIC);
-    return array_keys($scores); // fused ids best-first
-}
-
-function cleanFtsQuery(string $q): string {
-    // Remove characters that cause FTS5 parse errors
-    $q = preg_replace('/[&|()]/', ' ', $q);
-    // Normalize whitespace
-    return trim(preg_replace('/\s+/', ' ', $q));
+    return array_keys($scores);
 }
 
 // Fetch list of all books for the selection modal
 $bookList = [];
 try {
-    $dbList = new PDO('sqlite:' . __DIR__ . '/../library.sqlite');
-    $stmt = $dbList->query('SELECT id, title, author FROM items ORDER BY author, title');
+    $dbBooks = getResearchDb();
+    ensureResearchSchema($dbBooks);
+    $stmt = $dbBooks->query('SELECT id, title, author FROM items ORDER BY author, title');
     $bookList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Ignore if the database is unavailable
@@ -154,91 +138,71 @@ if ($bookIds) {
 
 if ($question !== '') {
     try {
-        if ($question === '') {
-            throw new Exception('Question is required.');
-        }
-
         $openaiKey  = getenv('OPENAI_API_KEY');
         $embedModel = getenv('OPENAI_EMBED_MODEL') ?: 'text-embedding-3-large';
         $orKey      = getenv('OPENROUTER_API_KEY');
 
-        if (!$openaiKey) {
-            throw new Exception('Set OPENAI_API_KEY for embeddings.');
-        }
-        if (!$orKey) {
-            throw new Exception('Set OPENROUTER_API_KEY.');
-        }
+        if (!$openaiKey) throw new Exception('Set OPENAI_API_KEY for embeddings.');
+        if (!$orKey)     throw new Exception('Set OPENROUTER_API_KEY.');
 
-        $db = new PDO('sqlite:' . __DIR__ . '/../library.sqlite');
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $db = getResearchDb();
 
         // 1) Embed the question
-        $qVec = embed_with_openai($question, $embedModel, $openaiKey);
+        $qVec        = embed_with_openai($question, $embedModel, $openaiKey);
+        $qVecLiteral = floatsToVector($qVec);
 
-        // 2) Fetch candidate chunks
+        // 2) Hybrid retrieval
 
-// 2) Fetch candidate chunks with hybrid retrieval
+        // Sparse: BM25 via Postgres FTS
+        $bm25Ids = ftsSparseTop100($db, $question, $bookIds);
 
-// Sparse (FTS5/BM25-like)
-$bm25Ids = ftsSparseTop100($db, $question, $bookIds);
+        // Dense: pgvector ANN — top 100 by cosine distance
+        $sql    = "SELECT id FROM chunks WHERE embedding IS NOT NULL";
+        $params = [];
+        if (!empty($bookIds)) {
+            $in      = implode(',', array_fill(0, count($bookIds), '?'));
+            $sql    .= " AND item_id IN ($in)";
+            $params  = array_values($bookIds);
+        }
+        $sql    .= " ORDER BY embedding <=> ?::vector LIMIT 100";
+        $params[] = $qVecLiteral;
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $denseIds = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'id');
 
-// Dense (embeddings) — top 100 IDs by cosine
-$denseRows = [];
-$sql = "SELECT id, embedding FROM chunks";
-$params = [];
-if (!empty($bookIds)) {
-    $in = implode(',', array_fill(0, count($bookIds), '?'));
-    $sql .= " WHERE item_id IN ($in)";
-    $params = $bookIds;
-}
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $vec = unpack_floats($row['embedding']);
-    if (!$vec) continue;
-    $row['sim'] = cosine($qVec, $vec);
-    $denseRows[] = $row;
-}
-usort($denseRows, fn($a,$b) => $b['sim'] <=> $a['sim']);
-$denseIds = array_column(array_slice($denseRows, 0, 100), 'id');
+        // Fuse with RRF
+        $fusedIds     = rrfFuse($bm25Ids, $denseIds, 60);
+        $candidateIds = array_slice($fusedIds, 0, 200);
 
-// Fuse
-$fusedIds = rrfFuse($bm25Ids, $denseIds, 60);
+        // Load candidate rows with metadata + cosine similarity from pgvector
+        $candidates = [];
+        if (!empty($candidateIds)) {
+            $placeholders = implode(',', array_fill(0, count($candidateIds), '?'));
+            $sql = "SELECT
+                c.id, c.item_id, c.section, c.page_start, c.page_end, c.text,
+                c.display_start, c.display_end,
+                i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset,
+                i.library_book_id,
+                CASE WHEN c.embedding IS NOT NULL
+                     THEN 1 - (c.embedding <=> ?::vector)
+                     ELSE 0.0 END AS sim
+              FROM chunks c
+              JOIN items i ON c.item_id = i.id
+              WHERE c.id IN ($placeholders)";
+            $stmt = $db->prepare($sql);
+            $stmt->execute(array_merge([$qVecLiteral], $candidateIds));
+            $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
 
-// Limit candidate pool (we’ll score these properly below)
-$candidateIds = array_slice($fusedIds, 0, 200);
-
-// Load candidate rows with all metadata & embeddings
-$candidates = [];
-if (!empty($candidateIds)) {
-    $placeholders = implode(',', array_fill(0, count($candidateIds), '?'));
-    $sql = "SELECT
-        c.id, c.item_id, c.section, c.page_start, c.page_end, c.text, c.embedding,
-        c.display_start, c.display_end,
-        i.title, i.author, i.year, COALESCE(i.display_offset,0) AS display_offset,
-        i.library_book_id
-      FROM chunks c
-      JOIN items i ON c.item_id = i.id
-      WHERE c.id IN ($placeholders)";
-    $stmt = $db->prepare($sql);
-    $stmt->execute($candidateIds);
-    $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// Recompute cosine similarity for final ranking
-$top = [];
-$bookIdSet = !empty($bookIds) ? array_fill_keys($bookIds, true) : null;
-foreach ($candidates as $row) {
-    if ($bookIdSet !== null && !isset($bookIdSet[(int)$row['item_id']])) {
-        continue;
-    }
-    $vec = unpack_floats($row['embedding']);
-    if (!$vec) continue;
-    $row['sim'] = cosine($qVec, $vec);
-    $top[] = $row;
-}
-usort($top, fn($a,$b) => $b['sim'] <=> $a['sim']);
-
+        // 3) Final ranking by similarity
+        $top      = [];
+        $bookIdSet = !empty($bookIds) ? array_fill_keys($bookIds, true) : null;
+        foreach ($candidates as $row) {
+            if ($bookIdSet !== null && !isset($bookIdSet[(int)$row['item_id']])) continue;
+            $row['sim'] = (float)$row['sim'];
+            $top[] = $row;
+        }
+        usort($top, fn($a,$b) => $b['sim'] <=> $a['sim']);
 
         // Group chunks by book
         $grouped = [];
@@ -253,7 +217,7 @@ usort($top, fn($a,$b) => $b['sim'] <=> $a['sim']);
         foreach ($grouped as $rows) {
             $firstChunks[] = $rows[0];
         }
-        usort($firstChunks, fn($a,$b)=> $b['sim'] <=> $a['sim']);
+        usort($firstChunks, fn($a,$b) => $b['sim'] <=> $a['sim']);
         $initial  = array_slice($firstChunks, 0, $minDistinct);
         $selected = $initial;
         foreach ($initial as $r) {
@@ -269,7 +233,7 @@ usort($top, fn($a,$b) => $b['sim'] <=> $a['sim']);
             foreach ($grouped as $rows) {
                 foreach ($rows as $r) $rest[] = $r;
             }
-            usort($rest, fn($a,$b)=> $b['sim'] <=> $a['sim']);
+            usort($rest, fn($a,$b) => $b['sim'] <=> $a['sim']);
             $selected = array_merge($selected, array_slice($rest, 0, $remaining));
         }
 
@@ -279,18 +243,67 @@ usort($top, fn($a,$b) => $b['sim'] <=> $a['sim']);
             $answer = 'Not in library (retrieval too weak).';
         } else {
             // 4) Build grounded prompt
-            $sysSimple = "You are a research assistant and teacher.
-You MUST answer ONLY using the provided context chunks.
-If the answer is not present in the provided chunks, reply exactly: Not in library.
+            $sysSimple = "
+            You are a literary research assistant.
+Answer ONLY using the provided context chunks.
+If the provided chunks are insufficient to produce a meaningful synopsis, reply exactly: Not in library.
 
-Your goal is to explain concepts in clear, simple language, as if teaching a curious beginner, while still being accurate and precise. Avoid jargon unless you explain it in plain terms.
+Tone & style:
+- Write in a clear, engaging, and readable style suited to a book discovery platform.
+- Avoid overly academic or artificial wording; aim for natural flow and clarity.
+- Paraphrase where appropriate but remain faithful to the meaning of the source.
 
-Use Oxford referencing style with footnotes. For each factual claim, add a superscript number and provide a footnote in the format: Author, *Title* (Year), pp. X–Y. Use Markdown footnote syntax.
+Grounding rules:
+- All factual claims must be supported by the provided context.
+- Key claims, character descriptions, and theme identifications should be grounded with a direct quotation from the provided context where possible.
+- Quotations must appear in quotation marks.
+- You may paraphrase and explain, but quotations must clearly show the source of the fact.
+- Do not add outside knowledge.
 
-Structure your answer:
-1. Begin with 3–5 short bullet points summarising the main points in very simple words.
-2. Then give a plain-language explanation with analogies and step-by-step breakdowns.
-3. Keep every factual statement tied to a chunk and reference it. Do not add outside knowledge.";
+Output structure — you must always produce exactly these four sections in this order:
+
+1. Quick Summary
+   - 3–5 concise bullet points summarising the book in plain, accessible language.
+
+2. Synopsis
+   - A clear narrative summary of the book covering its arc from beginning to end.
+   - Ground key plot points with direct quotations from the chunks where possible.
+
+3. Main Characters
+   - A list of the main characters, each with a short description of their role and defining traits.
+   - Ground each character description with at least one direct quotation where possible.
+
+4. Central Themes
+   - A list of the central themes running through the book, each with a short explanation.
+   - Ground each theme with at least one direct quotation from the chunks where possible.
+
+Referencing rules:
+- Use Oxford referencing style with footnotes.
+- For every factual claim or quotation, include a superscript number and a corresponding footnote.
+- Use Markdown footnote syntax.
+- Footnote format: Author, *Title* (Year), pp. X–Y.
+
+Examples:
+
+Correct output:
+- The story opens with \"a man standing alone at the edge of the world\"[^1], setting a tone of isolation.
+- The central conflict is described as \"a war not of armies but of ideas\"[^2].
+
+Hugh, described as \"practical and strong-willed\"[^1], leads his group through the nuclear war and an alien future society.
+
+The theme of racial hierarchy is explored through \"a deliberate inversion of power\"[^2], holding a mirror up to the reader's assumptions.
+
+[^1]: Heinlein, *Farnham's Freehold* (1964), pp. 45–46.
+[^2]: Heinlein, *Farnham's Freehold* (1964), pp. 120–122.
+
+Incorrect output:
+- Bullet points with no grounding in the provided context.
+- Character descriptions with no supporting quotation.
+- Themes identified from outside knowledge rather than the chunks.
+- Sections missing or produced in the wrong order.
+- Replying with anything other than 'Not in library' when chunk coverage is insufficient for a meaningful synopsis.
+            
+            ";
 
             $sysDetailed = "You are a research assistant.
 Answer ONLY using the provided context.
@@ -341,63 +354,61 @@ Incorrect output:
 
             $sys = $simpleTerms ? $sysSimple : $sysDetailed;
 
-
             $ctx = '';
-            foreach ($top as $i=>$c) {
- $pdfStart = (int)$c['page_start'];
-$pdfEnd   = (int)$c['page_end'];
+            foreach ($top as $i => $c) {
+                $pdfStart = (int)$c['page_start'];
+                $pdfEnd   = (int)$c['page_end'];
 
-// Prefer the true printed page numbers if present
-$dispStart = (isset($c['display_start']) && $c['display_start'] !== null) ? (int)$c['display_start'] : null;
-$dispEnd   = (isset($c['display_end'])   && $c['display_end']   !== null) ? (int)$c['display_end']   : null;
+                $dispStart = (isset($c['display_start']) && $c['display_start'] !== null) ? (int)$c['display_start'] : null;
+                $dispEnd   = (isset($c['display_end'])   && $c['display_end']   !== null) ? (int)$c['display_end']   : null;
 
-// Fallback to legacy offset only if display_* are missing
-if ($dispStart === null || $dispEnd === null) {
-    $dispStart = $pdfStart + (int)$c['display_offset'];
-    $dispEnd   = $pdfEnd   + (int)$c['display_offset'];
-}
+                if ($dispStart === null || $dispEnd === null) {
+                    $dispStart = $pdfStart + (int)$c['display_offset'];
+                    $dispEnd   = $pdfEnd   + (int)$c['display_offset'];
+                }
 
-$pageStr = $showPdfPages
-    ? sprintf('pp.%s–%s (PDF %d–%d)', $dispStart, $dispEnd, $pdfStart, $pdfEnd)
-    : sprintf('pp.%s–%s', $dispStart, $dispEnd);
+                $pageStr = $showPdfPages
+                    ? sprintf('pp.%s–%s (PDF %d–%d)', $dispStart, $dispEnd, $pdfStart, $pdfEnd)
+                    : sprintf('pp.%s–%s', $dispStart, $dispEnd);
 
-$meta = sprintf('%s, %s (%s) %s',
-    $c['author'] ?: 'Unknown',
-    $c['title'],
-    $c['year'] ?: 'n.d.',
-    $pageStr
-);
+                $meta = sprintf('%s, %s (%s) %s',
+                    $c['author'] ?: 'Unknown',
+                    $c['title'],
+                    $c['year'] ?: 'n.d.',
+                    $pageStr
+                );
 
-$ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
-    $pdfUrl = null;
-    if (!empty($c['library_book_id'])) {
-        $pdfUrl = pdf_url_for_book((int)$c['library_book_id']);
-        if ($pdfUrl && $pdfStart) {
-            $pdfUrl .= '#page=' . $pdfStart;
-        }
-    }
+                $ctx .= "\n[CTX $i] {$meta}\n{$c['text']}\n";
 
-    $sources[] = [
-        'text' => sprintf('%s, %s (%s) %s [sim=%.3f]',
-            $c['author'] ?: 'Unknown',
-            $c['title'],
-            $c['year'] ?: 'n.d.',
-            $pageStr,
-            $c['sim']
-        ),
-        'url' => $pdfUrl
-    ];
+                $pdfUrl = null;
+                if (!empty($c['library_book_id'])) {
+                    $pdfUrl = pdf_url_for_book((int)$c['library_book_id']);
+                    if ($pdfUrl && $pdfStart) {
+                        $pdfUrl .= '#page=' . $pdfStart;
+                    }
+                }
+
+                $sources[] = [
+                    'text' => sprintf('%s, %s (%s) %s [sim=%.3f]',
+                        $c['author'] ?: 'Unknown',
+                        $c['title'],
+                        $c['year'] ?: 'n.d.',
+                        $pageStr,
+                        $c['sim']
+                    ),
+                    'url' => $pdfUrl
+                ];
             }
+
             $user = "Question: " . $question . "\n\nContext:\n" . $ctx;
 
             // 5) Generate answer
-            $maxOut = $maxTokens;
             $answerModel = $modelName ?: 'anthropic/claude-sonnet-4.6';
             if (str_starts_with($answerModel, 'ollama/')) {
                 $ollamaModel = substr($answerModel, strlen('ollama/'));
-                $answer = generate_with_ollama($ollamaModel, $sys, $user, 0.1, $maxOut);
+                $answer = generate_with_ollama($ollamaModel, $sys, $user, 0.1, $maxTokens);
             } else {
-                $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxOut);
+                $answer = generate_with_openrouter($answerModel, $sys, $user, $orKey, 0.1, $maxTokens);
             }
         }
     } catch (Exception $e) {
@@ -759,15 +770,6 @@ document.querySelector('form').addEventListener('submit', () => {
 </body>
 </html>
 <?php
-function cosine(array $a, array $b): float {
-  $dot=0; $na=0; $nb=0; $n=min(count($a),count($b));
-  for ($i=0;$i<$n;$i++){ $dot+=$a[$i]*$b[$i]; $na+=$a[$i]*$a[$i]; $nb+=$b[$i]*$b[$i]; }
-  return $dot / (sqrt($na)*sqrt($nb) + 1e-8);
-}
-function unpack_floats($bin): array {
-  if ($bin === null) return [];
-  return array_values(unpack('g*', $bin));
-}
 function embed_with_openai(string $text, string $model, string $apiKey): array {
   $payload = ['model'=>$model, 'input'=>$text];
   $res = http_post_json('https://api.openai.com/v1/embeddings', $payload, [
@@ -775,18 +777,6 @@ function embed_with_openai(string $text, string $model, string $apiKey): array {
     'Authorization: Bearer ' . $apiKey
   ]);
   return $res['data'][0]['embedding'] ?? [];
-}
-function generate_with_openai(string $model, string $system, string $user, string $apiKey, float $temp=0.1, int $maxTokens=1200): string {
-  $input = $system . "\n\n" . $user;
-  $payload = ['model'=>$model, 'input'=>$input, 'temperature'=>$temp, 'max_output_tokens'=>$maxTokens];
-  $res = http_post_json('https://api.openai.com/v1/responses', $payload, [
-    'Content-Type: application/json',
-    'Authorization: Bearer ' . $apiKey
-  ]);
-  if (isset($res['output'][0]['content'][0]['text'])) return $res['output'][0]['content'][0]['text'];
-  if (isset($res['content'][0]['text'])) return $res['content'][0]['text'];
-  if (isset($res['choices'][0]['message']['content'])) return $res['choices'][0]['message']['content'];
-  return json_encode($res);
 }
 function generate_with_ollama(string $model, string $system, string $user, float $temp=0.1, int $maxTokens=2000): string {
   $payload = [
@@ -849,7 +839,6 @@ function pdf_url_for_book(int $bookId): ?string {
     if ($pdo === null) {
       $pdo = getDatabaseConnection();
     }
-    // Get relative directory for the book
     $stmt = $pdo->prepare('SELECT path FROM books WHERE id = ?');
     $stmt->execute([$bookId]);
     $path = $stmt->fetchColumn();
@@ -858,7 +847,6 @@ function pdf_url_for_book(int $bookId): ?string {
     $library = getLibraryPath();
     $dir = rtrim($library, '/') . '/' . $path;
 
-    // Try using names recorded in the data table first
     $stmt = $pdo->prepare('SELECT name FROM data WHERE book = ? AND format = "PDF" ORDER BY id DESC');
     $stmt->execute([$bookId]);
     $names = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -874,11 +862,9 @@ function pdf_url_for_book(int $bookId): ?string {
       }
     }
 
-    // Fallback: scan directory for any PDF files
     if (is_dir($dir)) {
       $files = glob($dir . '/*.pdf');
       if ($files) {
-        // Prefer the longest filename (likely "Title - Author.pdf")
         usort($files, fn($a, $b) => strlen(basename($b)) <=> strlen(basename($a)));
         $file = basename($files[0]);
         $rel = $path . '/' . $file;
@@ -890,7 +876,7 @@ function pdf_url_for_book(int $bookId): ?string {
       }
     }
   } catch (Exception $e) {
-    // ignore and fall through to null return
+    // ignore
   }
   return null;
 }

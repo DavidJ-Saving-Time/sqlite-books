@@ -150,6 +150,11 @@ $statusNameVal = isset($statusName) ? $statusName : '';
               </a>
             </li>
             <li>
+              <a class="dropdown-item" href="/research/research-book.php">
+                <i class="fa-solid fa-book-open me-2"></i> Book Analysis
+              </a>
+            </li>
+            <li>
               <a class="dropdown-item" href="/research/research-ai.php">
                 <i class="fa-solid fa-upload me-2"></i> Ingest
               </a>
@@ -187,6 +192,11 @@ $statusNameVal = isset($statusName) ? $statusName : '';
             <li>
               <a class="dropdown-item" href="/missing_by_award.php">
                 <i class="fa-solid fa-trophy me-2"></i> Missing by Award
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/incomplete_series.php">
+                <i class="fa-solid fa-circle-exclamation me-2"></i> Incomplete Series
               </a>
             </li>
             <li><hr class="dropdown-divider"></li>
@@ -264,6 +274,11 @@ $statusNameVal = isset($statusName) ? $statusName : '';
             <li>
               <a class="dropdown-item" href="/admin/dedup_authors.php">
                 <i class="fa-solid fa-users-between-lines me-1"></i> Dedup Authors
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="/admin/dedup_series.php">
+                <i class="fa-solid fa-layer-group me-1"></i> Dedup Series
               </a>
             </li>
             <li>

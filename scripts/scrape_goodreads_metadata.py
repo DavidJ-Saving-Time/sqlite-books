@@ -134,6 +134,7 @@ def fetch_book_page(gr_id, _redirected=False):
     # ── Series ───────────────────────────────────────────────────────────────
     series_name  = None
     series_index = None
+    series_gr_id = ""
     book_series  = book.get("bookSeries") or []
     if book_series:
         entry = book_series[0]
@@ -144,7 +145,11 @@ def fetch_book_page(gr_id, _redirected=False):
         series_index = float(m.group()) if m else 1.0
         series_ref   = (entry.get("series") or {}).get("__ref")
         if series_ref and series_ref in apollo:
-            series_name = apollo[series_ref].get("title", "")
+            series_node = apollo[series_ref]
+            series_name = series_node.get("title", "")
+            web_url = series_node.get("webUrl", "")
+            sid_m = re.search(r'/series/(\d+)', web_url)
+            series_gr_id = sid_m.group(1) if sid_m else ""
 
     # ── Genres ───────────────────────────────────────────────────────────────
     genres = []
@@ -293,6 +298,7 @@ def fetch_book_page(gr_id, _redirected=False):
         "description":        description,
         "series_name":        series_name,
         "series_index":       series_index,
+        "series_gr_id":       series_gr_id,
         "genres":             genres,
         "isbn":               isbn.strip(),
         "isbn13":             isbn13.strip(),
@@ -421,6 +427,13 @@ def save_metadata(db_path, book_id, data, original_gr_id=None):
                     (data["series_index"], book_id),
                 )
                 saved.append(f"series({data['series_name']} #{data['series_index']:g})")
+
+        if data.get("series_gr_id"):
+            con.execute(
+                "INSERT OR REPLACE INTO identifiers (book, type, val) VALUES (?, 'gr_series_id', ?)",
+                (book_id, data["series_gr_id"]),
+            )
+            saved.append(f"gr_series_id({data['series_gr_id']})")
 
         # ── Genres → tags (additive) ──────────────────────────────────────────
         added_genres = []
@@ -693,7 +706,7 @@ def test_gr_id(gr_id):
     print(f"  language      : {data['language'] or '(not set)'}")
     print(f"  is_english    : {data['is_english']}")
     print(f"  is_audiobook  : {data['is_audiobook']}  (format: {data['book_format'] or '(not set)'})")
-    print(f"  series        : {data['series_name']} #{data['series_index']}" if data['series_name'] else "  series        : (none)")
+    print(f"  series        : {data['series_name']} #{data['series_index']}  (gr_series_id={data['series_gr_id']})" if data['series_name'] else "  series        : (none)")
     print(f"  publisher     : {data['publisher'] or '(none)'}")
     print(f"  pub_ms        : {data['pub_ms']}  → {ms_to_calibre_date(data['pub_ms']) or 'invalid'}" if data['pub_ms'] else "  pub_ms        : (none)")
     print(f"  num_pages     : {data['num_pages'] or '(none)'}")
